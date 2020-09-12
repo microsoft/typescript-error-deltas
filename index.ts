@@ -29,8 +29,11 @@ async function mainAsync() {
     const downloadDir = "/mnt/ts_downloads";
     await execAsync(processCwd, "sudo", ["mkdir", downloadDir]);
 
-    const oldTscPath = await downloadTypeScriptAsync(processCwd, oldTscVersion);
-    const newTscPath = await downloadTypeScriptAsync(processCwd, newTscVersion);
+    const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, oldTscVersion);
+    const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, newTscVersion);
+
+    console.log("Old version = " + oldTscResolvedVersion);
+    console.log("New version = " + newTscResolvedVersion);
 
     const resultsDir = path.join(processCwd, "_Results_");
     await fs.promises.mkdir(resultsDir);
@@ -159,12 +162,19 @@ async function execAsync(cwd: string, command: string, args: readonly string[]):
          }));
 }
 
-async function downloadTypeScriptAsync(cwd: string, version: string): Promise<string> {
+async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
     const tarName = (await execAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
 
-    await execAsync(cwd, "tar", ["xf", tarName]);
+    const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
+    if (!tarMatch) {
+        throw new Error("Unexpected tarball name format: " + tarName);
+    }
 
-    const dirPath = path.join(processCwd, tarName.substring(0, tarName.length - path.extname(tarName).length));
+    const resolvedVersion = tarMatch[2];
+    const dirName = tarMatch[1];
+    const dirPath = path.join(processCwd, dirName);
+
+    await execAsync(cwd, "tar", ["xf", tarName]);
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
     const tscPath = path.join(dirPath, "lib", "tsc.js");
@@ -172,5 +182,5 @@ async function downloadTypeScriptAsync(cwd: string, version: string): Promise<st
         throw new Error("Cannot find file " + tscPath);
     }
 
-    return tscPath;
+    return { tscPath, resolvedVersion };
 }
