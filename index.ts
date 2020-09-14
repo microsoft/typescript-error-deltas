@@ -65,7 +65,10 @@ async function mainAsync() {
 
         try {
             console.log("Installing packages if absent");
-            await installPackages(repoDir);
+            const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
+            for (const { directory: packageRoot, tool, arguments: args } of commands) {
+                await execAsync(packageRoot, tool, args);
+            }
         }
         catch (err) {
             reportError(err, "Error installing packages for " + repo.url);
@@ -132,27 +135,6 @@ function reportError(err: any, message: string) {
     console.error(message);
     console.error(err.message);
     console.error(err.stack ?? "Unknown Stack");
-}
-
-async function installPackages(repoDir: string) {
-    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
-    for (const { directory: packageRoot, tool, arguments: args } of commands) {
-        const flagPath = path.join(packageRoot, "restore.success");
-        if (await pu.exists(flagPath)) {
-            continue;
-        }
-
-        try {
-            await execAsync(packageRoot, tool, args);
-        }
-        catch {
-            continue;
-        }
-
-        if (flagPath) {
-            await fs.promises.writeFile(flagPath, "");
-        }
-    }
 }
 
 async function execAsync(cwd: string, command: string, args: readonly string[]): Promise<string> {
