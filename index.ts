@@ -72,6 +72,9 @@ async function mainAsync() {
         }
         catch (err) {
             reportError(err, "Error installing packages for " + repo.url);
+            await execAsync(processCwd, "free", ["-h"]);
+            await execAsync(processCwd, "df", ["-h"]);
+            await execAsync(processCwd, "df", ["-i"]);
             continue;
         }
 
