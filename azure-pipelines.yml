@@ -27,3 +27,4 @@ steps:
     npm ci
     npm run build
     node index ${{ parameters.REPO_COUNT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }}
+  timeoutInMinutes: 360
