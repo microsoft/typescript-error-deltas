@@ -142,7 +142,7 @@ async function execAsync(cwd: string, command: string, args: readonly string[]):
         cp.execFile(command, args, { cwd }, (err, stdout, stderr) => {
             if (err) {
                 console.log(stdout);
-                console.error(stderr);
+                console.error(stderr.length < 1024 ? stderr : (stderr.substring(0, 1024) + "..."));
                 reject(err);
             }
             resolve(stdout);
