@@ -144,7 +144,7 @@ async function execAsync(cwd: string, command: string, args: readonly string[]):
     return new Promise((resolve, reject) =>
         cp.execFile(command, args, { cwd }, (err, stdout, stderr) => {
             if (err) {
-                console.log(stdout);
+                console.log(stdout.length < 1024 ? stdout : (stdout.substring(0, 1024) + "..."));
                 console.error(stderr.length < 1024 ? stderr : (stderr.substring(0, 1024) + "..."));
                 reject(err);
             }
