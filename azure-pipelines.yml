@@ -12,6 +12,8 @@ parameters:
     type: string
     default: next
 
+trigger: none
+
 pool:
   vmImage: 'ubuntu-latest'
 
