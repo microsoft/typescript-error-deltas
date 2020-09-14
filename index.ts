@@ -43,6 +43,11 @@ async function mainAsync() {
     const writeFileOptions = { encoding: "utf-8" } as const;
 
     for (const repo of repos) {
+        // These repos generally have custom build systems (e.g. bazel)
+        if (/angular/.exec(repo.name)) {
+            continue;
+        }
+
         console.log("Starting " + repo.url);
 
         await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=2g", "tmpfs", downloadDir]);
