@@ -35,6 +35,7 @@ async function mainAsync() {
     console.log("Old version = " + oldTscResolvedVersion);
     console.log("New version = " + newTscResolvedVersion);
 
+    // CONSIDER: Might want to publish this folder as an artifact
     const resultsDir = path.join(processCwd, "_Results_");
     await fs.promises.mkdir(resultsDir);
 
@@ -43,14 +44,9 @@ async function mainAsync() {
     const writeFileOptions = { encoding: "utf-8" } as const;
 
     for (const repo of repos) {
-        // These repos generally have custom build systems (e.g. bazel)
-        if (/angular/.exec(repo.name)) {
-            continue;
-        }
-
         console.log("Starting " + repo.url);
 
-        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=4g", "tmpfs", downloadDir]);
+        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=2g", "tmpfs", downloadDir]);
 
         try {
             console.log("Cloning if absent");
@@ -138,26 +134,46 @@ async function mainAsync() {
 
 function reportError(err: any, message: string) {
     console.error(message);
-    console.error(truncate(err.message, 1024));
-    console.error(truncate(err.stack ?? "Unknown Stack", 2048));
+    console.error(reduceSpew(err.message));
+    console.error(reduceSpew(err.stack ?? "Unknown Stack"));
 }
 
 async function execAsync(cwd: string, command: string, args: readonly string[]): Promise<string> {
     return new Promise((resolve, reject) =>
         cp.execFile(command, args, { cwd }, (err, stdout, stderr) => {
             if (err) {
-                console.log(truncate(stdout, 1024));
-                console.error(truncate(stderr, 1024));
+                console.log(reduceSpew(stdout));
+                console.error(reduceSpew(stderr));
                 reject(err);
             }
             resolve(stdout);
          }));
 }
 
-function truncate(message: string, maxLength: number): string {
-    return message.length < maxLength
-        ? message
-        : (message.substring(0, maxLength - 3) + "...");
+function reduceSpew(message: string): string {
+    const problemString = "npm WARN tar ENOSPC: no space left on device, write\n";
+    const index = message.indexOf(problemString);
+    if (index < 0) return message;
+
+    return message.substring(0, index) + problemString + replaceAll(message.substring(index), problemString, "");
+}
+
+function replaceAll(message: string, oldStr: string, newStr: string) {
+    let result = "";
+    let index = 0;
+    while (true) {
+        const newIndex = message.indexOf(oldStr, index);
+        if (newIndex < 0) {
+            return index === 0
+                ? message
+                : result + message.substring(index);
+        }
+
+        result += message.substring(index, newIndex);
+        result += newStr;
+
+        index = newIndex + oldStr.length;
+    }
 }
 
 async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
