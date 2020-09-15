@@ -139,7 +139,7 @@ async function mainAsync() {
 function reportError(err: any, message: string) {
     console.error(message);
     console.error(truncate(err.message, 1024));
-    console.error(err.stack ?? "Unknown Stack");
+    console.error(truncate(err.stack ?? "Unknown Stack", 2048));
 }
 
 async function execAsync(cwd: string, command: string, args: readonly string[]): Promise<string> {
