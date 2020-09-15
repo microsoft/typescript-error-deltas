@@ -72,9 +72,11 @@ async function mainAsync() {
         }
         catch (err) {
             reportError(err, "Error installing packages for " + repo.url);
-            await execAsync(processCwd, "free", ["-h"]);
-            await execAsync(processCwd, "df", ["-h"]);
-            await execAsync(processCwd, "df", ["-i"]);
+            console.log("Memory");
+            console.log(await execAsync(processCwd, "free", ["-h"]));
+            console.log("Disk");
+            console.log(await execAsync(processCwd, "df", ["-h"]));
+            console.log(await execAsync(processCwd, "df", ["-i"]));
             continue;
         }
 
@@ -136,7 +138,7 @@ async function mainAsync() {
 
 function reportError(err: any, message: string) {
     console.error(message);
-    console.error(err.message);
+    console.error(truncate(err.message, 1024));
     console.error(err.stack ?? "Unknown Stack");
 }
 
@@ -144,12 +146,18 @@ async function execAsync(cwd: string, command: string, args: readonly string[]):
     return new Promise((resolve, reject) =>
         cp.execFile(command, args, { cwd }, (err, stdout, stderr) => {
             if (err) {
-                console.log(stdout.length < 1024 ? stdout : (stdout.substring(0, 1024) + "..."));
-                console.error(stderr.length < 1024 ? stderr : (stderr.substring(0, 1024) + "..."));
+                console.log(truncate(stdout, 1024));
+                console.error(truncate(stderr, 1024));
                 reject(err);
             }
             resolve(stdout);
          }));
+}
+
+function truncate(message: string, maxLength: number): string {
+    return message.length < maxLength
+        ? message
+        : (message.substring(0, maxLength - 3) + "...");
 }
 
 async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
