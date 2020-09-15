@@ -50,7 +50,7 @@ async function mainAsync() {
 
         console.log("Starting " + repo.url);
 
-        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=3g", "tmpfs", downloadDir]);
+        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=4g", "tmpfs", downloadDir]);
 
         try {
             console.log("Cloning if absent");
