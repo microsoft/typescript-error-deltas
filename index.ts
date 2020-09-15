@@ -140,10 +140,8 @@ function reportError(err: any, message: string) {
 
 async function execAsync(cwd: string, command: string, args: readonly string[]): Promise<string> {
     return new Promise((resolve, reject) =>
-        cp.execFile(command, args, { cwd }, (err, stdout, stderr) => {
+        cp.execFile(command, args, { cwd }, (err, stdout, _stderr) => {
             if (err) {
-                console.log(reduceSpew(stdout));
-                console.error(reduceSpew(stderr));
                 reject(err);
             }
             resolve(stdout);
@@ -151,6 +149,7 @@ async function execAsync(cwd: string, command: string, args: readonly string[]):
 }
 
 function reduceSpew(message: string): string {
+    // Since this is only a warning, it tends to be reported many (i.e. thousands of) times
     const problemString = "npm WARN tar ENOSPC: no space left on device, write\n";
     const index = message.indexOf(problemString);
     if (index < 0) return message;
