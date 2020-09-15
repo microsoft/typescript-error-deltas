@@ -133,9 +133,9 @@ async function mainAsync() {
 }
 
 function reportError(err: any, message: string) {
-    console.error(message);
-    console.error(reduceSpew(err.message));
-    console.error(reduceSpew(err.stack ?? "Unknown Stack"));
+    console.log(message);
+    console.log(reduceSpew(err.message));
+    console.log(reduceSpew(err.stack ?? "Unknown Stack"));
 }
 
 async function execAsync(cwd: string, command: string, args: readonly string[]): Promise<string> {
