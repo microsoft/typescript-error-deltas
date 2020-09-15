@@ -26,8 +26,11 @@ mainAsync().catch(err => {
 });
 
 async function mainAsync() {
-    const downloadDir = "/mnt/ts_downloads";
-    await execAsync(processCwd, "sudo", ["mkdir", downloadDir]);
+    const downloadDir = path.join(processCwd, "ts_downloads");
+    await fs.promises.mkdir(downloadDir);
+
+    const emptyDir = path.join(processCwd, "ts_empty");
+    await fs.promises.mkdir(emptyDir);
 
     const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, oldTscVersion);
     const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, newTscVersion);
@@ -45,8 +48,6 @@ async function mainAsync() {
 
     for (const repo of repos) {
         console.log("Starting " + repo.url);
-
-        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=2g", "tmpfs", downloadDir]);
 
         try {
             console.log("Cloning if absent");
@@ -125,8 +126,9 @@ async function mainAsync() {
         }
 
         // Throw away the repo so we don't run out of space
+        // Cleverness: rsync is faster than rm when there are lots of small files
         // Note that we specifically don't recover and attempt another repo if this fails
-        await execAsync(processCwd, "sudo", ["umount", downloadDir]);
+        await execAsync(processCwd, "rsync", ["-a", "--delete", emptyDir, downloadDir]);
 
         console.log("Done " + repo.url);
     }
