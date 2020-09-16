@@ -50,6 +50,11 @@ async function mainAsync() {
     let sawNewErrors = false;
 
     for (const repo of repos) {
+        if (repo.url === "https://github.com/storybookjs/storybook") {
+            // Consistently causes VM to run out of disk space
+            continue;
+        }
+
         try {
             console.log("Starting " + repo.url);
 
