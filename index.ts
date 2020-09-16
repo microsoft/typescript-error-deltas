@@ -101,15 +101,18 @@ async function mainAsync() {
                     }
                 }
 
-                summary += `# [${repo.name}](${repo.url})\n`;
-
-                const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
-                console.log(oldFailuresMessage);
-                summary += `**${oldFailuresMessage}**\n`;
-
                 if (numFailed === numProjects) {
                     console.log(`Skipping build with ${newTscPath} (new)`);
                     continue;
+                }
+
+                let sawNewRepoErrors = false;
+                let repoSummary = `# [${repo.name}](${repo.url})\n`;
+
+                if (numFailed > 0) {
+                    const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
+                    console.log(oldFailuresMessage);
+                    repoSummary += `**${oldFailuresMessage}**\n`;
                 }
 
                 console.log(`Building with ${newTscPath} (new)`);
@@ -120,8 +123,9 @@ async function mainAsync() {
                     console.log("Unable to build project graph");
 
                     sawNewErrors = true;
-                    summary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
+                    repoSummary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
 
+                    summary += repoSummary;
                     continue;
                 }
 
@@ -137,7 +141,7 @@ async function mainAsync() {
                         continue;
                     }
 
-                    sawNewErrors = true;
+                    sawNewRepoErrors = true;
 
                     const errorMessageMap = new Map<string, ge.Error[]>();
                     const errorMessages: string[] = [];
@@ -157,14 +161,19 @@ async function mainAsync() {
                         errorMessageMap.get(newErrorText)!.push(newError);
                     }
 
-                    summary += `## ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
+                    repoSummary += `### ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
                     for (const errorMessage of errorMessages) {
-                        summary += ` - \`${errorMessage}\`\n`;
+                        repoSummary += ` - \`${errorMessage}\`\n`;
 
                         for (const error of errorMessageMap.get(errorMessage)!) {
-                            summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
+                            repoSummary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
                         }
                     }
+                }
+
+                if (sawNewRepoErrors) {
+                    sawNewErrors = true;
+                    summary += repoSummary;
                 }
             }
             catch (err) {
