@@ -1,3 +1,4 @@
+import octokit = require("@octokit/rest");
 import ge = require("@typescript/get-errors");
 import git = require("@typescript/git-utils");
 import ip = require("@typescript/install-packages");
@@ -44,6 +45,9 @@ async function mainAsync() {
     const repos = await git.getPopularTypeScriptRepos(repoCount);
 
     const writeFileOptions = { encoding: "utf-8" } as const;
+
+    let summary = "";
+    let sawNewErrors = false;
 
     for (const repo of repos) {
         try {
@@ -98,6 +102,8 @@ async function mainAsync() {
 
                 let numSkipped = 0;
 
+                summary += `# [${repo.name}](${repo.url})\n`;
+
                 console.log("Comparing errors");
                 for (const oldProjectErrors of oldErrors.projectErrors) {
                     // To keep things simple, we'll focus on projects that used to build cleanly
@@ -111,14 +117,39 @@ async function mainAsync() {
                         continue;
                     }
 
+                    sawNewErrors = true;
+
+                    const errorMessageMap = new Map<string, ge.Error[]>();
+                    const errorMessages: string[] = [];
+
                     console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
                     for (const newError of newProjectErrors.errors) {
+                        const newErrorText = newError.text;
+
                         console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}` : ``}`);
-                        console.log(`\t\t${newError.text}`);
+                        console.log(`\t\t${newErrorText}`);
+
+                        if (!errorMessageMap.has(newErrorText)) {
+                            errorMessageMap.set(newErrorText, []);
+                            errorMessages.push(newErrorText);
+                        }
+
+                        errorMessageMap.get(newErrorText)!.push(newError);
+                    }
+
+                    summary += `## ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
+                    for (const errorMessage of errorMessages) {
+                        summary += ` - \`${errorMessage}\`\n`;
+
+                        for (const error of errorMessageMap.get(errorMessage)!) {
+                            summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
+                        }
                     }
                 }
 
-                console.log(`Skipped ${numSkipped} of ${oldErrors.projectErrors.length} projects for not building with the old tsc`);
+                const skipDescription = `Skipped ${numSkipped} of ${oldErrors.projectErrors.length} projects for not building with the old tsc`;
+                console.log(skipDescription);
+                summary += `\n**${skipDescription}**\n`;
             }
             catch (err) {
                 reportError(err, "Error building " + repo.url);
@@ -141,6 +172,36 @@ async function mainAsync() {
             console.log("Dir");
             console.log(await execAsync(processCwd, "ls", ["-lh", downloadDir]));
         }
+    }
+
+    console.log("Creating a summary issue");
+
+    const kit = new octokit.Octokit({
+        auth: process.env.GITHUB_PAT,
+    });
+
+    const repoProperties = {
+        owner: "amcasey", // TODO (acasey): microsoft
+        repo: "typescript",
+    };
+
+    const created = await kit.issues.create({
+        ...repoProperties,
+        title: `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`,
+        body: `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
+
+${summary}`,
+    });
+
+    const issueNumber = created.data.number;
+    console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
+
+    if (!sawNewErrors) {
+        await kit.issues.update({
+            ...repoProperties,
+            issue_number: issueNumber,
+            state: "closed",
+        });
     }
 }
 
@@ -185,6 +246,13 @@ function replaceAll(message: string, oldStr: string, newStr: string) {
 
         index = newIndex + oldStr.length;
     }
+}
+
+function makeMarkdownLink(url: string) {
+    const match = /\/blob\/[a-f0-9]+\/(.+)$/.exec(url);
+    return !match
+        ? url
+        : `[${match[1]}](${url})`;
 }
 
 async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {

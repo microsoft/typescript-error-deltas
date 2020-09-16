@@ -12,6 +12,7 @@
   "author": "Microsoft",
   "license": "MIT",
   "dependencies": {
+    "@octokit/rest": "^16.43.2",
     "@typescript/get-errors": "^0.2.5",
     "@typescript/git-utils": "^0.1.1",
     "@typescript/install-packages": "^0.2.1",
