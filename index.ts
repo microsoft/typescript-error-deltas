@@ -37,8 +37,6 @@ async function mainAsync() {
 
     const repos = await git.getPopularTypeScriptRepos(repoCount);
 
-    const writeFileOptions = { encoding: "utf-8" } as const;
-
     let summary = "";
     let sawNewErrors = false;
 
