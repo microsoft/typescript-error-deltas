@@ -2,7 +2,7 @@ parameters:
   - name: REPO_COUNT
     displayName: Repo Count
     type: string
-    default: 200
+    default: 100
   - name: OLD_VERSION
     displayName: Baseline typescript package version
     type: string
@@ -11,6 +11,14 @@ parameters:
     displayName: Candidate typescript package version
     type: string
     default: next
+
+schedules:
+  - cron: "0 18 * * Sun" # time is in UTC
+    displayName: Sunday overnight run
+    always: true
+    branches:
+      include:
+        - main
 
 trigger: none
 
