@@ -87,28 +87,48 @@ async function mainAsync() {
                 await fs.promises.writeFile(path.join(resultsDir, repo.name + "_old.json"), JSON.stringify(oldErrors), writeFileOptions);
 
                 if (oldErrors.hasConfigFailure) {
+                    console.log("Unable to build project graph");
+                    console.log(`Skipping build with ${newTscPath} (new)`);
                     continue;
                 }
 
-                // CONSIDER: Could skip the second build if no project succeeded in the first
+                const numProjects = oldErrors.projectErrors.length;
+
+                let numFailed = 0;
+                for (const oldProjectErrors of oldErrors.projectErrors) {
+                    if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
+                        numFailed++;
+                    }
+                }
+
+                summary += `# [${repo.name}](${repo.url})\n`;
+
+                const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
+                console.log(oldFailuresMessage);
+                summary += `**${oldFailuresMessage}**\n`;
+
+                if (numFailed === numProjects) {
+                    console.log(`Skipping build with ${newTscPath} (new)`);
+                    continue;
+                }
 
                 console.log(`Building with ${newTscPath} (new)`);
                 const newErrors = await ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
                 await fs.promises.writeFile(path.join(resultsDir, repo.name + "_new.json"), JSON.stringify(newErrors), writeFileOptions);
 
                 if (newErrors.hasConfigFailure) {
-                    throw new Error("No longer able to build project graph for " + repo.url);
+                    console.log("Unable to build project graph");
+
+                    sawNewErrors = true;
+                    summary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
+
+                    continue;
                 }
-
-                let numSkipped = 0;
-
-                summary += `# [${repo.name}](${repo.url})\n`;
 
                 console.log("Comparing errors");
                 for (const oldProjectErrors of oldErrors.projectErrors) {
                     // To keep things simple, we'll focus on projects that used to build cleanly
                     if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
-                        numSkipped++;
                         continue;
                     }
 
@@ -146,10 +166,6 @@ async function mainAsync() {
                         }
                     }
                 }
-
-                const skipDescription = `Skipped ${numSkipped} of ${oldErrors.projectErrors.length} projects for not building with the old tsc`;
-                console.log(skipDescription);
-                summary += `\n**${skipDescription}**\n`;
             }
             catch (err) {
                 reportError(err, "Error building " + repo.url);
