@@ -19,7 +19,6 @@ const repoCount = +argv[2];
 const oldTscVersion = argv[3];
 const newTscVersion = argv[4];
 
-
 mainAsync().catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);
@@ -47,90 +46,101 @@ async function mainAsync() {
     const writeFileOptions = { encoding: "utf-8" } as const;
 
     for (const repo of repos) {
-        console.log("Starting " + repo.url);
-
         try {
-            console.log("Cloning if absent");
-            await git.cloneRepoIfNecessary(downloadDir, repo);
-        }
-        catch (err) {
-            reportError(err, "Error cloning " + repo.url);
-            continue;
-        }
+            console.log("Starting " + repo.url);
 
-        const repoDir = path.join(downloadDir, repo.name);
-
-        try {
-            console.log("Installing packages if absent");
-            const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
-            for (const { directory: packageRoot, tool, arguments: args } of commands) {
-                await execAsync(packageRoot, tool, args);
+            try {
+                console.log("Cloning if absent");
+                await git.cloneRepoIfNecessary(downloadDir, repo);
             }
+            catch (err) {
+                reportError(err, "Error cloning " + repo.url);
+                continue;
+            }
+
+            const repoDir = path.join(downloadDir, repo.name);
+
+            try {
+                console.log("Installing packages if absent");
+                const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
+                for (const { directory: packageRoot, tool, arguments: args } of commands) {
+                    await execAsync(packageRoot, tool, args);
+                }
+            }
+            catch (err) {
+                reportError(err, "Error installing packages for " + repo.url);
+                console.log("Memory");
+                console.log(await execAsync(processCwd, "free", ["-h"]));
+                console.log("Disk");
+                console.log(await execAsync(processCwd, "df", ["-h"]));
+                console.log(await execAsync(processCwd, "df", ["-i"]));
+                continue;
+            }
+
+            try {
+                console.log(`Building with ${oldTscPath} (old)`);
+                const oldErrors = await ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true);
+                await fs.promises.writeFile(path.join(resultsDir, repo.name + "_old.json"), JSON.stringify(oldErrors), writeFileOptions);
+
+                if (oldErrors.hasConfigFailure) {
+                    continue;
+                }
+
+                // CONSIDER: Could skip the second build if no project succeeded in the first
+
+                console.log(`Building with ${newTscPath} (new)`);
+                const newErrors = await ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
+                await fs.promises.writeFile(path.join(resultsDir, repo.name + "_new.json"), JSON.stringify(newErrors), writeFileOptions);
+
+                if (newErrors.hasConfigFailure) {
+                    throw new Error("No longer able to build project graph for " + repo.url);
+                }
+
+                let numSkipped = 0;
+
+                console.log("Comparing errors");
+                for (const oldProjectErrors of oldErrors.projectErrors) {
+                    // To keep things simple, we'll focus on projects that used to build cleanly
+                    if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
+                        numSkipped++;
+                        continue;
+                    }
+
+                    const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl);
+                    if (!newProjectErrors || !newProjectErrors.errors.length) {
+                        continue;
+                    }
+
+                    console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
+                    for (const newError of newProjectErrors.errors) {
+                        console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}` : ``}`);
+                        console.log(`\t\t${newError.text}`);
+                    }
+                }
+
+                console.log(`Skipped ${numSkipped} of ${oldErrors.projectErrors.length} projects for not building with the old tsc`);
+            }
+            catch (err) {
+                reportError(err, "Error building " + repo.url);
+                continue;
+            }
+
+            console.log("Done " + repo.url);
         }
-        catch (err) {
-            reportError(err, "Error installing packages for " + repo.url);
+        finally {
+            // Throw away the repo so we don't run out of space
+            // Cleverness: rsync is faster than rm when there are lots of small files
+            // Note that we specifically don't recover and attempt another repo if this fails
+            console.log("Cleaning up repo");
+            console.log(await execAsync(processCwd, "rsync", ["-a", "--delete", emptyDir, downloadDir]));
             console.log("Memory");
             console.log(await execAsync(processCwd, "free", ["-h"]));
             console.log("Disk");
             console.log(await execAsync(processCwd, "df", ["-h"]));
             console.log(await execAsync(processCwd, "df", ["-i"]));
-            continue;
+            console.log("Dir");
+            console.log(await execAsync(processCwd, "ls", ["-lh", downloadDir]));
         }
-
-        try {
-            console.log(`Building with ${oldTscPath} (old)`);
-            const oldErrors = await ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true);
-            await fs.promises.writeFile(path.join(resultsDir, repo.name + "_old.json"), JSON.stringify(oldErrors), writeFileOptions);
-
-            if (oldErrors.hasConfigFailure) {
-                continue;
-            }
-
-            // CONSIDER: Could skip the second build if no project succeeded in the first
-
-            console.log(`Building with ${newTscPath} (new)`);
-            const newErrors = await ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
-            await fs.promises.writeFile(path.join(resultsDir, repo.name + "_new.json"), JSON.stringify(newErrors), writeFileOptions);
-
-            if (newErrors.hasConfigFailure) {
-                throw new Error("No longer able to build project graph for " + repo.url);
-            }
-
-            let numSkipped = 0;
-
-            console.log("Comparing errors");
-            for (const oldProjectErrors of oldErrors.projectErrors) {
-                // To keep things simple, we'll focus on projects that used to build cleanly
-                if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
-                    numSkipped++;
-                    continue;
-                }
-
-                const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl);
-                if (!newProjectErrors || !newProjectErrors.errors.length) {
-                    continue;
-                }
-
-                console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
-                for (const newError of newProjectErrors.errors) {
-                    console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}`: ``}`);
-                    console.log(`\t\t${newError.text}`);
-                }
-            }
-
-            console.log(`Skipped ${numSkipped} of ${oldErrors.projectErrors.length} projects for not building with the old tsc`);
-        }
-        catch (err) {
-            reportError(err, "Error building " + repo.url);
-            continue;
-        }
-
-        // Throw away the repo so we don't run out of space
-        // Cleverness: rsync is faster than rm when there are lots of small files
-        // Note that we specifically don't recover and attempt another repo if this fails
-        await execAsync(processCwd, "rsync", ["-a", "--delete", emptyDir, downloadDir]);
-
-        console.log("Done " + repo.url);
     }
 }
 
@@ -147,7 +157,7 @@ async function execAsync(cwd: string, command: string, args: readonly string[]):
                 reject(err);
             }
             resolve(stdout);
-         }));
+        }));
 }
 
 function reduceSpew(message: string): string {
