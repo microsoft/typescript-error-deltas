@@ -25,6 +25,8 @@ mainAsync().catch(err => {
     process.exit(1);
 });
 
+const tenMinutes = 10 * 60 * 1000;
+
 async function mainAsync() {
     const downloadDir = "/mnt/ts_downloads";
     await execAsync(processCwd, "sudo", ["mkdir", downloadDir]);
@@ -64,10 +66,7 @@ async function mainAsync() {
 
             try {
                 console.log("Installing packages if absent");
-                const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
-                for (const { directory: packageRoot, tool, arguments: args } of commands) {
-                    await execAsync(packageRoot, tool, args);
-                }
+                await withTimeout(tenMinutes, installPackages(repoDir));
             }
             catch (err) {
                 reportError(err, "Error installing packages for " + repo.url);
@@ -77,7 +76,7 @@ async function mainAsync() {
 
             try {
                 console.log(`Building with ${oldTscPath} (old)`);
-                const oldErrors = await ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true);
+                const oldErrors = await withTimeout(tenMinutes, ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true));
 
                 if (oldErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -109,7 +108,7 @@ async function mainAsync() {
                 }
 
                 console.log(`Building with ${newTscPath} (new)`);
-                const newErrors = await ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
+                const newErrors = await withTimeout(tenMinutes, ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true));
 
                 if (newErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -213,6 +212,21 @@ ${summary}`,
             state: "closed",
         });
     }
+}
+
+async function installPackages(repoDir: string) {
+    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
+    for (const { directory: packageRoot, tool, arguments: args } of commands) {
+        await execAsync(packageRoot, tool, args);
+    }
+}
+
+function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<T>((_resolve, reject) =>
+            setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms)),
+    ]);
 }
 
 async function reportResourceUsage(downloadDir: string) {
