@@ -26,21 +26,14 @@ mainAsync().catch(err => {
 });
 
 async function mainAsync() {
-    const downloadDir = path.join(processCwd, "ts_downloads");
-    await fs.promises.mkdir(downloadDir);
-
-    const emptyDir = path.join(processCwd, "ts_empty");
-    await fs.promises.mkdir(emptyDir);
+    const downloadDir = "/mnt/ts_downloads";
+    await execAsync(processCwd, "sudo", ["mkdir", downloadDir]);
 
     const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, oldTscVersion);
     const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, newTscVersion);
 
     console.log("Old version = " + oldTscResolvedVersion);
     console.log("New version = " + newTscResolvedVersion);
-
-    // CONSIDER: Might want to publish this folder as an artifact
-    const resultsDir = path.join(processCwd, "_Results_");
-    await fs.promises.mkdir(resultsDir);
 
     const repos = await git.getPopularTypeScriptRepos(repoCount);
 
@@ -55,9 +48,11 @@ async function mainAsync() {
             continue;
         }
 
-        try {
-            console.log("Starting " + repo.url);
+        console.log("Starting " + repo.url);
 
+        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=2g", "tmpfs", downloadDir]);
+
+        try {
             try {
                 console.log("Cloning if absent");
                 await git.cloneRepoIfNecessary(downloadDir, repo);
@@ -89,7 +84,6 @@ async function mainAsync() {
             try {
                 console.log(`Building with ${oldTscPath} (old)`);
                 const oldErrors = await ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true);
-                await fs.promises.writeFile(path.join(resultsDir, repo.name + "_old.json"), JSON.stringify(oldErrors), writeFileOptions);
 
                 if (oldErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -122,7 +116,6 @@ async function mainAsync() {
 
                 console.log(`Building with ${newTscPath} (new)`);
                 const newErrors = await ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
-                await fs.promises.writeFile(path.join(resultsDir, repo.name + "_new.json"), JSON.stringify(newErrors), writeFileOptions);
 
                 if (newErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -190,10 +183,9 @@ async function mainAsync() {
         }
         finally {
             // Throw away the repo so we don't run out of space
-            // Cleverness: rsync is faster than rm when there are lots of small files
             // Note that we specifically don't recover and attempt another repo if this fails
             console.log("Cleaning up repo");
-            console.log(await execAsync(processCwd, "rsync", ["-a", "--delete", emptyDir + "/", downloadDir]));
+            await execAsync(processCwd, "sudo", ["umount", downloadDir]);
             console.log("Memory");
             console.log(await execAsync(processCwd, "free", ["-h"]));
             console.log("Disk");
