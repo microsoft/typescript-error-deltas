@@ -73,11 +73,7 @@ async function mainAsync() {
             }
             catch (err) {
                 reportError(err, "Error installing packages for " + repo.url);
-                console.log("Memory");
-                console.log(await execAsync(processCwd, "free", ["-h"]));
-                console.log("Disk");
-                console.log(await execAsync(processCwd, "df", ["-h"]));
-                console.log(await execAsync(processCwd, "df", ["-i"]));
+                await reportResourceUsage(downloadDir);
                 continue;
             }
 
@@ -186,13 +182,7 @@ async function mainAsync() {
             // Note that we specifically don't recover and attempt another repo if this fails
             console.log("Cleaning up repo");
             await execAsync(processCwd, "sudo", ["umount", downloadDir]);
-            console.log("Memory");
-            console.log(await execAsync(processCwd, "free", ["-h"]));
-            console.log("Disk");
-            console.log(await execAsync(processCwd, "df", ["-h"]));
-            console.log(await execAsync(processCwd, "df", ["-i"]));
-            console.log("Dir");
-            console.log(await execAsync(processCwd, "ls", ["-lh", downloadDir]));
+            await reportResourceUsage(downloadDir);
         }
     }
 
@@ -225,6 +215,16 @@ ${summary}`,
             state: "closed",
         });
     }
+}
+
+async function reportResourceUsage(downloadDir: string) {
+    console.log("Memory");
+    console.log(await execAsync(processCwd, "free", ["-h"]));
+    console.log("Disk");
+    console.log(await execAsync(processCwd, "df", ["-h"]));
+    console.log(await execAsync(processCwd, "df", ["-i"]));
+    console.log("Dir");
+    console.log(await execAsync(processCwd, "ls", ["-lh", downloadDir]));
 }
 
 function reportError(err: any, message: string) {
