@@ -179,7 +179,7 @@ async function mainAsync() {
             // Cleverness: rsync is faster than rm when there are lots of small files
             // Note that we specifically don't recover and attempt another repo if this fails
             console.log("Cleaning up repo");
-            console.log(await execAsync(processCwd, "rsync", ["-a", "--delete", emptyDir, downloadDir]));
+            console.log(await execAsync(processCwd, "rsync", ["-a", "--delete", emptyDir + "/", downloadDir]));
             console.log("Memory");
             console.log(await execAsync(processCwd, "free", ["-h"]));
             console.log("Disk");
