@@ -13,13 +13,13 @@
   "license": "MIT",
   "dependencies": {
     "@octokit/rest": "^16.43.2",
-    "@typescript/get-errors": "^0.2.5",
-    "@typescript/git-utils": "^0.1.1",
+    "@typescript/get-errors": "^0.2.6",
+    "@typescript/git-utils": "^0.1.3",
     "@typescript/install-packages": "^0.2.1",
     "@typescript/package-utils": "^0.1.0"
   },
   "devDependencies": {
-    "@types/node": "^14.10.0",
+    "@types/node": "^14.11.1",
     "typescript": "3.9.6"
   }
 }
