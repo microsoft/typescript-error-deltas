@@ -29,8 +29,6 @@ mainAsync().catch(err => {
 const tenMinutes = 10 * 60 * 1000;
 
 async function mainAsync() {
-    await execAsync(processCwd, "export YARN_ENABLE_MIRROR=false");
-
     const downloadDir = "/mnt/ts_downloads";
     await execAsync(processCwd, "sudo mkdir " + downloadDir);
 
@@ -225,9 +223,15 @@ ${summary}`,
 
 async function installPackages(repoDir: string) {
     const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
+    let usedYarn = false;
     for (const { directory: packageRoot, tool, arguments: args } of commands) {
-        await new Promise<void>((resolve, reject) =>
-            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? reject(err) : resolve()));
+        await new Promise<void>((resolve, reject) => {
+            usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
+            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? reject(err) : resolve());
+        });
+    }
+    if (usedYarn) {
+        await execAsync(repoDir, "yarn cache clean --all");
     }
 }
 
