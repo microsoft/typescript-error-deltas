@@ -30,7 +30,7 @@ const tenMinutes = 10 * 60 * 1000;
 
 async function mainAsync() {
     const downloadDir = "/mnt/ts_downloads";
-    await execAsync(processCwd, "sudo", ["mkdir", downloadDir]);
+    await execAsync(processCwd, "sudo mkdir " + downloadDir);
 
     const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, oldTscVersion);
     const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, newTscVersion);
@@ -43,15 +43,17 @@ async function mainAsync() {
     let summary = "";
     let sawNewErrors = false;
 
+    let i = 0;
+
     for (const repo of repos) {
         if (repo.url === "https://github.com/storybookjs/storybook") {
             // Consistently causes VM to run out of disk space
             continue;
         }
 
-        console.log("Starting " + repo.url);
+        console.log(`Starting #${++i}: ${repo.url}`);
 
-        await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "-o", "size=2g", "tmpfs", downloadDir]);
+        await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
 
         try {
             try {
@@ -179,7 +181,7 @@ async function mainAsync() {
             // Throw away the repo so we don't run out of space
             // Note that we specifically don't recover and attempt another repo if this fails
             console.log("Cleaning up repo");
-            await execAsync(processCwd, "sudo", ["umount", downloadDir]);
+            await execAsync(processCwd, "sudo umount " + downloadDir);
             await reportResourceUsage(downloadDir);
         }
     }
@@ -222,7 +224,8 @@ ${summary}`,
 async function installPackages(repoDir: string) {
     const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
     for (const { directory: packageRoot, tool, arguments: args } of commands) {
-        await execAsync(packageRoot, tool, args);
+        await new Promise<void>((resolve, reject) =>
+            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? reject(err) : resolve()));
     }
 }
 
@@ -236,17 +239,15 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
 
 async function reportResourceUsage(downloadDir: string) {
     console.log("Memory");
-    console.log(await execAsync(processCwd, "free", ["-h"]));
+    await execAsync(processCwd, "free -h");
     console.log("Disk");
-    console.log(await execAsync(processCwd, "df", ["-h"]));
-    console.log(await execAsync(processCwd, "df", ["-i"]));
-    console.log("Working Directory");
-    console.log(await execAsync(processCwd, "ls", ["-alh"]));
+    await execAsync(processCwd, "df -h");
+    await execAsync(processCwd, "df -i");
     console.log("Download Directory");
-    console.log(await execAsync(processCwd, "ls", ["-alh", downloadDir]));
+    await execAsync(processCwd, "ls -lh " + downloadDir);
     console.log("Home Directory");
-    console.log(await execAsync(processCwd, "ls", ["-alh", process.env.HOME!]));
-    console.log(await execAsync(processCwd, "du", ["-csh", path.join(process.env.HOME!, ".[^.]*")]));
+    await execAsync(processCwd, "ls -alh ~");
+    await execAsync(processCwd, "du -csh ~/.[^.]*");
 }
 
 function reportError(err: any, message: string) {
@@ -255,14 +256,23 @@ function reportError(err: any, message: string) {
     console.log(reduceSpew(err.stack ?? "Unknown Stack"));
 }
 
-async function execAsync(cwd: string, command: string, args: readonly string[]): Promise<string> {
-    return new Promise((resolve, reject) =>
-        cp.execFile(command, args, { cwd }, (err, stdout, _stderr) => {
+async function execAsync(cwd: string, command: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        console.log(`${cwd}> ${command}`);
+        cp.exec(command, { cwd }, (err, stdout, stderr) => {
+            if (stdout && stdout.length) {
+                console.log(stdout);
+            }
+            if (stderr && stderr.length) {
+                console.log(stderr); // To stdout to maintain order
+            }
+
             if (err) {
                 reject(err);
             }
             resolve(stdout);
-        }));
+        });
+    });
 }
 
 function reduceSpew(message: string): string {
@@ -300,7 +310,7 @@ function makeMarkdownLink(url: string) {
 }
 
 async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
-    const tarName = (await execAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
+    const tarName = (await execAsync(cwd, `npm pack typescript@${version} --quiet`)).trim();
 
     const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
     if (!tarMatch) {
@@ -311,7 +321,7 @@ async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ 
     const dirName = tarMatch[1];
     const dirPath = path.join(processCwd, dirName);
 
-    await execAsync(cwd, "tar", ["xf", tarName]);
+    await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
     const tscPath = path.join(dirPath, "lib", "tsc.js");
