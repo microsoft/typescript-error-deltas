@@ -48,8 +48,8 @@ async function mainAsync() {
     let i = 0;
 
     for (const repo of repos) {
-        if (repo.url === "https://github.com/storybookjs/storybook") {
-            // Consistently causes VM to run out of disk space
+        if (repo.url === "https://github.com/storybookjs/storybook" || // Too big to fit on VM
+            repo.url === "https://github.com/microsoft/frontend-bootcamp") { // Can't be built twice in a row
             continue;
         }
 
