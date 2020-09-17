@@ -9,8 +9,8 @@ import path = require("path");
 
 const { argv } = process;
 
-if (argv.length !== 5) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} {repo_count} {old_tsc_version} {new_tsc_version}`);
+if (argv.length !== 6) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} {repo_count} {old_tsc_version} {new_tsc_version} {file_issue}`);
     process.exit(-1);
 }
 
@@ -19,6 +19,7 @@ const processCwd = process.cwd();
 const repoCount = +argv[2];
 const oldTscVersion = argv[3];
 const newTscVersion = argv[4];
+const fileIssue = argv[5].toLowerCase() !== "false";
 
 mainAsync().catch(err => {
     reportError(err, "Unhandled exception");
@@ -181,6 +182,10 @@ async function mainAsync() {
             await execAsync(processCwd, "sudo", ["umount", downloadDir]);
             await reportResourceUsage(downloadDir);
         }
+    }
+
+    if (!fileIssue) {
+        return;
     }
 
     console.log("Creating a summary issue");

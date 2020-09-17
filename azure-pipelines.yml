@@ -11,6 +11,10 @@ parameters:
     displayName: Candidate typescript package version
     type: string
     default: next
+  - name: FILE_ISSUE
+    displayName: File GitHub issue with results
+    type: boolean
+    default: true
 
 schedules:
   - cron: "0 18 * * Sun" # time is in UTC
@@ -45,6 +49,6 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node index ${{ parameters.REPO_COUNT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }}
+      node index ${{ parameters.REPO_COUNT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} ${{ parameters.FILE_ISSUE }}
     env:
       GITHUB_PAT: $(TypeScriptErrorDeltas)
