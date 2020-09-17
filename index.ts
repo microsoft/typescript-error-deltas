@@ -240,8 +240,13 @@ async function reportResourceUsage(downloadDir: string) {
     console.log("Disk");
     console.log(await execAsync(processCwd, "df", ["-h"]));
     console.log(await execAsync(processCwd, "df", ["-i"]));
-    console.log("Dir");
-    console.log(await execAsync(processCwd, "ls", ["-lh", downloadDir]));
+    console.log("Working Directory");
+    console.log(await execAsync(processCwd, "ls", ["-alh"]));
+    console.log("Download Directory");
+    console.log(await execAsync(processCwd, "ls", ["-alh", downloadDir]));
+    console.log("Home Directory");
+    console.log(await execAsync(processCwd, "ls", ["-alh", "~"]));
+    console.log(await execAsync(processCwd, "du", ["-csh", "~/.[^.]*"]));
 }
 
 function reportError(err: any, message: string) {
