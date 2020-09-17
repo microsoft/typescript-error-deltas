@@ -230,10 +230,17 @@ async function installPackages(repoDir: string) {
 }
 
 function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
     return Promise.race([
-        promise,
-        new Promise<T>((_resolve, reject) =>
-            setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms)),
+        promise.then(t => {
+            if (timeout) {
+                clearTimeout(timeout);
+            }
+            return t;
+        }),
+        new Promise<T>((_resolve, reject) => {
+            timeout = setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms);
+        }),
     ]);
 }
 
