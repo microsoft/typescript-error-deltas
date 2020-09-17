@@ -29,6 +29,8 @@ mainAsync().catch(err => {
 const tenMinutes = 10 * 60 * 1000;
 
 async function mainAsync() {
+    await execAsync(processCwd, "export YARN_ENABLE_MIRROR=false");
+
     const downloadDir = "/mnt/ts_downloads";
     await execAsync(processCwd, "sudo mkdir " + downloadDir);
 
