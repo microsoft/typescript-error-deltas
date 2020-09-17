@@ -190,7 +190,7 @@ async function mainAsync() {
     });
 
     const repoProperties = {
-        owner: "amcasey", // TODO (acasey): microsoft
+        owner: "microsoft",
         repo: "typescript",
     };
 
