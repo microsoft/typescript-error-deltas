@@ -245,8 +245,8 @@ async function reportResourceUsage(downloadDir: string) {
     console.log("Download Directory");
     console.log(await execAsync(processCwd, "ls", ["-alh", downloadDir]));
     console.log("Home Directory");
-    console.log(await execAsync(processCwd, "ls", ["-alh", "~"]));
-    console.log(await execAsync(processCwd, "du", ["-csh", "~/.[^.]*"]));
+    console.log(await execAsync(processCwd, "ls", ["-alh", process.env.HOME!]));
+    console.log(await execAsync(processCwd, "du", ["-csh", path.join(process.env.HOME!, ".[^.]*")]));
 }
 
 function reportError(err: any, message: string) {
