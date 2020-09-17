@@ -254,6 +254,7 @@ async function reportResourceUsage(downloadDir: string) {
     await execAsync(processCwd, "ls -lh " + downloadDir);
     console.log("Home Directory");
     await execAsync(processCwd, "du -csh ~/.[^.]*");
+    await execAsync(processCwd, "du -csh ~/.cache/*");
 }
 
 function reportError(err: any, message: string) {
