@@ -130,8 +130,9 @@ async function mainAsync() {
                         continue;
                     }
 
-                    const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl);
-                    if (!newProjectErrors || !newProjectErrors.errors.length) {
+                    // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
+                    const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055);
+                    if (!newProjectErrors?.length) {
                         continue;
                     }
 
@@ -141,7 +142,7 @@ async function mainAsync() {
                     const errorMessages: string[] = [];
 
                     console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
-                    for (const newError of newProjectErrors.errors) {
+                    for (const newError of newProjectErrors) {
                         const newErrorText = newError.text;
 
                         console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}` : ``}`);
