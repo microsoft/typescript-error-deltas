@@ -102,7 +102,7 @@ async function mainAsync() {
                 }
 
                 let sawNewRepoErrors = false;
-                let repoSummary = `# [${repo.name}](${repo.url})\n`;
+                let repoSummary = `# [${repo.owner}/${repo.name}](${repo.url})\n`;
 
                 if (numFailed > 0) {
                     const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
