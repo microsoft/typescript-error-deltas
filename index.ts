@@ -47,7 +47,8 @@ async function mainAsync() {
 
     for (const repo of repos) {
         if (repo.url === "https://github.com/storybookjs/storybook" || // Too big to fit on VM
-            repo.url === "https://github.com/microsoft/frontend-bootcamp") { // Can't be built twice in a row
+            repo.url === "https://github.com/microsoft/frontend-bootcamp" || // Can't be built twice in a row
+            repo.url === "https://github.com/chakra-ui/chakra-ui") { // TODO (https://github.com/microsoft/TypeScript/issues/43648): Remove workaround
             continue;
         }
 
