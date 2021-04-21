@@ -7,6 +7,12 @@ import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
 
+const skipRepos = [
+    "https://github.com/storybookjs/storybook", // Too big to fit on VM
+    "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
+    "https://github.com/chakra-ui/chakra-ui", // TODO (https://github.com/microsoft/TypeScript/issues/43648): Remove workaround
+];
+
 const { argv } = process;
 
 if (argv.length !== 6) {
@@ -26,7 +32,7 @@ mainAsync().catch(err => {
     process.exit(1);
 });
 
-const tenMinutes = 10 * 60 * 1000;
+const executionTimeout = 10 * 60 * 1000;
 
 async function mainAsync() {
     const downloadDir = "/mnt/ts_downloads";
@@ -46,11 +52,7 @@ async function mainAsync() {
     let i = 0;
 
     for (const repo of repos) {
-        if (repo.url === "https://github.com/storybookjs/storybook" || // Too big to fit on VM
-            repo.url === "https://github.com/microsoft/frontend-bootcamp" || // Can't be built twice in a row
-            repo.url === "https://github.com/chakra-ui/chakra-ui") { // TODO (https://github.com/microsoft/TypeScript/issues/43648): Remove workaround
-            continue;
-        }
+        if (skipRepos.includes(repo.url)) continue;
 
         console.log(`Starting #${++i}: ${repo.url}`);
 
@@ -70,7 +72,7 @@ async function mainAsync() {
 
             try {
                 console.log("Installing packages if absent");
-                await withTimeout(tenMinutes, installPackages(repoDir));
+                await withTimeout(executionTimeout, installPackages(repoDir));
             }
             catch (err) {
                 reportError(err, "Error installing packages for " + repo.url);
@@ -80,7 +82,7 @@ async function mainAsync() {
 
             try {
                 console.log(`Building with ${oldTscPath} (old)`);
-                const oldErrors = await withTimeout(tenMinutes, ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true));
+                const oldErrors = await withTimeout(executionTimeout, ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true));
 
                 if (oldErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -112,7 +114,7 @@ async function mainAsync() {
                 }
 
                 console.log(`Building with ${newTscPath} (new)`);
-                const newErrors = await withTimeout(tenMinutes, ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true));
+                const newErrors = await withTimeout(executionTimeout, ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true));
 
                 if (newErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -269,17 +271,17 @@ async function execAsync(cwd: string, command: string): Promise<string> {
     return new Promise((resolve, reject) => {
         console.log(`${cwd}> ${command}`);
         cp.exec(command, { cwd }, (err, stdout, stderr) => {
-            if (stdout && stdout.length) {
+            if (stdout?.length) {
                 console.log(stdout);
             }
-            if (stderr && stderr.length) {
+            if (stderr?.length) {
                 console.log(stderr); // To stdout to maintain order
             }
 
             if (err) {
-                reject(err);
+                return reject(err);
             }
-            resolve(stdout);
+            return resolve(stdout);
         });
     });
 }
