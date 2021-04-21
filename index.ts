@@ -10,7 +10,6 @@ import path = require("path");
 const skipRepos = [
     "https://github.com/storybookjs/storybook", // Too big to fit on VM
     "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
-    "https://github.com/chakra-ui/chakra-ui", // TODO (https://github.com/microsoft/TypeScript/issues/43648): Remove workaround
 ];
 
 const { argv } = process;
