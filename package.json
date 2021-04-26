@@ -1,6 +1,6 @@
 {
   "name": "@typescript/new-errors",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Script for comparing the errors from two builds of the TypeScript compiler",
   "main": "index.js",
   "bin": {

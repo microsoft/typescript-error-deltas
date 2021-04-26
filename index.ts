@@ -20,6 +20,7 @@ if (argv.length !== 6) {
 }
 
 const processCwd = process.cwd();
+const processPid = process.pid;
 
 const repoCount = +argv[2];
 const oldTscVersion = argv[3];
@@ -243,7 +244,10 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
     return Promise.race([
         promise.finally(() => timeout && clearTimeout(timeout)),
         new Promise<T>((_resolve, reject) =>
-            timeout = setTimeout(() => reject(new Error(`Timed out after ${ms} ms`)), ms)),
+            timeout = setTimeout(async () => {
+                await execAsync(processCwd, `./kill-children-of ${processPid} node`);
+                return reject(new Error(`Timed out after ${ms} ms`));
+            }, ms)),
     ]);
 }
 
