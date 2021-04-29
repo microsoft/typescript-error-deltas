@@ -82,7 +82,7 @@ async function mainAsync() {
 
             try {
                 console.log(`Building with ${oldTscPath} (old)`);
-                const oldErrors = await withTimeout(executionTimeout, ge.buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true));
+                const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true);
 
                 if (oldErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -114,7 +114,7 @@ async function mainAsync() {
                 }
 
                 console.log(`Building with ${newTscPath} (new)`);
-                const newErrors = await withTimeout(executionTimeout, ge.buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true));
+                const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
 
                 if (newErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -225,6 +225,18 @@ ${summary}`,
     }
 }
 
+function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean) {
+    const p = new Promise<ge.RepoErrors>((resolve, reject) => {
+        const p = cp.fork(path.join(__dirname, "run-build.js"));
+        p.on('message', (m: 'ready' | ge.RepoErrors) =>
+            m === 'ready'
+            ? p.send({repoDir, tscPath, skipLibCheck})
+            : resolve(m));
+        p.on('exit', reject);
+    });
+    return withTimeout(executionTimeout, p);
+}
+
 async function installPackages(repoDir: string) {
     const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
     let usedYarn = false;
@@ -265,9 +277,9 @@ async function reportResourceUsage(downloadDir: string) {
 }
 
 function reportError(err: any, message: string) {
-    console.log(message);
-    console.log(reduceSpew(err.message));
-    console.log(reduceSpew(err.stack ?? "Unknown Stack"));
+    console.log(`${message}:`);
+    console.log(reduceSpew(err.message ?? "No message").replace(/(^|\n)/g, "$1> "));
+    console.log(reduceSpew(err.stack ?? "Unknown Stack").replace(/(^|\n)/g, "$1> "));
 }
 
 async function execAsync(cwd: string, command: string): Promise<string> {
