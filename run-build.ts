@@ -1,5 +1,5 @@
 import process = require("process");
-import ge = require("./getErrors");
+import ge = require("@typescript/get-errors");
 
 if (!process.send) process.exit(1);
 
