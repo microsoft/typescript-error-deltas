@@ -1,8 +1,9 @@
 import octokit = require("@octokit/rest");
 import ge = require("@typescript/get-errors");
-import git = require("@typescript/git-utils");
-import ip = require("@typescript/install-packages");
 import pu = require("@typescript/package-utils");
+import git = require("./gitUtils");
+import ip = require("./installPackages");
+import ur = require("./userRepos");
 import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
@@ -14,8 +15,8 @@ const skipRepos = [
 
 const { argv } = process;
 
-if (argv.length !== 6) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} {repo_count} {old_tsc_version} {new_tsc_version} {file_issue}`);
+if (argv.length !== 7) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} {repo_count} {old_tsc_version} {new_tsc_version} {file_issue} {test_type}`);
     process.exit(-1);
 }
 
@@ -26,6 +27,7 @@ const repoCount = +argv[2];
 const oldTscVersion = argv[3];
 const newTscVersion = argv[4];
 const fileIssue = argv[5].toLowerCase() !== "false";
+const testType = argv[6].toLowerCase();
 
 mainAsync().catch(err => {
     reportError(err, "Unhandled exception");
@@ -41,10 +43,24 @@ async function mainAsync() {
     const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, oldTscVersion);
     const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, newTscVersion);
 
+    // Get the name of the typescript folder.
+    const oldTscDirPath = path.resolve(oldTscPath, "../../");
+    const newTscDirPath = path.resolve(newTscPath, "../../");
+
     console.log("Old version = " + oldTscResolvedVersion);
     console.log("New version = " + newTscResolvedVersion);
 
-    const repos = await git.getPopularTypeScriptRepos(repoCount);
+    const testDir = path.join(processCwd, "userTests");
+
+    const repos = testType === "git"
+        ? await git.getPopularTypeScriptRepos(repoCount)
+        : testType === "user"
+            ? ur.getUserTestsRepos(testDir)
+            : undefined;
+
+    if (!repos) {
+        throw new Error(`Parameter {test_type} with value ${testType} is not existent.`);
+    }
 
     let summary = "";
     let sawNewErrors = false;
@@ -52,30 +68,35 @@ async function mainAsync() {
     let i = 0;
 
     for (const repo of repos) {
-        if (skipRepos.includes(repo.url)) continue;
+        if (repo.url && skipRepos.includes(repo.url)) continue;
 
-        console.log(`Starting #${++i}: ${repo.url}`);
+        console.log(`Starting #${++i}: ${repo.url ?? repo.name}`);
 
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
 
         try {
-            try {
-                console.log("Cloning if absent");
-                await git.cloneRepoIfNecessary(downloadDir, repo);
+            if (repo.url) {
+                try {
+                    console.log("Cloning if absent");
+                    await git.cloneRepoIfNecessary(downloadDir, repo);
+                }
+                catch (err) {
+                    reportError(err, "Error cloning " + repo.url);
+                    continue;
+                }
             }
-            catch (err) {
-                reportError(err, "Error cloning " + repo.url);
-                continue;
+            else {
+                await ur.copyUserRepo(downloadDir, testDir, repo);
             }
 
             const repoDir = path.join(downloadDir, repo.name);
 
             try {
                 console.log("Installing packages if absent");
-                await withTimeout(executionTimeout, installPackages(repoDir));
+                await withTimeout(executionTimeout, installPackages(repoDir, testType !== "user", repo.types));
             }
             catch (err) {
-                reportError(err, "Error installing packages for " + repo.url);
+                reportError(err, "Error installing packages for " + repo.name);
                 await reportResourceUsage(downloadDir);
                 continue;
             }
@@ -105,7 +126,7 @@ async function mainAsync() {
                 }
 
                 let sawNewRepoErrors = false;
-                let repoSummary = `# [${repo.owner}/${repo.name}](${repo.url})\n`;
+                let repoSummary = `# [${repo.owner}/${repo.name}]${repo.url ? `(${repo.url})` : ``}\n`;
 
                 if (numFailed > 0) {
                     const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
@@ -175,11 +196,11 @@ async function mainAsync() {
                 }
             }
             catch (err) {
-                reportError(err, "Error building " + repo.url);
+                reportError(err, "Error building " + repo.url ?? repo.name);
                 continue;
             }
 
-            console.log("Done " + repo.url);
+            console.log("Done " + repo.url ?? repo.name);
         }
         finally {
             // Throw away the repo so we don't run out of space
@@ -190,7 +211,26 @@ async function mainAsync() {
         }
     }
 
+    await execAsync(processCwd, "sudo rm -rf " + downloadDir);
+    await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
+    await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
+
+    const repoProperties = {
+        owner: "microsoft",
+        repo: "typescript",
+    };
+
+    const issue = {
+        ...repoProperties,
+        title: `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`,
+        body: `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
+
+${summary}`,
+    };
+
     if (!fileIssue) {
+        console.log("Issue not filed: ");
+        console.log(JSON.stringify(issue));
         return;
     }
 
@@ -200,18 +240,7 @@ async function mainAsync() {
         auth: process.env.GITHUB_PAT,
     });
 
-    const repoProperties = {
-        owner: "microsoft",
-        repo: "typescript",
-    };
-
-    const created = await kit.issues.create({
-        ...repoProperties,
-        title: `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`,
-        body: `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
-
-${summary}`,
-    });
+    const created = await kit.issues.create(issue);
 
     const issueNumber = created.data.number;
     console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
@@ -225,20 +254,20 @@ ${summary}`,
     }
 }
 
-function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean) {
+async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean) {
     const p = new Promise<ge.RepoErrors>((resolve, reject) => {
         const p = cp.fork(path.join(__dirname, "run-build.js"));
         p.on('message', (m: 'ready' | ge.RepoErrors) =>
             m === 'ready'
-            ? p.send({repoDir, tscPath, skipLibCheck})
-            : resolve(m));
+                ? p.send({ repoDir, tscPath, skipLibCheck })
+                : resolve(m));
         p.on('exit', reject);
     });
     return withTimeout(executionTimeout, p);
 }
 
-async function installPackages(repoDir: string) {
-    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true);
+async function installPackages(repoDir: string, recursiveSearch: boolean, types?: string[]) {
+    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
     let usedYarn = false;
     for (const { directory: packageRoot, tool, arguments: args } of commands) {
         await new Promise<void>((resolve, reject) => {
@@ -264,16 +293,19 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
 }
 
 async function reportResourceUsage(downloadDir: string) {
-    console.log("Memory");
-    await execAsync(processCwd, "free -h");
-    console.log("Disk");
-    await execAsync(processCwd, "df -h");
-    await execAsync(processCwd, "df -i");
-    console.log("Download Directory");
-    await execAsync(processCwd, "ls -lh " + downloadDir);
-    console.log("Home Directory");
-    await execAsync(processCwd, "du -csh ~/.[^.]*");
-    await execAsync(processCwd, "du -csh ~/.cache/*");
+    try {
+        console.log("Memory");
+        await execAsync(processCwd, "free -h");
+        console.log("Disk");
+        await execAsync(processCwd, "df -h");
+        await execAsync(processCwd, "df -i");
+        console.log("Download Directory");
+        await execAsync(processCwd, "ls -lh " + downloadDir);
+        console.log("Home Directory");
+        await execAsync(processCwd, "du -csh ~/.[^.]*");
+        await execAsync(processCwd, "du -csh ~/.cache/*");
+    }
+    catch { } // noop
 }
 
 function reportError(err: any, message: string) {

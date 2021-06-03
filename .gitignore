@@ -1,8 +1,8 @@
 *.tsbuildinfo
 /*.d.ts
 /*.js.map
-/index.js
-/run-build.js
+/*.js
+/.vscode
 
 # Logs
 logs

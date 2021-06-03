@@ -10,6 +10,9 @@
     },
     "files": [
         "index.ts",
-        "run-build.ts"
+        "gitUtils.ts",
+        "installPackages.ts",
+        "run-build.ts",
+        "userRepos.ts",
     ]
 }
