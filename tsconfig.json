@@ -8,11 +8,10 @@
         "declaration": true,
         "sourceMap": true,
     },
-    "files": [
-        "index.ts",
-        "gitUtils.ts",
-        "installPackages.ts",
-        "run-build.ts",
-        "userRepos.ts",
+    "include": [
+        "*.ts"
+    ],
+    "exclude": [
+        "userTests"
     ]
 }

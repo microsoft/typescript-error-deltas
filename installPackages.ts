@@ -1,7 +1,7 @@
 import fs = require("fs");
 import json5 = require("json5");
 import path = require("path");
-import utils = require("@typescript/package-utils");
+import utils = require("./packageUtils");
 
 /**
  * String value will be the unqualified command name.

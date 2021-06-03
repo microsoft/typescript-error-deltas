@@ -1,5 +1,5 @@
 import octokit = require("@octokit/rest");
-import utils = require("@typescript/package-utils");
+import utils = require("./packageUtils");
 import git = require("simple-git/promise");
 import fs = require("fs");
 import path = require("path");
