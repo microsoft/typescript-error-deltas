@@ -8,40 +8,39 @@ import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
 
+export interface GitParams {
+    repoCount: number;
+    oldTscVersion: string;
+    newTscVersion: string;
+}
+export interface UserParams {
+    oldTypescriptRepoUrl: string;
+    oldHeadRef: string;
+    newTypescriptRepoUrl: string;
+    newHeadRef: string;
+}
+
+interface Params extends Partial<GitParams & UserParams> {
+    fileIssue: boolean;
+    testType: string;
+}
+
 const skipRepos = [
     "https://github.com/storybookjs/storybook", // Too big to fit on VM
     "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
 ];
-
-const { argv } = process;
-
-if (argv.length !== 7) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} {repo_count} {old_tsc_version} {new_tsc_version} {file_issue} {test_type}`);
-    process.exit(-1);
-}
-
 const processCwd = process.cwd();
 const processPid = process.pid;
-
-const repoCount = +argv[2];
-const oldTscVersion = argv[3];
-const newTscVersion = argv[4];
-const fileIssue = argv[5].toLowerCase() !== "false";
-const testType = argv[6].toLowerCase();
-
-mainAsync().catch(err => {
-    reportError(err, "Unhandled exception");
-    process.exit(1);
-});
-
 const executionTimeout = 10 * 60 * 1000;
 
-async function mainAsync() {
+export async function mainAsync(params: Params) {
+    const { testType } = params;
+    
     const downloadDir = "/mnt/ts_downloads";
     await execAsync(processCwd, "sudo mkdir " + downloadDir);
 
-    const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, oldTscVersion);
-    const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, newTscVersion);
+    const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params.oldTscVersion, params.oldTypescriptRepoUrl, params.oldHeadRef);
+    const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params.newTscVersion, params.newTypescriptRepoUrl, params.newHeadRef);
 
     // Get the name of the typescript folder.
     const oldTscDirPath = path.resolve(oldTscPath, "../../");
@@ -53,13 +52,13 @@ async function mainAsync() {
     const testDir = path.join(processCwd, "userTests");
 
     const repos = testType === "git"
-        ? await git.getPopularTypeScriptRepos(repoCount)
+        ? await git.getPopularTypeScriptRepos(params.repoCount!)
         : testType === "user"
             ? ur.getUserTestsRepos(testDir)
             : undefined;
 
     if (!repos) {
-        throw new Error(`Parameter {test_type} with value ${testType} is not existent.`);
+        throw new Error(`Parameter <test_type> with value ${testType} is not existent.`);
     }
 
     let summary = "";
@@ -93,7 +92,7 @@ async function mainAsync() {
 
             try {
                 console.log("Installing packages if absent");
-                await withTimeout(executionTimeout, installPackages(repoDir, testType !== "user", repo.types));
+                await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ testType !== "user", repo.types));
             }
             catch (err) {
                 reportError(err, "Error installing packages for " + repo.name);
@@ -103,7 +102,7 @@ async function mainAsync() {
 
             try {
                 console.log(`Building with ${oldTscPath} (old)`);
-                const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true);
+                const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, testType);
 
                 if (oldErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -135,7 +134,7 @@ async function mainAsync() {
                 }
 
                 console.log(`Building with ${newTscPath} (new)`);
-                const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true);
+                const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, testType);
 
                 if (newErrors.hasConfigFailure) {
                     console.log("Unable to build project graph");
@@ -228,7 +227,7 @@ async function mainAsync() {
 ${summary}`,
     };
 
-    if (!fileIssue) {
+    if (!params.fileIssue) {
         console.log("Issue not filed: ");
         console.log(JSON.stringify(issue));
         return;
@@ -254,12 +253,12 @@ ${summary}`,
     }
 }
 
-async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean) {
+async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: string) {
     const p = new Promise<ge.RepoErrors>((resolve, reject) => {
         const p = cp.fork(path.join(__dirname, "run-build.js"));
         p.on('message', (m: 'ready' | ge.RepoErrors) =>
             m === 'ready'
-                ? p.send({ repoDir, tscPath, skipLibCheck })
+                ? p.send({ repoDir, tscPath, testType, skipLibCheck })
                 : resolve(m));
         p.on('exit', reject);
     });
@@ -308,7 +307,7 @@ async function reportResourceUsage(downloadDir: string) {
     catch { } // noop
 }
 
-function reportError(err: any, message: string) {
+export function reportError(err: any, message: string) {
     console.log(`${message}:`);
     console.log(reduceSpew(err.message ?? "No message").replace(/(^|\n)/g, "$1> "));
     console.log(reduceSpew(err.stack ?? "Unknown Stack").replace(/(^|\n)/g, "$1> "));
@@ -367,7 +366,35 @@ function makeMarkdownLink(url: string) {
         : `[${match[1]}](${url})`;
 }
 
-async function downloadTypeScriptAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
+async function downloadTypeScriptAsync(cwd: string, version?: string, repoUrl?: string, headRef?: string): Promise<{ tscPath: string, resolvedVersion: string }> {
+    if (repoUrl && headRef) {
+        return await downloadTypescriptRepoAsync(cwd, repoUrl, headRef)
+    }
+    else if (version) {
+        return await downloadTypeScriptNpmAsync(cwd, version);
+    }
+    else {
+        throw new Error('Invalid parameters');
+    }
+}
+
+async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef: string): Promise<{ tscPath: string, resolvedVersion: string }> {
+    const repoName = `typescript-${headRef}`;
+    await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
+
+    const repoPath = path.join(cwd, repoName);
+
+    await execAsync(repoPath, "npm ci");
+    await execAsync(repoPath, "npm run build:compiler");
+
+    const tscPath = path.join(repoPath, "build", "local", "tsc.js");
+    return {
+        tscPath,
+        resolvedVersion: headRef
+    };
+}
+
+async function downloadTypeScriptNpmAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
     const tarName = (await execAsync(cwd, `npm pack typescript@${version} --quiet`)).trim();
 
     const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);

@@ -3,6 +3,7 @@
 /*.js.map
 /*.js
 /.vscode
+/typescript-*
 
 # Logs
 logs

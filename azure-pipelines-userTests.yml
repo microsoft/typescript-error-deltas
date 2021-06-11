@@ -3,26 +3,20 @@ parameters:
     displayName: File GitHub issue with results
     type: boolean
     default: true
-  - name: REPO_COUNT
-    displayName: Repo Count
+  - name: OLD_TS_REPO_URL
+    displayName: Old Typscript Repo Url
     type: string
-    default: 100
-  - name: OLD_VERSION
-    displayName: Baseline typescript package version
+    default: https://github.com/microsoft/TypeScript.git
+  - name: OLD_HEAD_REF
+    displayName: Old head reference
     type: string
-    default: latest
-  - name: NEW_VERSION
-    displayName: Candidate typescript package version
+    default: main
+  - name: NEW_TS_REPO_URL
+    displayName: Old Typescript Repo URL
     type: string
-    default: next
-
-schedules:
-  - cron: "0 18 * * Sun" # time is in UTC
-    displayName: Sunday overnight run
-    always: true
-    branches:
-      include:
-        - main
+  - name: NEW_HEAD_REF
+    displayName: New head reference
+    type: string
 
 trigger: none
 
@@ -49,6 +43,6 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node gitErrors ${{ parameters.FILE_ISSUE }} ${{ parameters.REPO_COUNT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }}
+      node userErrors ${{ parameters.FILE_ISSUE }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.NEW_TS_REPO_URL }} ${{ parameters.NEW_HEAD_REF }}
     env:
       GITHUB_PAT: $(TypeScriptErrorDeltas)

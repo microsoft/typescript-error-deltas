@@ -89,7 +89,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
             arguments: args,
         });
 
-        if (types) {
+        if (types && types.length > 0) {
             const args = isProjectYarn2
                 ? ["install", ...types.map(t => `@types/${t}`), "--ignore-scripts"]
                 : ["install", ...types.map(t => `@types/${t}`), "--no-save", "--ignore-scripts", "--legacy-peer-deps"]

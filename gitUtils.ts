@@ -5,10 +5,11 @@ import fs = require("fs");
 import path = require("path");
 
 export interface Repo {
-    name: string,
-    url?: string,
-    owner?: string,
-    types?: string[]
+    name: string;
+    url?: string;
+    owner?: string;
+    types?: string[];
+    branch?: string;
 }
 
 export async function getPopularTypeScriptRepos(count: number, cachePath?: string): Promise<readonly Repo[]> {
@@ -62,6 +63,13 @@ export async function cloneRepoIfNecessary(parentDir: string, repo: Repo): Promi
     }
 
     if (!await utils.exists(path.join(parentDir, repo.name))) {
-        await git(parentDir).clone(repo.url, repo.name, ["--recurse-submodules", "--depth=1"]);
+        console.log(`Cloning ${repo.url} into ${repo.name}`);
+
+        let options = ["--recurse-submodules", "--depth=1"];
+        if (repo.branch) {
+            options.push(`--branch=${repo.branch}`);
+        }
+
+        await git(parentDir).clone(repo.url, repo.name, options);
     }
 }
