@@ -10,10 +10,10 @@ if (argv.length !== 6) {
 
 mainAsync({
     testType: "git",
-    fileIssue: argv[3].toLowerCase() === "true", // Only accept true.
-    repoCount: +argv[4],
-    oldTscVersion: argv[5],
-    newTscVersion: argv[6],
+    fileIssue: argv[2].toLowerCase() === "true", // Only accept true.
+    repoCount: +argv[3],
+    oldTscVersion: argv[4],
+    newTscVersion: argv[5],
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

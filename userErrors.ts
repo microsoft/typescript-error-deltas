@@ -10,11 +10,11 @@ if (argv.length !== 7) {
 
 mainAsync({
     testType: "user",
-    fileIssue: argv[3].toLowerCase() === "true", // Only accept true.
-    oldTypescriptRepoUrl: argv[4],
-    oldHeadRef: argv[5],
-    newTypescriptRepoUrl: argv[6],
-    newHeadRef: argv[7],
+    fileIssue: argv[2].toLowerCase() === "true", // Only accept true.
+    oldTypescriptRepoUrl: argv[3],
+    oldHeadRef: argv[4],
+    newTypescriptRepoUrl: argv[5],
+    newHeadRef: argv[6],
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);
