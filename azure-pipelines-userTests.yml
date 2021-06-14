@@ -1,6 +1,6 @@
 parameters:
-  - name: FILE_ISSUE
-    displayName: File GitHub issue with results
+  - name: POST_RESULT
+    displayName: Post GitHub comment with results
     type: boolean
     default: true
   - name: OLD_TS_REPO_URL
@@ -17,6 +17,15 @@ parameters:
   - name: NEW_HEAD_REF
     displayName: New head reference
     type: string
+  - name: REQUESTING_USER
+    displayName: User name that requested the run
+    type: string
+  - name: SOURCE_ISSUE
+    displayName: Issue ID in github
+    type: number
+  - name: STATUS_COMMENT
+    displayName: Typescript-bot comment ID indicating that the run started
+    type: number
 
 trigger: none
 
@@ -43,6 +52,6 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node userErrors ${{ parameters.FILE_ISSUE }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.NEW_TS_REPO_URL }} ${{ parameters.NEW_HEAD_REF }}
+      node userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.NEW_TS_REPO_URL }} ${{ parameters.NEW_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }}
     env:
       GITHUB_PAT: $(TypeScriptErrorDeltas)

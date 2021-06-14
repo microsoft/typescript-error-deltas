@@ -12,6 +12,11 @@ export interface Repo {
     branch?: string;
 }
 
+const repoProperties = {
+    owner: "microsoft",
+    repo: "typescript",
+};
+
 export async function getPopularTypeScriptRepos(count: number, cachePath?: string): Promise<readonly Repo[]> {
     const cacheEncoding = { encoding: "utf-8" } as const;
 
@@ -72,4 +77,74 @@ export async function cloneRepoIfNecessary(parentDir: string, repo: Repo): Promi
 
         await git(parentDir).clone(repo.url, repo.name, options);
     }
+}
+
+export async function createIssue(postResult: boolean, title: string, body: string, sawNewErrors: boolean) {
+    const issue = {
+        ...repoProperties,
+        title,
+        body,
+    };
+
+    if (!postResult) {
+        console.log("Issue not posted: ");
+        console.log(JSON.stringify(issue));
+        return;
+    }
+
+    console.log("Creating a summary issue");
+
+    const kit = new octokit.Octokit({
+        auth: process.env.GITHUB_PAT,
+    });
+
+    const created = await kit.issues.create(issue);
+
+    const issueNumber = created.data.number;
+    console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
+
+    if (!sawNewErrors) {
+        await kit.issues.update({
+            ...repoProperties,
+            issue_number: issueNumber,
+            state: "closed",
+        });
+    }
+}
+
+export async function createComment(sourceIssue: number, statusComment: number, postResult: boolean, body: string) {
+    const newComment = {
+        ...repoProperties,
+        issue_number: sourceIssue,
+        body,
+    };
+
+    if (!postResult) {
+        console.log("Comment not posted: ");
+        console.log(JSON.stringify(newComment));
+        return;
+    }
+
+    console.log("Creating a github comment");
+    
+    const kit = new octokit.Octokit({
+        auth: process.env.GITHUB_PAT,
+    });
+
+    const data = await kit.issues.createComment(newComment);
+
+    const newCommentUrl = data.data.html_url;
+    console.log(`Created comment #${data.data.id}: ${newCommentUrl}`);
+
+    // Update typescript-bot comment
+    const comment = await kit.issues.getComment({
+        ...repoProperties,
+        comment_id: statusComment
+    });
+    const newBody = `${comment.data.body}\n\nUpdate: [The results are in!](${newCommentUrl})`;
+    await kit.issues.updateComment({
+        ...repoProperties,
+        comment_id: statusComment,
+        body: newBody
+    });
 }

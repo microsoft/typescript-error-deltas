@@ -1,4 +1,3 @@
-import octokit = require("@octokit/rest");
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
@@ -18,10 +17,13 @@ export interface UserParams {
     oldHeadRef: string;
     newTypescriptRepoUrl: string;
     newHeadRef: string;
+    sourceIssue: number;
+    requestingUser: string;
+    statusComment: number;
 }
 
 interface Params extends Partial<GitParams & UserParams> {
-    fileIssue: boolean;
+    postResult: boolean;
     testType: string;
 }
 
@@ -214,42 +216,19 @@ export async function mainAsync(params: Params) {
     await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
     await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
 
-    const repoProperties = {
-        owner: "microsoft",
-        repo: "typescript",
-    };
+    if (params.testType === "git") {
+        const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
+        const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 
-    const issue = {
-        ...repoProperties,
-        title: `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`,
-        body: `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
-
-${summary}`,
-    };
-
-    if (!params.fileIssue) {
-        console.log("Issue not filed: ");
-        console.log(JSON.stringify(issue));
-        return;
+        ${summary}`;
+        await git.createIssue(params.postResult, title, body, sawNewErrors);
     }
-
-    console.log("Creating a summary issue");
-
-    const kit = new octokit.Octokit({
-        auth: process.env.GITHUB_PAT,
-    });
-
-    const created = await kit.issues.create(issue);
-
-    const issueNumber = created.data.number;
-    console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
-
-    if (!sawNewErrors) {
-        await kit.issues.update({
-            ...repoProperties,
-            issue_number: issueNumber,
-            state: "closed",
-        });
+    else if(params.testType === "user") {
+        const body = `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\nComparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}\n</p>${summary}</details>`;
+        await git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
+    }
+    else {
+        throw new Error(`testType "${params.testType}" doesn't exists.`);
     }
 }
 
