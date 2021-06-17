@@ -12,7 +12,7 @@ parameters:
     type: string
     default: main
   - name: NEW_TS_REPO_URL
-    displayName: Old Typescript Repo URL
+    displayName: New Typescript Repo URL
     type: string
   - name: NEW_HEAD_REF
     displayName: New head reference

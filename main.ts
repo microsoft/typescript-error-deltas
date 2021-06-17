@@ -224,7 +224,7 @@ export async function mainAsync(params: Params) {
         await git.createIssue(params.postResult, title, body, sawNewErrors);
     }
     else if(params.testType === "user") {
-        const body = `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\nComparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}\n</p>${summary}</details>`;
+        const body = `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`;
         await git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
     }
     else {
@@ -366,7 +366,7 @@ async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef
     await execAsync(repoPath, "npm ci");
     await execAsync(repoPath, "npm run build:compiler");
 
-    const tscPath = path.join(repoPath, "build", "local", "tsc.js");
+    const tscPath = path.join(repoPath, "built", "local", "tsc.js");
     return {
         tscPath,
         resolvedVersion: headRef
