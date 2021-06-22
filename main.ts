@@ -15,8 +15,6 @@ export interface GitParams {
 export interface UserParams {
     oldTypescriptRepoUrl: string;
     oldHeadRef: string;
-    newTypescriptRepoUrl: string;
-    newHeadRef: string;
     sourceIssue: number;
     requestingUser: string;
     statusComment: number;
@@ -37,12 +35,11 @@ const executionTimeout = 10 * 60 * 1000;
 
 export async function mainAsync(params: Params) {
     const { testType } = params;
-    
+
     const downloadDir = "/mnt/ts_downloads";
     await execAsync(processCwd, "sudo mkdir " + downloadDir);
 
-    const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params.oldTscVersion, params.oldTypescriptRepoUrl, params.oldHeadRef);
-    const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params.newTscVersion, params.newTypescriptRepoUrl, params.newHeadRef);
+    const { oldTscPath, oldTscResolvedVersion, newTscPath, newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params);
 
     // Get the name of the typescript folder.
     const oldTscDirPath = path.resolve(oldTscPath, "../../");
@@ -223,7 +220,7 @@ export async function mainAsync(params: Params) {
         ${summary}`;
         await git.createIssue(params.postResult, title, body, sawNewErrors);
     }
-    else if(params.testType === "user") {
+    else if (params.testType === "user") {
         const body = `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`;
         await git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
     }
@@ -345,12 +342,29 @@ function makeMarkdownLink(url: string) {
         : `[${match[1]}](${url})`;
 }
 
-async function downloadTypeScriptAsync(cwd: string, version?: string, repoUrl?: string, headRef?: string): Promise<{ tscPath: string, resolvedVersion: string }> {
-    if (repoUrl && headRef) {
-        return await downloadTypescriptRepoAsync(cwd, repoUrl, headRef)
+async function downloadTypeScriptAsync(cwd: string, params: Params): Promise<{ oldTscPath: string, oldTscResolvedVersion: string, newTscPath: string, newTscResolvedVersion: string }> {
+    if (params.oldTypescriptRepoUrl && params.oldHeadRef && params.sourceIssue) { // User tests
+        const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypescriptRepoAsync(cwd, params.oldTypescriptRepoUrl, params.oldHeadRef);
+        // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
+        const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypescriptSourceIssueAsync(cwd, params.oldTypescriptRepoUrl, params.sourceIssue);
+
+        return {
+            oldTscPath,
+            oldTscResolvedVersion,
+            newTscPath,
+            newTscResolvedVersion
+        };
     }
-    else if (version) {
-        return await downloadTypeScriptNpmAsync(cwd, version);
+    else if (params.oldTscVersion && params.newTscVersion) { // Git tests
+        const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptNpmAsync(cwd, params.oldTscVersion);
+        const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptNpmAsync(cwd, params.newTscVersion);
+
+        return {
+            oldTscPath,
+            oldTscResolvedVersion,
+            newTscPath,
+            newTscResolvedVersion
+        };
     }
     else {
         throw new Error('Invalid parameters');
@@ -363,14 +377,33 @@ async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef
 
     const repoPath = path.join(cwd, repoName);
 
+    return {
+        tscPath: await buildTsc(repoPath),
+        resolvedVersion: headRef
+    };
+}
+
+async function downloadTypescriptSourceIssueAsync(cwd: string, repoUrl: string, sourceIssue: number): Promise<{ tscPath: string, resolvedVersion: string }> {
+    const repoName = `typescript-${sourceIssue}`;
+    await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });
+
+    const repoPath = path.join(cwd, repoName);
+    const headRef = `refs/pull/${sourceIssue}/merge`;
+
+    await git.checkout(repoPath, headRef);
+
+    return {
+        tscPath: await buildTsc(repoPath),
+        resolvedVersion: headRef
+    };
+}
+
+async function buildTsc(repoPath: string) {
     await execAsync(repoPath, "npm ci");
     await execAsync(repoPath, "npm run build:compiler");
 
     const tscPath = path.join(repoPath, "built", "local", "tsc.js");
-    return {
-        tscPath,
-        resolvedVersion: headRef
-    };
+    return tscPath;
 }
 
 async function downloadTypeScriptNpmAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {

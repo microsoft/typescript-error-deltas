@@ -3,6 +3,7 @@ import utils = require("./packageUtils");
 import git = require("simple-git/promise");
 import fs = require("fs");
 import path = require("path");
+import cp = require("child_process");
 
 export interface Repo {
     name: string;
@@ -146,5 +147,29 @@ export async function createComment(sourceIssue: number, statusComment: number, 
         ...repoProperties,
         comment_id: statusComment,
         body: newBody
+    });
+}
+
+export async function checkout(cwd: string, branch: string) {
+    await execAsync(cwd, `git fetch origin ${branch}:${branch} --recurse-submodules --depth=1`);
+    await execAsync(cwd, `git checkout ${branch}`);
+}
+
+async function execAsync(cwd: string, command: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        console.log(`${cwd}> ${command}`);
+        cp.exec(command, { cwd }, (err, stdout, stderr) => {
+            if (stdout?.length) {
+                console.log(stdout);
+            }
+            if (stderr?.length) {
+                console.log(stderr); // To stdout to maintain order
+            }
+
+            if (err) {
+                return reject(err);
+            }
+            return resolve(stdout);
+        });
     });
 }

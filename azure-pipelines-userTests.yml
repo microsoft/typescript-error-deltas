@@ -21,7 +21,7 @@ parameters:
     displayName: User name that requested the run
     type: string
   - name: SOURCE_ISSUE
-    displayName: Issue ID in github
+    displayName: PR ID in github
     type: number
   - name: STATUS_COMMENT
     displayName: Typescript-bot comment ID indicating that the run started
