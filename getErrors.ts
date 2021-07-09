@@ -7,7 +7,7 @@ import path = require("path");
 const nodePath = process.argv0;
 
 const errorCodeRegex = /error TS(\d+).*/;
-const errorPositionRegex = /^([^(]+)(?:\((\d+))/;
+const errorPositionRegex = /^([^(]+)(?:\((\d+),(\d+))/;
 const beginProjectRegex = /Building project '([^']+)'/;
 
 interface BuildOutput {
@@ -28,6 +28,7 @@ interface LocalError {
     text: string,
     path?: string,
     lineNumber?: number,
+    columnNumber?: number,
 }
 
 export interface Error {
@@ -114,7 +115,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
         const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
 
         const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
-        const fileUrls = testType === "user" ? fileLocalErrors.map(x => x.path) : await ghUrl.getGithubUrls(fileLocalErrors);
+        const fileUrls = testType === "user" ? fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`) : await ghUrl.getGithubUrls(fileLocalErrors);
 
         for (let i = 0; i < fileLocalErrors.length; i++) {
             const localError = fileLocalErrors[i];
@@ -141,6 +142,13 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
     };
 }
 
+export function errorEquals(error1: Error, error2: Error) {
+    return error1.code === error2.code
+        && error1.fileUrl === error2.fileUrl
+        && error1.projectUrl === error2.projectUrl
+        && error1.text === error2.text;
+}
+
 function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | undefined {
     const errorCodeMatch = line.match(errorCodeRegex);
     if (errorCodeMatch) {
@@ -150,6 +158,7 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
         if (positionMatch) {
             const path = positionMatch[1];
             const lineNumber = +positionMatch[2];
+            const columnNumber = +positionMatch[3];
 
             return {
                 projectUrl,
@@ -157,6 +166,7 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
                 text,
                 path,
                 lineNumber,
+                columnNumber,
             };
         }
         else {

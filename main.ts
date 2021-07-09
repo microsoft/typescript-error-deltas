@@ -118,13 +118,17 @@ export async function mainAsync(params: Params) {
                     }
                 }
 
-                if (numFailed === numProjects) {
+                // User tests ignores build failures.
+                if (testType !== "user" && numFailed === numProjects) {
                     console.log(`Skipping build with ${newTscPath} (new)`);
                     continue;
                 }
 
                 let sawNewRepoErrors = false;
-                let repoSummary = `# [${repo.owner}/${repo.name}]${repo.url ? `(${repo.url})` : ``}\n`;
+                const owner = repo.owner ? `${repo.owner}/` : "";
+                const url = repo.url ? `(${repo.url})` : "";
+                
+                let repoSummary = `# [${owner}${repo.name}]${url}\n`;
 
                 if (numFailed > 0) {
                     const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
@@ -148,12 +152,14 @@ export async function mainAsync(params: Params) {
                 console.log("Comparing errors");
                 for (const oldProjectErrors of oldErrors.projectErrors) {
                     // To keep things simple, we'll focus on projects that used to build cleanly
-                    if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
+                    if (testType !== "user" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
                         continue;
                     }
 
                     // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
-                    const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055);
+                    // Filter out errors reported already on "old".
+                    const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055)
+                        .filter(ne => !oldProjectErrors.errors.find(oe => ge.errorEquals(oe, ne)));
                     if (!newProjectErrors?.length) {
                         continue;
                     }
