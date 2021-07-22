@@ -127,7 +127,7 @@ export async function mainAsync(params: Params) {
                 let sawNewRepoErrors = false;
                 const owner = repo.owner ? `${repo.owner}/` : "";
                 const url = repo.url ? `(${repo.url})` : "";
-                
+
                 let repoSummary = `# [${owner}${repo.name}]${url}\n`;
 
                 if (numFailed > 0) {
@@ -223,7 +223,7 @@ export async function mainAsync(params: Params) {
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 
-        ${summary}`;
+${summary}`;
         await git.createIssue(params.postResult, title, body, sawNewErrors);
     }
     else if (params.testType === "user") {
