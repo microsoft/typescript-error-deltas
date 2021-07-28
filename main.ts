@@ -227,7 +227,9 @@ ${summary}`;
         await git.createIssue(params.postResult, title, body, sawNewErrors);
     }
     else if (params.testType === "user") {
-        const body = `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`;
+        const body = summary 
+            ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
+            : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
         await git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
     }
     else {
