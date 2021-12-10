@@ -275,18 +275,20 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
     ]);
 }
 
-async function reportResourceUsage(downloadDir: string) {
+async function reportResourceUsage(downloadDir: string, verbose = false) {
     try {
         console.log("Memory");
         await execAsync(processCwd, "free -h");
         console.log("Disk");
         await execAsync(processCwd, "df -h");
         await execAsync(processCwd, "df -i");
-        console.log("Download Directory");
-        await execAsync(processCwd, "ls -lh " + downloadDir);
-        console.log("Home Directory");
-        await execAsync(processCwd, "du -csh ~/.[^.]*");
-        await execAsync(processCwd, "du -csh ~/.cache/*");
+        if (verbose) {
+            console.log("Download Directory");
+            await execAsync(processCwd, "ls -lh " + downloadDir);
+            console.log("Home Directory");
+            await execAsync(processCwd, "du -csh ~/.[^.]*");
+            await execAsync(processCwd, "du -csh ~/.cache/*");
+        }
     }
     catch { } // noop
 }
