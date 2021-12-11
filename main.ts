@@ -1,6 +1,7 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
+import type { GitResult, UserResult } from './gitUtils'
 import ip = require("./installPackages");
 import ur = require("./userRepos");
 import cp = require("child_process");
@@ -20,7 +21,7 @@ export interface UserParams {
     statusComment: number;
 }
 
-interface Params extends Partial<GitParams & UserParams> {
+export interface Params extends Partial<GitParams & UserParams> {
     postResult: boolean;
     testType: string;
 }
@@ -33,7 +34,7 @@ const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
 
-export async function mainAsync(params: Params) {
+export async function mainAsync(params: Params): Promise<GitResult | UserResult | undefined> {
     const { testType } = params;
 
     const downloadDir = "/mnt/ts_downloads";
@@ -224,13 +225,13 @@ export async function mainAsync(params: Params) {
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 
 ${summary}`;
-        await git.createIssue(params.postResult, title, body, sawNewErrors);
+        return git.createIssue(params.postResult, title, body, sawNewErrors);
     }
     else if (params.testType === "user") {
         const body = summary 
             ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
             : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
-        await git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
+        return git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
     }
     else {
         throw new Error(`testType "${params.testType}" doesn't exists.`);

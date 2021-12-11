@@ -80,7 +80,15 @@ export async function cloneRepoIfNecessary(parentDir: string, repo: Repo): Promi
     }
 }
 
-export async function createIssue(postResult: boolean, title: string, body: string, sawNewErrors: boolean) {
+type Result = {
+    body: string,
+    owner: string,
+    repo: string,
+}
+export type GitResult = Result & { kind: 'git', title: string }
+export type UserResult = Result & { kind: 'user', issue_number: number }
+
+export async function createIssue(postResult: boolean, title: string, body: string, sawNewErrors: boolean): Promise<GitResult | undefined> {
     const issue = {
         ...repoProperties,
         title,
@@ -90,7 +98,7 @@ export async function createIssue(postResult: boolean, title: string, body: stri
     if (!postResult) {
         console.log("Issue not posted: ");
         console.log(JSON.stringify(issue));
-        return;
+        return { kind: 'git', ...issue };
     }
 
     console.log("Creating a summary issue");
@@ -113,7 +121,7 @@ export async function createIssue(postResult: boolean, title: string, body: stri
     }
 }
 
-export async function createComment(sourceIssue: number, statusComment: number, postResult: boolean, body: string) {
+export async function createComment(sourceIssue: number, statusComment: number, postResult: boolean, body: string): Promise<UserResult | undefined> {
     const newComment = {
         ...repoProperties,
         issue_number: sourceIssue,
@@ -123,7 +131,7 @@ export async function createComment(sourceIssue: number, statusComment: number, 
     if (!postResult) {
         console.log("Comment not posted: ");
         console.log(JSON.stringify(newComment));
-        return;
+        return { kind: 'user', ...newComment };
     }
 
     console.log("Creating a github comment");
