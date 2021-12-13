@@ -102,7 +102,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
             }
             catch (err) {
                 reportError(err, "Error installing packages for " + repo.name);
-                await reportResourceUsage(downloadDir);
+                await reportResourceUsage(downloadDir, params.postResult);
                 continue;
             }
 
@@ -218,7 +218,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
             // Note that we specifically don't recover and attempt another repo if this fails
             console.log("Cleaning up repo");
             await execAsync(processCwd, "sudo umount " + downloadDir);
-            await reportResourceUsage(downloadDir);
+            await reportResourceUsage(downloadDir, params.postResult);
         }
     }
 
@@ -282,7 +282,7 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
     ]);
 }
 
-async function reportResourceUsage(downloadDir: string, verbose = false) {
+async function reportResourceUsage(downloadDir: string, verbose: boolean) {
     try {
         console.log("Memory");
         await execAsync(processCwd, "free -h");
