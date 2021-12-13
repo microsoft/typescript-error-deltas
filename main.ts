@@ -8,22 +8,28 @@ import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
 
-export interface GitParams {
-    repoCount: number;
+interface Params {
+    /** True to post the result to Github, false to print to console.  */
+    postResult: boolean;
+    /**
+     * Number of repos to test, undefined for the default.
+     * Git repos are chosen randomly; default is 100.
+     * User repos start at the top of the list; default is all of them.
+     */
+    repoCount?: number | undefined;
+}
+export interface GitParams extends Params {
+    testType: 'git';
     oldTscVersion: string;
     newTscVersion: string;
 }
-export interface UserParams {
+export interface UserParams extends Params {
+    testType: 'user';
     oldTypescriptRepoUrl: string;
     oldHeadRef: string;
     sourceIssue: number;
     requestingUser: string;
     statusComment: number;
-}
-
-export interface Params extends Partial<GitParams & UserParams> {
-    postResult: boolean;
-    testType: string;
 }
 
 const skipRepos = [
@@ -34,7 +40,7 @@ const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
 
-export async function mainAsync(params: Params): Promise<GitResult | UserResult | undefined> {
+export async function mainAsync(params: GitParams | UserParams): Promise<GitResult | UserResult | undefined> {
     const { testType } = params;
 
     const downloadDir = "/mnt/ts_downloads";
@@ -51,11 +57,9 @@ export async function mainAsync(params: Params): Promise<GitResult | UserResult 
 
     const testDir = path.join(processCwd, "userTests");
 
-    const repos = testType === "git"
-        ? await git.getPopularTypeScriptRepos(params.repoCount!)
-        : testType === "user"
-            ? ur.getUserTestsRepos(testDir)
-            : undefined;
+    const repos = testType === "git" ? await git.getPopularTypeScriptRepos(params.repoCount)
+        : testType === "user" ? ur.getUserTestsRepos(testDir)
+        : undefined;
 
     if (!repos) {
         throw new Error(`Parameter <test_type> with value ${testType} is not existent.`);
@@ -65,11 +69,13 @@ export async function mainAsync(params: Params): Promise<GitResult | UserResult 
     let sawNewErrors = false;
 
     let i = 0;
+    const maxCount = Math.min(typeof params.repoCount === 'number' ? params.repoCount : Infinity, repos.length)
 
     for (const repo of repos) {
         if (repo.url && skipRepos.includes(repo.url)) continue;
-
-        console.log(`Starting #${++i}: ${repo.url ?? repo.name}`);
+        i++;
+        if (i > maxCount) break;
+        console.log(`Starting #${i} / ${maxCount}: ${repo.url ?? repo.name}`);
 
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
 
@@ -220,21 +226,21 @@ export async function mainAsync(params: Params): Promise<GitResult | UserResult 
     await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
     await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
 
-    if (params.testType === "git") {
+    if (testType === "git") {
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 
 ${summary}`;
         return git.createIssue(params.postResult, title, body, sawNewErrors);
     }
-    else if (params.testType === "user") {
-        const body = summary 
+    else if (testType === "user") {
+        const body = summary
             ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
             : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
-        return git.createComment(params.sourceIssue!, params.statusComment!, params.postResult, body);
+        return git.createComment(params.sourceIssue, params.statusComment, params.postResult, body);
     }
     else {
-        throw new Error(`testType "${params.testType}" doesn't exists.`);
+        throw new Error(`testType "${(params as any).testType}" is not a recognised test type.`);
     }
 }
 
@@ -353,8 +359,8 @@ function makeMarkdownLink(url: string) {
         : `[${match[1]}](${url})`;
 }
 
-async function downloadTypeScriptAsync(cwd: string, params: Params): Promise<{ oldTscPath: string, oldTscResolvedVersion: string, newTscPath: string, newTscResolvedVersion: string }> {
-    if (params.oldTypescriptRepoUrl && params.oldHeadRef && params.sourceIssue) { // User tests
+async function downloadTypeScriptAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTscPath: string, oldTscResolvedVersion: string, newTscPath: string, newTscResolvedVersion: string }> {
+    if (params.testType === 'user') {
         const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypescriptRepoAsync(cwd, params.oldTypescriptRepoUrl, params.oldHeadRef);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
         const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypescriptSourceIssueAsync(cwd, params.oldTypescriptRepoUrl, params.sourceIssue);
@@ -366,7 +372,7 @@ async function downloadTypeScriptAsync(cwd: string, params: Params): Promise<{ o
             newTscResolvedVersion
         };
     }
-    else if (params.oldTscVersion && params.newTscVersion) { // Git tests
+    else if (params.testType === 'git') {
         const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptNpmAsync(cwd, params.oldTscVersion);
         const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptNpmAsync(cwd, params.newTscVersion);
 

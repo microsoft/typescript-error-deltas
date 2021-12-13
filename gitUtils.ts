@@ -18,7 +18,7 @@ const repoProperties = {
     repo: "typescript",
 };
 
-export async function getPopularTypeScriptRepos(count: number, cachePath?: string): Promise<readonly Repo[]> {
+export async function getPopularTypeScriptRepos(count = 100, cachePath?: string): Promise<readonly Repo[]> {
     const cacheEncoding = { encoding: "utf-8" } as const;
 
     if (cachePath && await utils.exists(cachePath)) {
