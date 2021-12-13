@@ -12,6 +12,6 @@
         "*.ts"
     ],
     "exclude": [
-        "userTests"
+        "userTests", "typescript-*"
     ]
 }
