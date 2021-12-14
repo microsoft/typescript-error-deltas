@@ -69,7 +69,7 @@ export interface RepoErrors {
  * @param tscPath The path to tsc.js.
  * @param skipLibCheck True pass --skipLibCheck when building non-composite projects.  (Defaults to true)
  */
-export async function buildAndGetErrors(repoDir: string, tscPath: string, testType: string, skipLibCheck: boolean = true): Promise<RepoErrors> {
+export async function buildAndGetErrors(repoDir: string, tscPath: string, testType: 'git' | 'user', skipLibCheck: boolean = true): Promise<RepoErrors> {
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 

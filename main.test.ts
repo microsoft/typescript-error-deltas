@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { mainAsync, innerloop, UserParams } from './main'
+import { mainAsync, innerloop, UserParams, downloadTypescriptRepoAsync } from './main'
 import { UserResult } from './gitUtils'
 import path = require('path')
 describe("main", () => {
@@ -59,5 +59,8 @@ The results of the user tests run you requested are in!
         expect(hasNewErrors).toBeTruthy()
         expect(outputs.join("").startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()
         expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
+    })
+    it("downloads from a branch", async () => {
+        await downloadTypescriptRepoAsync('./', 'https://github.com/sandersn/typescript', 'test-fake-error')
     })
 })

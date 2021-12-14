@@ -268,8 +268,8 @@ ${summary}`;
     }
 }
 
-async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: string, realTimeout: boolean): Promise<ge.RepoErrors> {
-    if (realTimeout || !realTimeout) {
+async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: 'git' | 'user', realTimeout: boolean): Promise<ge.RepoErrors> {
+    if (realTimeout) {
         const p = new Promise<ge.RepoErrors>((resolve, reject) => {
             const p = cp.fork(path.join(__dirname, "run-build.js"));
             p.on('message', (m: 'ready' | ge.RepoErrors) =>
@@ -415,7 +415,7 @@ async function downloadTypeScriptAsync(cwd: string, params: GitParams | UserPara
     }
 }
 
-async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef: string): Promise<{ tscPath: string, resolvedVersion: string }> {
+export async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef: string): Promise<{ tscPath: string, resolvedVersion: string }> {
     const repoName = `typescript-${headRef}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
