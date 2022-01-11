@@ -1,9 +1,10 @@
 import path = require('path')
 import { buildAndGetErrors } from './getErrors'
 describe("getErrors", () => {
-    it("builds one time", async () => {
+    it("builds a simple project one time", async () => {
         const errors = await buildAndGetErrors(
             "./test/simpleProject",
+            // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
             'user',
             /*skipLibCheck*/ true,

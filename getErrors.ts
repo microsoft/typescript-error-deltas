@@ -73,9 +73,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 
-    const lernaOrder = await packageUtils.getLernaOrder(repoDir);
-
-    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir, /*ignoreExtensionErrors*/ true, lernaOrder);
+    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir, /*ignoreExtensionErrors*/ true);
     const projectsToBuild = simpleProjects.concat(rootCompositeProjects);
 
     if (!projectsToBuild.length) {

@@ -90,10 +90,8 @@ function dependsOnProjectWithError(project: Project, ignoreExtensionErrors: bool
  * Heuristically, returns a collection of projects that should be built (excluding, for example, downstream and base projects).
  * Note: Providing a list of lernaPackages is a performance optimization - they'll be computed otherwise.
  */
-export async function getProjectsToBuild(repoDir: string, ignoreExtensionErrors: boolean = true, lernaPackages?: readonly string[]): Promise<ProjectsToBuild> {
-    lernaPackages = await utils.getLernaOrder(repoDir);
-
-    const projectPaths = await getProjectPaths(repoDir, lernaPackages);
+export async function getProjectsToBuild(repoDir: string, ignoreExtensionErrors: boolean = true): Promise<ProjectsToBuild> {
+    const projectPaths = await getProjectPaths(repoDir, await utils.getLernaOrder(repoDir));
 
     const projectMap = new Map<string, Project>(); // path to data
     for (const projectPath of projectPaths) {
