@@ -30,7 +30,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
     const commands: InstallCommand[] = [];
 
     const globPattern = recursiveSearch ? "**/package.json" : "package.json";
-    const packageFiles = await utils.glob(repoDir, globPattern);
+    const packageFiles = utils.glob(repoDir, globPattern);
 
     for (const packageFile of packageFiles) {
         let inLernaPackageDir = false;

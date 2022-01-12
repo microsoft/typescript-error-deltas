@@ -70,10 +70,13 @@ export interface RepoErrors {
  * @param skipLibCheck True pass --skipLibCheck when building non-composite projects.  (Defaults to true)
  */
 export async function buildAndGetErrors(repoDir: string, tscPath: string, testType: 'git' | 'user', skipLibCheck: boolean = true): Promise<RepoErrors> {
+    // TODO: Either add a new testType (passed in to here) or a new projectType (detected by projectGraph.getProjectsToBuild(repoDir)
+    // *probably* it makes more sense to add a testType, especially since the 'git' test type isn't needed here. It's from the fuzzer.
+    // (if we wanted to keep 'git', the 3 things aren't in one category)
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 
-    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir, /*ignoreExtensionErrors*/ true);
+    const { simpleProjects, rootCompositeProjects, scriptedProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir);
     const projectsToBuild = simpleProjects.concat(rootCompositeProjects);
 
     if (!projectsToBuild.length) {
