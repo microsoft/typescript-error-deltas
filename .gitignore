@@ -1,8 +1,8 @@
 ts_downloads/
 *.tsbuildinfo
-/*.d.ts
-/*.js.map
-/*.js
+*.d.ts
+*.js.map
+*.js
 /.vscode
 /typescript-*
 

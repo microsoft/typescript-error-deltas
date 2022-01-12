@@ -1,1 +1,1 @@
-tsc main.ts
+node $TSC --skipLibCheck --incremental false --pretty false main.ts

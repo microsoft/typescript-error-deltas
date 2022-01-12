@@ -76,20 +76,20 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 
-    const { simpleProjects, rootCompositeProjects, scriptedProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir);
-    const projectsToBuild = simpleProjects.concat(rootCompositeProjects);
-
+    const { simpleProjects, rootCompositeProjects, scriptedProjects, hasError: hasConfigFailure } = projectGraph.getProjectsToBuild(repoDir);
+    // TODO: Move this inside getProjectsToBuild, separating them is pointless
+    const projectsToBuild = simpleProjects.concat(rootCompositeProjects).concat(scriptedProjects);
     if (!projectsToBuild.length) {
         return {
             hasConfigFailure,
             projectErrors: [],
         };
     }
-
     const projectErrors: ProjectErrors[] = [];
-
-    for (const { path: projectPath, isComposite } of projectsToBuild) {
-        const { isEmpty, stdout, hasBuildFailure } = await buildProject(tscPath, isComposite ? compositeBuildArgs : simpleBuildArgs, projectPath);
+    for (const { path: projectPath, isComposite, contents } of projectsToBuild) {
+        const { isEmpty, stdout, hasBuildFailure } = contents
+            ? await buildScript(tscPath, projectPath)
+            : await buildProject(tscPath, isComposite ? compositeBuildArgs : simpleBuildArgs, projectPath);
         if (isEmpty) continue;
 
         const projectDir = path.dirname(projectPath);
@@ -105,19 +105,16 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
                 currProjectUrl = testType === "user" ? path.resolve(projectDir, projectMatch[1]) : await ghUrl.getGithubUrl(path.resolve(projectDir, projectMatch[1]));
                 continue;
             }
-
             const localError = getLocalErrorFromLine(line, currProjectUrl);
             if (localError) {
                 localErrors.push(localError);
             }
         }
-
         // Handling the project-level errors separately makes it easier to bulk convert the file-level errors to use GH urls
         const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
 
         const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
         const fileUrls = testType === "user" ? fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`) : await ghUrl.getGithubUrls(fileLocalErrors);
-
         for (let i = 0; i < fileLocalErrors.length; i++) {
             const localError = fileLocalErrors[i];
             errors.push({
@@ -127,7 +124,6 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
                 fileUrl: fileUrls[i],
             });
         }
-
         projectErrors.push({
             projectUrl,
             isComposite,
@@ -136,7 +132,6 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
             raw: stdout,
         });
     }
-
     return {
         hasConfigFailure,
         projectErrors,
@@ -180,6 +175,17 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
     }
 
     return undefined;
+}
+
+async function buildScript(tscPath: string, projectPath: string) {
+    console.log('i am building a script')
+    const { err, stdout, stderr } = await execAsync(path.dirname(projectPath), `TSC=${tscPath} ${path.resolve(projectPath)}`);
+    console.log(err, stdout, stderr)
+    return {
+        stdout,
+        hasBuildFailure: !!(err || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr
+        isEmpty: !!stdout.match(/TS18003/)
+    };
 }
 
 async function buildProject(tscPath: string, tscArguments: string, projectPath: string): Promise<BuildOutput> {

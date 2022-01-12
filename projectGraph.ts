@@ -12,12 +12,8 @@ export interface Project {
     extends: /*readonly*/ Project[],
     extendedBy: /*readonly*/ Project[],
     references: /*readonly*/ Project[],
-    referencedBy: /*readonly*/ Project[]
-}
-
-export interface ScriptProject {
-    path: string,
-    contents: string,
+    referencedBy: /*readonly*/ Project[],
+    contents: string, // TODO: Turns out this should just be a boolean
 }
 
 export interface ProjectsToBuild {
@@ -26,7 +22,7 @@ export interface ProjectsToBuild {
     /** Order matters */
     rootCompositeProjects: readonly Project[],
     /** Just follow the script */
-    scriptedProjects: readonly ScriptProject[],
+    scriptedProjects: readonly Project[],
     hasError: boolean,
 }
 
@@ -89,7 +85,7 @@ function dependsOnProjectWithError(project: Project): boolean {
  */
 export function getProjectsToBuild(repoDir: string): ProjectsToBuild {
     // TODO: Don't need to return arrays anymore now that we're not faking lerna (or project) build order
-    const scriptedProjects: ScriptProject[] = []
+    const scriptedProjects: Project[] = []
     const projectPaths = getProjectPaths(repoDir);
     const projectMap = new Map<string, Project>(); // path to data
     for (const projectPath of projectPaths) {
@@ -103,7 +99,8 @@ export function getProjectsToBuild(repoDir: string): ProjectsToBuild {
             extends: [],
             extendedBy: [],
             references: [],
-            referencedBy: []
+            referencedBy: [],
+            contents: "",
         });
     }
     const projectsWithCompositeFlag: Project[] = [];
@@ -113,10 +110,7 @@ export function getProjectsToBuild(repoDir: string): ProjectsToBuild {
         try {
             const contents = fs.readFileSync(projectPath, { encoding: "utf-8" });
             if (projectPath.endsWith("build.sh")) {
-                scriptedProjects.push({
-                    path: projectPath,
-                    contents,
-                })
+                project.contents = contents
                 continue
             }
             config = json5.parse(contents);
@@ -178,8 +172,8 @@ export function getProjectsToBuild(repoDir: string): ProjectsToBuild {
             // Should be built by the upstream project
             continue;
         }
-        if (project.path.endsWith("build.sh")) {
-            // already added to scriptedProjects in previous loop
+        if (project.contents) {
+            scriptedProjects.push(project)
         }
         else if (project.isComposite || project.references.length) {
             // Composite project
