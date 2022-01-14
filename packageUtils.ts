@@ -13,16 +13,10 @@ interface Package {
 }
 
 /**
- * An async version of the fantastic `glob` module, ignoring node_modules and symlinks, and returning absolute paths.
+ * `glob`, but ignoring node_modules and symlinks, and returning absolute paths.
  */
-export function glob(cwd: string, pattern: string): Promise<readonly string[]> {
-    return new Promise((resolve, reject) =>
-        globCps(pattern, { cwd, absolute: true, ignore: "**/node_modules/**", follow: false }, (err, matches) => {
-            if (err) return reject(err);
-
-            resolve(matches);
-        })
-    );
+export function glob(cwd: string, pattern: string): readonly string[] {
+    return globCps.sync(pattern, { cwd, absolute: true, ignore: "**/node_modules/**", follow: false })
 }
 
 /**
@@ -38,11 +32,11 @@ export async function exists(path: string): Promise<boolean> {
  */
 export async function getLernaOrder(repoDir: string): Promise<readonly string[]> {
     const lernaOrder: string[] = [];
-    const lernaFiles = await glob(repoDir, "**/lerna.json");
+    const lernaFiles = glob(repoDir, "**/lerna.json");
     for (const lernaFile of lernaFiles) {
         const lernaDir = path.dirname(lernaFile);
         if (await exists(path.join(lernaDir, "packages"))) {
-            const pkgPaths = await glob(path.join(lernaDir, "packages"), "**/package.json");
+            const pkgPaths = glob(path.join(lernaDir, "packages"), "**/package.json");
             const pkgs = await Promise.all(pkgPaths.map(async pkgPath => {
                 const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
                 const pkg: Package = json5.parse(contents);

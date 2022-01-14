@@ -11,6 +11,7 @@ if (argv.length !== 6) {
 mainAsync({
     testType: "git",
     postResult: argv[2].toLowerCase() === "true", // Only accept true.
+    tmpfs: true,
     repoCount: +argv[3],
     oldTscVersion: argv[4],
     newTscVersion: argv[5],

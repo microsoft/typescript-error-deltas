@@ -69,26 +69,27 @@ export interface RepoErrors {
  * @param tscPath The path to tsc.js.
  * @param skipLibCheck True pass --skipLibCheck when building non-composite projects.  (Defaults to true)
  */
-export async function buildAndGetErrors(repoDir: string, tscPath: string, testType: string, skipLibCheck: boolean = true): Promise<RepoErrors> {
+export async function buildAndGetErrors(repoDir: string, tscPath: string, testType: 'git' | 'user', skipLibCheck: boolean = true): Promise<RepoErrors> {
+    // TODO: Either add a new testType (passed in to here) or a new projectType (detected by projectGraph.getProjectsToBuild(repoDir)
+    // *probably* it makes more sense to add a testType, especially since the 'git' test type isn't needed here. It's from the fuzzer.
+    // (if we wanted to keep 'git', the 3 things aren't in one category)
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 
-    const lernaOrder = await packageUtils.getLernaOrder(repoDir);
-
-    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir, /*ignoreExtensionErrors*/ true, lernaOrder);
-    const projectsToBuild = simpleProjects.concat(rootCompositeProjects);
-
+    const { simpleProjects, rootCompositeProjects, scriptedProjects, hasError: hasConfigFailure } = projectGraph.getProjectsToBuild(repoDir);
+    // TODO: Move this inside getProjectsToBuild, separating them is pointless
+    const projectsToBuild = simpleProjects.concat(rootCompositeProjects).concat(scriptedProjects);
     if (!projectsToBuild.length) {
         return {
             hasConfigFailure,
             projectErrors: [],
         };
     }
-
     const projectErrors: ProjectErrors[] = [];
-
-    for (const { path: projectPath, isComposite } of projectsToBuild) {
-        const { isEmpty, stdout, hasBuildFailure } = await buildProject(tscPath, isComposite ? compositeBuildArgs : simpleBuildArgs, projectPath);
+    for (const { path: projectPath, isComposite, contents } of projectsToBuild) {
+        const { isEmpty, stdout, hasBuildFailure } = contents
+            ? await buildScript(tscPath, projectPath)
+            : await buildProject(tscPath, isComposite ? compositeBuildArgs : simpleBuildArgs, projectPath);
         if (isEmpty) continue;
 
         const projectDir = path.dirname(projectPath);
@@ -104,19 +105,16 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
                 currProjectUrl = testType === "user" ? path.resolve(projectDir, projectMatch[1]) : await ghUrl.getGithubUrl(path.resolve(projectDir, projectMatch[1]));
                 continue;
             }
-
             const localError = getLocalErrorFromLine(line, currProjectUrl);
             if (localError) {
                 localErrors.push(localError);
             }
         }
-
         // Handling the project-level errors separately makes it easier to bulk convert the file-level errors to use GH urls
         const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
 
         const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
         const fileUrls = testType === "user" ? fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`) : await ghUrl.getGithubUrls(fileLocalErrors);
-
         for (let i = 0; i < fileLocalErrors.length; i++) {
             const localError = fileLocalErrors[i];
             errors.push({
@@ -126,7 +124,6 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
                 fileUrl: fileUrls[i],
             });
         }
-
         projectErrors.push({
             projectUrl,
             isComposite,
@@ -135,7 +132,6 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, testTy
             raw: stdout,
         });
     }
-
     return {
         hasConfigFailure,
         projectErrors,
@@ -179,6 +175,16 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
     }
 
     return undefined;
+}
+
+async function buildScript(tscPath: string, projectPath: string) {
+    const repoPath = path.dirname(path.dirname(path.dirname(tscPath)))
+    const { err, stdout, stderr } = await execAsync(path.dirname(projectPath), `TS=${repoPath} ${path.resolve(projectPath)}`);
+    return {
+        stdout,
+        hasBuildFailure: !!(err || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr
+        isEmpty: !!stdout.match(/TS18003/)
+    };
 }
 
 async function buildProject(tscPath: string, tscArguments: string, projectPath: string): Promise<BuildOutput> {

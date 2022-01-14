@@ -11,6 +11,8 @@ import path = require("path");
 interface Params {
     /** True to post the result to Github, false to print to console.  */
     postResult: boolean;
+    /** Store test repos on a tmpfs */
+    tmpfs: boolean;
     /**
      * Number of repos to test, undefined for the default.
      * Git repos are chosen randomly; default is 100.
@@ -39,13 +41,169 @@ const skipRepos = [
 const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
+export async function innerloop(params: GitParams | UserParams, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
+    const { testType } = params
+    if (params.tmpfs)
+        await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
+
+    try {
+        if (repo.url) {
+            try {
+                console.log("Cloning if absent");
+                await git.cloneRepoIfNecessary(downloadDir, repo);
+            }
+            catch (err) {
+                reportError(err, "Error cloning " + repo.url);
+                return;
+            }
+        }
+        else {
+            await ur.copyUserRepo(downloadDir, userTestDir, repo);
+        }
+
+        const repoDir = path.join(downloadDir, repo.name);
+
+        try {
+            console.log("Installing packages if absent");
+            await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ testType !== "user", repo.types));
+        }
+        catch (err) {
+            reportError(err, "Error installing packages for " + repo.name);
+            await reportResourceUsage(downloadDir);
+            return;
+        }
+
+        try {
+            console.log(`Building with ${oldTscPath} (old)`);
+            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, testType, params.postResult);
+
+            if (oldErrors.hasConfigFailure) {
+                console.log("Unable to build project graph");
+                console.log(`Skipping build with ${newTscPath} (new)`);
+                return;
+            }
+
+            const numProjects = oldErrors.projectErrors.length;
+
+            let numFailed = 0;
+            for (const oldProjectErrors of oldErrors.projectErrors) {
+                if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
+                    numFailed++;
+                }
+            }
+
+            // User tests ignores build failures.
+            if (testType !== "user" && numFailed === numProjects) {
+                console.log(`Skipping build with ${newTscPath} (new)`);
+                return;
+            }
+
+            let sawNewRepoErrors = false;
+            const owner = repo.owner ? `${repo.owner}/` : "";
+            const url = repo.url ? `(${repo.url})` : "";
+
+            let repoSummary = `# [${owner}${repo.name}]${url}\n`;
+
+            if (numFailed > 0) {
+                const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
+                console.log(oldFailuresMessage);
+                repoSummary += `**${oldFailuresMessage}**\n`;
+            }
+
+            console.log(`Building with ${newTscPath} (new)`);
+            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, testType, params.postResult);
+
+            if (newErrors.hasConfigFailure) {
+                console.log("Unable to build project graph");
+
+                repoSummary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
+
+                outputs.push(repoSummary)
+                return true;
+            }
+
+            console.log("Comparing errors");
+            for (const oldProjectErrors of oldErrors.projectErrors) {
+                // To keep things simple, we'll focus on projects that used to build cleanly
+                if (testType !== "user" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
+                    continue;
+                }
+
+                // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
+                // Filter out errors reported already on "old".
+                const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055)
+                    .filter(ne => !oldProjectErrors.errors.find(oe => ge.errorEquals(oe, ne)));
+                if (!newProjectErrors?.length) {
+                    continue;
+                }
+
+                sawNewRepoErrors = true;
+
+                const errorMessageMap = new Map<string, ge.Error[]>();
+                const errorMessages: string[] = [];
+
+                console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
+                for (const newError of newProjectErrors) {
+                    const newErrorText = newError.text;
+
+                    console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}` : ``}`);
+                    console.log(`\t\t${newErrorText}`);
+
+                    if (!errorMessageMap.has(newErrorText)) {
+                        errorMessageMap.set(newErrorText, []);
+                        errorMessages.push(newErrorText);
+                    }
+
+                    errorMessageMap.get(newErrorText)!.push(newError);
+                }
+
+                repoSummary += `### ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
+                for (const errorMessage of errorMessages) {
+                    repoSummary += ` - \`${errorMessage}\`\n`;
+
+                    for (const error of errorMessageMap.get(errorMessage)!) {
+                        repoSummary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
+                    }
+                }
+            }
+
+            if (sawNewRepoErrors) {
+                // sawNewErrors = true;
+                // summary += repoSummary;
+                outputs.push(repoSummary)
+                return true;
+            }
+        }
+        catch (err) {
+            reportError(err, "Error building " + repo.url ?? repo.name);
+            return;
+        }
+
+        console.log("Done " + repo.url ?? repo.name);
+    }
+    finally {
+        // Throw away the repo so we don't run out of space
+        // Note that we specifically don't recover and attempt another repo if this fails
+        console.log("Cleaning up repo");
+        if (params.tmpfs) {
+            await execAsync(processCwd, "sudo umount " + downloadDir);
+            await reportResourceUsage(downloadDir);
+        }
+    }
+}
 
 export async function mainAsync(params: GitParams | UserParams): Promise<GitResult | UserResult | undefined> {
     const { testType } = params;
 
-    const downloadDir = "/mnt/ts_downloads";
-    await execAsync(processCwd, "sudo mkdir " + downloadDir);
+    const downloadDir = params.tmpfs ? "/mnt/ts_downloads" : "./ts_downloads";
+    // TODO: check first whether the directory exists and skip downloading if possible
+    // TODO: Seems like this should come after the typescript download
+    if (params.tmpfs)
+        await execAsync(processCwd, "sudo mkdir " + downloadDir);
+    else
+        await execAsync(processCwd, "mkdir " + downloadDir);
 
+    // TODO: Only download if the commit has changed (need to map refs to commits and then download to typescript-COMMIT instead)
     const { oldTscPath, oldTscResolvedVersion, newTscPath, newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params);
 
     // Get the name of the typescript folder.
@@ -55,18 +213,19 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     console.log("Old version = " + oldTscResolvedVersion);
     console.log("New version = " + newTscResolvedVersion);
 
-    const testDir = path.join(processCwd, "userTests");
+    const userTestDir = path.join(processCwd, "userTests");
 
     const repos = testType === "git" ? await git.getPopularTypeScriptRepos(params.repoCount)
-        : testType === "user" ? ur.getUserTestsRepos(testDir)
+        : testType === "user" ? ur.getUserTestsRepos(userTestDir)
         : undefined;
 
     if (!repos) {
         throw new Error(`Parameter <test_type> with value ${testType} is not existent.`);
     }
 
-    let summary = "";
-    let sawNewErrors = false;
+    const outputs: string[] = [];
+    // let summary = "";
+    let sawNewErrors: true | undefined = undefined;
 
     let i = 0;
     const maxCount = Math.min(typeof params.repoCount === 'number' ? params.repoCount : Infinity, repos.length)
@@ -76,162 +235,27 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         i++;
         if (i > maxCount) break;
         console.log(`Starting #${i} / ${maxCount}: ${repo.url ?? repo.name}`);
-
-        await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
-
-        try {
-            if (repo.url) {
-                try {
-                    console.log("Cloning if absent");
-                    await git.cloneRepoIfNecessary(downloadDir, repo);
-                }
-                catch (err) {
-                    reportError(err, "Error cloning " + repo.url);
-                    continue;
-                }
-            }
-            else {
-                await ur.copyUserRepo(downloadDir, testDir, repo);
-            }
-
-            const repoDir = path.join(downloadDir, repo.name);
-
-            try {
-                console.log("Installing packages if absent");
-                await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ testType !== "user", repo.types));
-            }
-            catch (err) {
-                reportError(err, "Error installing packages for " + repo.name);
-                await reportResourceUsage(downloadDir, params.postResult);
-                continue;
-            }
-
-            try {
-                console.log(`Building with ${oldTscPath} (old)`);
-                const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, testType);
-
-                if (oldErrors.hasConfigFailure) {
-                    console.log("Unable to build project graph");
-                    console.log(`Skipping build with ${newTscPath} (new)`);
-                    continue;
-                }
-
-                const numProjects = oldErrors.projectErrors.length;
-
-                let numFailed = 0;
-                for (const oldProjectErrors of oldErrors.projectErrors) {
-                    if (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length) {
-                        numFailed++;
-                    }
-                }
-
-                // User tests ignores build failures.
-                if (testType !== "user" && numFailed === numProjects) {
-                    console.log(`Skipping build with ${newTscPath} (new)`);
-                    continue;
-                }
-
-                let sawNewRepoErrors = false;
-                const owner = repo.owner ? `${repo.owner}/` : "";
-                const url = repo.url ? `(${repo.url})` : "";
-
-                let repoSummary = `# [${owner}${repo.name}]${url}\n`;
-
-                if (numFailed > 0) {
-                    const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
-                    console.log(oldFailuresMessage);
-                    repoSummary += `**${oldFailuresMessage}**\n`;
-                }
-
-                console.log(`Building with ${newTscPath} (new)`);
-                const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, testType);
-
-                if (newErrors.hasConfigFailure) {
-                    console.log("Unable to build project graph");
-
-                    sawNewErrors = true;
-                    repoSummary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
-
-                    summary += repoSummary;
-                    continue;
-                }
-
-                console.log("Comparing errors");
-                for (const oldProjectErrors of oldErrors.projectErrors) {
-                    // To keep things simple, we'll focus on projects that used to build cleanly
-                    if (testType !== "user" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
-                        continue;
-                    }
-
-                    // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
-                    // Filter out errors reported already on "old".
-                    const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055)
-                        .filter(ne => !oldProjectErrors.errors.find(oe => ge.errorEquals(oe, ne)));
-                    if (!newProjectErrors?.length) {
-                        continue;
-                    }
-
-                    sawNewRepoErrors = true;
-
-                    const errorMessageMap = new Map<string, ge.Error[]>();
-                    const errorMessages: string[] = [];
-
-                    console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
-                    for (const newError of newProjectErrors) {
-                        const newErrorText = newError.text;
-
-                        console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}` : ``}`);
-                        console.log(`\t\t${newErrorText}`);
-
-                        if (!errorMessageMap.has(newErrorText)) {
-                            errorMessageMap.set(newErrorText, []);
-                            errorMessages.push(newErrorText);
-                        }
-
-                        errorMessageMap.get(newErrorText)!.push(newError);
-                    }
-
-                    repoSummary += `### ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
-                    for (const errorMessage of errorMessages) {
-                        repoSummary += ` - \`${errorMessage}\`\n`;
-
-                        for (const error of errorMessageMap.get(errorMessage)!) {
-                            repoSummary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
-                        }
-                    }
-                }
-
-                if (sawNewRepoErrors) {
-                    sawNewErrors = true;
-                    summary += repoSummary;
-                }
-            }
-            catch (err) {
-                reportError(err, "Error building " + repo.url ?? repo.name);
-                continue;
-            }
-
-            console.log("Done " + repo.url ?? repo.name);
-        }
-        finally {
-            // Throw away the repo so we don't run out of space
-            // Note that we specifically don't recover and attempt another repo if this fails
-            console.log("Cleaning up repo");
-            await execAsync(processCwd, "sudo umount " + downloadDir);
-            await reportResourceUsage(downloadDir, params.postResult);
-        }
+        sawNewErrors = sawNewErrors || await innerloop(params, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)
     }
+    const summary = outputs.join("")
 
-    await execAsync(processCwd, "sudo rm -rf " + downloadDir);
-    await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
-    await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
+    if (params.tmpfs) {
+        await execAsync(processCwd, "sudo rm -rf " + downloadDir);
+        await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
+        await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
+    }
+    else {
+        await execAsync(processCwd, "rm -rf " + downloadDir);
+        await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+        await execAsync(processCwd, "rm -rf " + newTscDirPath);
+    }
 
     if (testType === "git") {
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 
 ${summary}`;
-        return git.createIssue(params.postResult, title, body, sawNewErrors);
+        return git.createIssue(params.postResult, title, body, !!sawNewErrors);
     }
     else if (testType === "user") {
         const body = summary
@@ -244,16 +268,21 @@ ${summary}`;
     }
 }
 
-async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: string) {
-    const p = new Promise<ge.RepoErrors>((resolve, reject) => {
-        const p = cp.fork(path.join(__dirname, "run-build.js"));
-        p.on('message', (m: 'ready' | ge.RepoErrors) =>
-            m === 'ready'
-                ? p.send({ repoDir, tscPath, testType, skipLibCheck })
-                : resolve(m));
-        p.on('exit', reject);
-    });
-    return withTimeout(executionTimeout, p);
+async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: 'git' | 'user', realTimeout: boolean): Promise<ge.RepoErrors> {
+    if (realTimeout) {
+        const p = new Promise<ge.RepoErrors>((resolve, reject) => {
+            const p = cp.fork(path.join(__dirname, "run-build.js"));
+            p.on('message', (m: 'ready' | ge.RepoErrors) =>
+                m === 'ready'
+                    ? p.send({ repoDir, tscPath, testType, skipLibCheck })
+                    : resolve(m));
+            p.on('exit', reject);
+        });
+        return withTimeout(executionTimeout, p);
+    }
+    else {
+        return ge.buildAndGetErrors(repoDir, tscPath, testType, skipLibCheck)
+    }
 }
 
 async function installPackages(repoDir: string, recursiveSearch: boolean, types?: string[]) {
@@ -282,20 +311,18 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
     ]);
 }
 
-async function reportResourceUsage(downloadDir: string, verbose: boolean) {
+async function reportResourceUsage(downloadDir: string) {
     try {
         console.log("Memory");
         await execAsync(processCwd, "free -h");
         console.log("Disk");
         await execAsync(processCwd, "df -h");
         await execAsync(processCwd, "df -i");
-        if (verbose) {
-            console.log("Download Directory");
-            await execAsync(processCwd, "ls -lh " + downloadDir);
-            console.log("Home Directory");
-            await execAsync(processCwd, "du -csh ~/.[^.]*");
-            await execAsync(processCwd, "du -csh ~/.cache/*");
-        }
+        console.log("Download Directory");
+        await execAsync(processCwd, "ls -lh " + downloadDir);
+        console.log("Home Directory");
+        await execAsync(processCwd, "du -csh ~/.[^.]*");
+        await execAsync(processCwd, "du -csh ~/.cache/*");
     }
     catch { } // noop
 }
@@ -388,7 +415,7 @@ async function downloadTypeScriptAsync(cwd: string, params: GitParams | UserPara
     }
 }
 
-async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef: string): Promise<{ tscPath: string, resolvedVersion: string }> {
+export async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef: string): Promise<{ tscPath: string, resolvedVersion: string }> {
     const repoName = `typescript-${headRef}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
@@ -418,9 +445,10 @@ async function downloadTypescriptSourceIssueAsync(cwd: string, repoUrl: string, 
 async function buildTsc(repoPath: string) {
     await execAsync(repoPath, "npm ci");
     await execAsync(repoPath, "npm run build:compiler");
-
-    const tscPath = path.join(repoPath, "built", "local", "tsc.js");
-    return tscPath;
+    await execAsync(repoPath, "npm install -g gulp-cli");
+    await execAsync(repoPath, "gulp configure-insiders");
+    await execAsync(repoPath, "gulp LKG");
+    return path.join(repoPath, "built", "local", "tsc.js");
 }
 
 async function downloadTypeScriptNpmAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
