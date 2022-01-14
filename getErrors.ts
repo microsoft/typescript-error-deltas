@@ -178,9 +178,8 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
 }
 
 async function buildScript(tscPath: string, projectPath: string) {
-    console.log('i am building a script')
-    const { err, stdout, stderr } = await execAsync(path.dirname(projectPath), `TSC=${tscPath} ${path.resolve(projectPath)}`);
-    console.log(err, stdout, stderr)
+    const repoPath = path.dirname(path.dirname(path.dirname(tscPath)))
+    const { err, stdout, stderr } = await execAsync(path.dirname(projectPath), `TS=${repoPath} ${path.resolve(projectPath)}`);
     return {
         stdout,
         hasBuildFailure: !!(err || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr
