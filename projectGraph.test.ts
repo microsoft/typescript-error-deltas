@@ -28,7 +28,7 @@ describe("getProjectsToBuild", () => {
             rootCompositeProjects: [],
             scriptedProjects: [{
                 path: "test/scriptProject/build.sh",
-                contents: "tsc --skipLibCheck --incremental false --pretty false main.ts\n",
+                contents: "node $TS/built/local/tsc.js --skipLibCheck --incremental false --pretty false main.ts\n",
                 hasParseError: false,
                 hasExtensionError: false,
                 hasReferenceError: false,

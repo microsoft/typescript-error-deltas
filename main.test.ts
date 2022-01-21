@@ -1,5 +1,7 @@
 /// <reference types="jest" />
 import { mainAsync, innerloop, UserParams, downloadTypescriptRepoAsync } from './main'
+import { execSync } from "child_process"
+import { existsSync } from "fs"
 import { UserResult } from './gitUtils'
 import path = require('path')
 describe("main", () => {
@@ -61,6 +63,8 @@ The results of the user tests run you requested are in!
         expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     })
     it("downloads from a branch", async () => {
+        if (existsSync("typescript-test-fake-error"))
+            execSync("cd typescript-test-fake-error && git restore . && cd ..")
         await downloadTypescriptRepoAsync('./', 'https://github.com/sandersn/typescript', 'test-fake-error')
     })
 })

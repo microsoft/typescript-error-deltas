@@ -5,6 +5,15 @@ ts_downloads/
 *.js
 /.vscode
 /typescript-*
+userTests/chrome-devtools-frontend-next/depot_tools
+userTests/chrome-devtools-frontend-next/devtools
+userTests/office-ui-fabric/version.json
+userTests/office-ui-fabric/office-ui-fabric-react
+userTests/pyright/pyright
+userTests/rxjs-src/rxjs
+userTests/vscode/vscode
+userTests/vue-next/vue-next
+test/scriptPrettier/prettier
 
 # Logs
 logs
