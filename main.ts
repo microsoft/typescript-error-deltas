@@ -1,14 +1,13 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
-import type { GitResult, UserResult } from './gitUtils'
 import ip = require("./installPackages");
 import ur = require("./userRepos");
 import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
 
-interface Params {
+export interface Params {
     /** True to post the result to Github, false to print to console.  */
     postResult: boolean;
     /** Store test repos on a tmpfs */
@@ -19,14 +18,6 @@ interface Params {
      * User repos start at the top of the list; default is all of them.
      */
     repoCount?: number | undefined;
-}
-export interface GitParams extends Params {
-    testType: 'git';
-    oldTscVersion: string;
-    newTscVersion: string;
-}
-export interface UserParams extends Params {
-    testType: 'user';
     oldTypescriptRepoUrl: string;
     oldHeadRef: string;
     sourceIssue: number;
@@ -41,8 +32,7 @@ const skipRepos = [
 const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
-export async function innerloop(params: GitParams | UserParams, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
-    const { testType } = params
+export async function innerloop(params: Params, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
     if (params.tmpfs)
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
 
@@ -65,7 +55,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
 
         try {
             console.log("Installing packages if absent");
-            await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ testType !== "user", repo.types));
+            await withTimeout(executionTimeout, installPackages(repoDir, repo.types));
         }
         catch (err) {
             reportError(err, "Error installing packages for " + repo.name);
@@ -75,7 +65,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
 
         try {
             console.log(`Building with ${oldTscPath} (old)`);
-            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, testType, params.postResult);
+            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, params.postResult);
 
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -93,11 +83,6 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
             }
 
             // User tests ignores build failures.
-            if (testType !== "user" && numFailed === numProjects) {
-                console.log(`Skipping build with ${newTscPath} (new)`);
-                return;
-            }
-
             let sawNewRepoErrors = false;
             const owner = repo.owner ? `${repo.owner}/` : "";
             const url = repo.url ? `(${repo.url})` : "";
@@ -111,7 +96,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
             }
 
             console.log(`Building with ${newTscPath} (new)`);
-            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, testType, params.postResult);
+            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, params.postResult);
 
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -124,11 +109,6 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
 
             console.log("Comparing errors");
             for (const oldProjectErrors of oldErrors.projectErrors) {
-                // To keep things simple, we'll focus on projects that used to build cleanly
-                if (testType !== "user" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
-                    continue;
-                }
-
                 // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
                 // Filter out errors reported already on "old".
                 const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055)
@@ -192,9 +172,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
     }
 }
 
-export async function mainAsync(params: GitParams | UserParams): Promise<GitResult | UserResult | undefined> {
-    const { testType } = params;
-
+export async function mainAsync(params: Params): Promise<git.Result | undefined> {
     const downloadDir = params.tmpfs ? "/mnt/ts_downloads" : "./ts_downloads";
     // TODO: check first whether the directory exists and skip downloading if possible
     // TODO: Seems like this should come after the typescript download
@@ -215,14 +193,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const userTestDir = path.join(processCwd, "userTests");
 
-    const repos = testType === "git" ? await git.getPopularTypeScriptRepos(params.repoCount)
-        : testType === "user" ? ur.getUserTestsRepos(userTestDir)
-        : undefined;
-
-    if (!repos) {
-        throw new Error(`Parameter <test_type> with value ${testType} is not existent.`);
-    }
-
+    const repos = ur.getUserTestsRepos(userTestDir);
     const outputs: string[] = [];
     // let summary = "";
     let sawNewErrors: true | undefined = undefined;
@@ -250,43 +221,31 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         await execAsync(processCwd, "rm -rf " + newTscDirPath);
     }
 
-    if (testType === "git") {
-        const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
-        const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
-
-${summary}`;
-        return git.createIssue(params.postResult, title, body, !!sawNewErrors);
-    }
-    else if (testType === "user") {
-        const body = summary
-            ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
-            : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
-        return git.createComment(params.sourceIssue, params.statusComment, params.postResult, body);
-    }
-    else {
-        throw new Error(`testType "${(params as any).testType}" is not a recognised test type.`);
-    }
+    const body = summary
+        ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
+        : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
+    return git.createComment(params.sourceIssue, params.statusComment, params.postResult, body);
 }
 
-async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: 'git' | 'user', realTimeout: boolean): Promise<ge.RepoErrors> {
+async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, realTimeout: boolean): Promise<ge.RepoErrors> {
     if (realTimeout) {
         const p = new Promise<ge.RepoErrors>((resolve, reject) => {
             const p = cp.fork(path.join(__dirname, "run-build.js"));
             p.on('message', (m: 'ready' | ge.RepoErrors) =>
                 m === 'ready'
-                    ? p.send({ repoDir, tscPath, testType, skipLibCheck })
+                    ? p.send({ repoDir, tscPath, skipLibCheck })
                     : resolve(m));
             p.on('exit', reject);
         });
         return withTimeout(executionTimeout, p);
     }
     else {
-        return ge.buildAndGetErrors(repoDir, tscPath, testType, skipLibCheck)
+        return ge.buildAndGetErrors(repoDir, tscPath, skipLibCheck)
     }
 }
 
-async function installPackages(repoDir: string, recursiveSearch: boolean, types?: string[]) {
-    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
+async function installPackages(repoDir: string, types?: string[]) {
+    const commands = await ip.restorePackages(repoDir, types);
     let usedYarn = false;
     for (const { directory: packageRoot, tool, arguments: args } of commands) {
         await new Promise<void>((resolve, reject) => {
@@ -386,8 +345,7 @@ function makeMarkdownLink(url: string) {
         : `[${match[1]}](${url})`;
 }
 
-async function downloadTypeScriptAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTscPath: string, oldTscResolvedVersion: string, newTscPath: string, newTscResolvedVersion: string }> {
-    if (params.testType === 'user') {
+async function downloadTypeScriptAsync(cwd: string, params: Params): Promise<{ oldTscPath: string, oldTscResolvedVersion: string, newTscPath: string, newTscResolvedVersion: string }> {
         const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypescriptRepoAsync(cwd, params.oldTypescriptRepoUrl, params.oldHeadRef);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
         const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypescriptSourceIssueAsync(cwd, params.oldTypescriptRepoUrl, params.sourceIssue);
@@ -398,21 +356,6 @@ async function downloadTypeScriptAsync(cwd: string, params: GitParams | UserPara
             newTscPath,
             newTscResolvedVersion
         };
-    }
-    else if (params.testType === 'git') {
-        const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypeScriptNpmAsync(cwd, params.oldTscVersion);
-        const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypeScriptNpmAsync(cwd, params.newTscVersion);
-
-        return {
-            oldTscPath,
-            oldTscResolvedVersion,
-            newTscPath,
-            newTscResolvedVersion
-        };
-    }
-    else {
-        throw new Error('Invalid parameters');
-    }
 }
 
 export async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, headRef: string): Promise<{ tscPath: string, resolvedVersion: string }> {
@@ -449,27 +392,4 @@ async function buildTsc(repoPath: string) {
     await execAsync(repoPath, "gulp configure-insiders");
     await execAsync(repoPath, "gulp LKG");
     return path.join(repoPath, "built", "local", "tsc.js");
-}
-
-async function downloadTypeScriptNpmAsync(cwd: string, version: string): Promise<{ tscPath: string, resolvedVersion: string }> {
-    const tarName = (await execAsync(cwd, `npm pack typescript@${version} --quiet`)).trim();
-
-    const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
-    if (!tarMatch) {
-        throw new Error("Unexpected tarball name format: " + tarName);
-    }
-
-    const resolvedVersion = tarMatch[2];
-    const dirName = tarMatch[1];
-    const dirPath = path.join(processCwd, dirName);
-
-    await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
-    await fs.promises.rename(path.join(processCwd, "package"), dirPath);
-
-    const tscPath = path.join(dirPath, "lib", "tsc.js");
-    if (!await pu.exists(tscPath)) {
-        throw new Error("Cannot find file " + tscPath);
-    }
-
-    return { tscPath, resolvedVersion };
 }

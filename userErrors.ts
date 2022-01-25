@@ -9,7 +9,6 @@ if (argv.length !== 8) {
 }
 
 mainAsync({
-    testType: "user",
     postResult: argv[2].toLowerCase() === "true", // Only accept true.
     tmpfs: true,
     oldTypescriptRepoUrl: argv[3],

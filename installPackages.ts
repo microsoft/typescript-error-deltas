@@ -21,27 +21,16 @@ export interface InstallCommand {
  * Traverses the given directory and returns a list of commands that can be used, in order, to restore
  * the packages required for building.
  */
-export async function restorePackages(repoDir: string, ignoreScripts: boolean = true, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
-    lernaPackages = lernaPackages ?? await utils.getLernaOrder(repoDir);
-
+export async function restorePackages(repoDir: string, types?: string[]): Promise<readonly InstallCommand[]> {
     // The existence of .yarnrc.yml indicates that this repo uses yarn 2
     const isRepoYarn2 = await utils.exists(path.join(repoDir, ".yarnrc.yml"));
 
     const commands: InstallCommand[] = [];
 
-    const globPattern = recursiveSearch ? "**/package.json" : "package.json";
+    const globPattern = "package.json";
     const packageFiles = utils.glob(repoDir, globPattern);
 
     for (const packageFile of packageFiles) {
-        let inLernaPackageDir = false;
-        for (const lernaPackage of lernaPackages) {
-            if (inLernaPackageDir = packageFile.startsWith(lernaPackage)) break;
-        }
-        if (inLernaPackageDir) {
-            // Skipping restore of lerna package
-            continue;
-        }
-
         // CONSIDER: If we're ignoring scripts, there are lerna packages, and we're not
         // using yarn workspaces, we might want to `lerna bootstrap`.  In practice,
         // this has not proven to be necessary, since this combination is uncommon.
@@ -60,11 +49,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
                 args = ["install"]
             }
             else {
-                args = ["install", "--silent", "--ignore-engines"];
-
-                if (ignoreScripts) {
-                    args.push("--ignore-scripts");
-                }
+                args = ["install", "--silent", "--ignore-engines", "--ignore-scripts"];
             }
         }
         else if (await utils.exists(path.join(packageRoot, "package.json"))) {
@@ -73,11 +58,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
             const haveLock = await utils.exists(path.join(packageRoot, "package-lock.json")) ||
                 await hasCurrentShrinkwrap(packageRoot);
 
-            args = [haveLock ? "ci" : "install", "--prefer-offline", "--no-audit", "-q", "--no-progress"];
-
-            if (ignoreScripts) {
-                args.push("--ignore-scripts");
-            }
+            args = [haveLock ? "ci" : "install", "--prefer-offline", "--no-audit", "-q", "--no-progress", "--ignore-scripts"];
         }
         else {
             continue;
