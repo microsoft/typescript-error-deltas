@@ -1,0 +1,51 @@
+parameters:
+  - name: POST_RESULT
+    displayName: Post GitHub comment with results
+    type: boolean
+    default: true
+  - name: OLD_TS_REPO_URL
+    displayName: Old Typscript Repo Url
+    type: string
+    default: https://github.com/microsoft/TypeScript.git
+  - name: OLD_HEAD_REF
+    displayName: Old head reference
+    type: string
+    default: main
+  - name: REQUESTING_USER
+    displayName: User name that requested the run
+    type: string
+  - name: SOURCE_ISSUE
+    displayName: PR ID in github
+    type: number
+  - name: STATUS_COMMENT
+    displayName: Typescript-bot comment ID indicating that the run started
+    type: number
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+- job: 'DetectNewErrors'
+  timeoutInMinutes: 360
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '12.x'
+    displayName: 'Install Node.js'
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: './.npmrc'
+  - task: AzureKeyVault@1
+    inputs:
+      azureSubscription: 'TypeScript – Internal Services(57bfeeed-c34a-4ffd-a06b-ccff27ac91b8)'
+      KeyVaultName: 'jststeam-passwords'
+      SecretsFilter: 'TypeScriptErrorDeltas'
+      RunAsPreJob: false
+  - script: |
+      npm ci
+      npm run build
+      node userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }}
+    env:
+      GITHUB_PAT: $(TypeScriptErrorDeltas)
