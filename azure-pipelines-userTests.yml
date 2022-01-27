@@ -37,12 +37,6 @@ jobs:
   - task: npmAuthenticate@0
     inputs:
       workingFile: './.npmrc'
-  - task: AzureKeyVault@1
-    inputs:
-      azureSubscription: 'TypeScript – Internal Services(57bfeeed-c34a-4ffd-a06b-ccff27ac91b8)'
-      KeyVaultName: 'jststeam-passwords'
-      SecretsFilter: 'TypeScriptErrorDeltas'
-      RunAsPreJob: false
   - script: |
       npm ci
       npm run build
