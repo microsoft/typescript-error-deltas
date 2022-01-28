@@ -42,4 +42,4 @@ jobs:
       npm run build
       node userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }}
     env:
-      GITHUB_PAT: $(TypeScriptErrorDeltas)
+      GITHUB_PAT: $(GITHUB_PAT)
