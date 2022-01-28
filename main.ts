@@ -173,12 +173,6 @@ export async function innerloop(params: Params, downloadDir: string, userTestDir
 }
 
 export async function mainAsync(params: Params): Promise<git.Result | undefined> {
-    if (!!true) {
-        console.log(process.env.GITHUB_PAT === undefined)
-        if (process.env.GITHUB_PAT)
-            console.log(process.env.GITHUB_PAT.length)
-        return git.createComment(params.sourceIssue, params.statusComment, params.postResult, "Test from build machine");
-    }
     const downloadDir = params.tmpfs ? "/mnt/ts_downloads" : "./ts_downloads";
     // TODO: check first whether the directory exists and skip downloading if possible
     // TODO: Seems like this should come after the typescript download
