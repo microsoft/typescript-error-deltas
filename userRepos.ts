@@ -6,6 +6,7 @@ import * as cp from "child_process";
 interface UserConfig {
     types: string[];
     cloneUrl: string;
+    branch?: string;
     path?: string;
 }
 
@@ -25,6 +26,7 @@ export function getUserTestsRepos(testDir: string): Repo[] {
                 name: directory,
                 url: config.cloneUrl,
                 types: config.types,
+                branch: config.branch,
             });
         }
         else if (fs.existsSync(path.join(testDir, directory, "package.json"))) {
