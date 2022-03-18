@@ -6,7 +6,7 @@ describe("getProjectsToBuild", () => {
         expect(getProjectsToBuild("./test/simpleProject")).toEqual({
             simpleProjects: [{
                 // TODO: Assertion only on the end of the path
-                path: "/home/nathansa/src/TypeScriptErrorDeltas/test/simpleProject/tsconfig.json",
+                path: "/home/nathansa/src/typescript-error-deltas/test/simpleProject/tsconfig.json",
                 hasParseError: false,
                 hasExtensionError: false,
                 hasReferenceError: false,

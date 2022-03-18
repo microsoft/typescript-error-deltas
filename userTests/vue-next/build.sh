@@ -1,4 +1,4 @@
-npm install -g yarn lerna --force
+npm install -g pnpm
 rm -rf vue-next
 git clone --depth 1 https://github.com/vuejs/core
 
