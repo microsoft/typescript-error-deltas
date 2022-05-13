@@ -5,8 +5,6 @@ For example, this project will clone the prettier repo and compile it with the c
 Then it will compile it with a version of Typescript from a pull request.
 Afterward it will compile new errors that are issued only with the new version and post them as a comment on the pull request.
 
-As the maintainer of this project, please make a few updates:
-
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
