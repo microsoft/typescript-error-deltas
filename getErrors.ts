@@ -1,4 +1,4 @@
-import ghUrl = require("@typescript/github-url");
+import ghUrl = require("./github-url/index");
 import packageUtils = require("./packageUtils");
 import projectGraph = require("./projectGraph");
 import cp = require("child_process");

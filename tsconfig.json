@@ -9,7 +9,7 @@
         "sourceMap": true,
     },
     "include": [
-        "*.ts"
+        "*.ts", "github-url/*.ts"
     ],
     "exclude": [
         "userTests", "typescript-*"
