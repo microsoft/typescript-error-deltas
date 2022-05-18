@@ -1,3 +1,4 @@
+import ghUrl = require("./github-url/index");
 import packageUtils = require("./packageUtils");
 import projectGraph = require("./projectGraph");
 import cp = require("child_process");
@@ -68,7 +69,10 @@ export interface RepoErrors {
  * @param tscPath The path to tsc.js.
  * @param skipLibCheck True pass --skipLibCheck when building non-composite projects.  (Defaults to true)
  */
-export async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean = true): Promise<RepoErrors> {
+export async function buildAndGetErrors(repoDir: string, tscPath: string, testType: 'git' | 'user', skipLibCheck: boolean = true): Promise<RepoErrors> {
+    // TODO: Either add a new testType (passed in to here) or a new projectType (detected by projectGraph.getProjectsToBuild(repoDir)
+    // *probably* it makes more sense to add a testType, especially since the 'git' test type isn't needed here. It's from the fuzzer.
+    // (if we wanted to keep 'git', the 3 things aren't in one category)
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 
@@ -89,7 +93,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, skipLi
         if (isEmpty) continue;
 
         const projectDir = path.dirname(projectPath);
-        const projectUrl = projectPath; // Use project path for user tests as they don't contain a git project.
+        const projectUrl = testType === "user" ? projectPath : await ghUrl.getGithubUrl(projectPath); // Use project path for user tests as they don't contain a git project.
 
         let localErrors: LocalError[] = [];
         let currProjectUrl = projectUrl;
@@ -98,7 +102,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, skipLi
         for (const line of lines) {
             const projectMatch = isComposite && line.match(beginProjectRegex);
             if (projectMatch) {
-                currProjectUrl = path.resolve(projectDir, projectMatch[1]);
+                currProjectUrl = testType === "user" ? path.resolve(projectDir, projectMatch[1]) : await ghUrl.getGithubUrl(path.resolve(projectDir, projectMatch[1]));
                 continue;
             }
             const localError = getLocalErrorFromLine(line, currProjectUrl);
@@ -110,7 +114,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, skipLi
         const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
 
         const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
-        const fileUrls = fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`);
+        const fileUrls = testType === "user" ? fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`) : await ghUrl.getGithubUrls(fileLocalErrors);
         for (let i = 0; i < fileLocalErrors.length; i++) {
             const localError = fileLocalErrors[i];
             errors.push({
