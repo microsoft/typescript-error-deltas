@@ -27,16 +27,13 @@ pool:
   vmImage: 'ubuntu-latest'
 
 jobs:
-- job: 'DetectNewErrors'
+- job: 'UserTestInline'
   timeoutInMinutes: 360
   steps:
   - task: NodeTool@0
     inputs:
       versionSpec: '12.x'
     displayName: 'Install Node.js'
-  - task: npmAuthenticate@0
-    inputs:
-      workingFile: './.npmrc'
   - script: |
       npm ci
       npm run build
