@@ -2,7 +2,9 @@ pr:
 - main
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: AzurePipelines-EO
+  demands:
+  - ImageOverride -equals AzurePipelinesUbuntu20.04compliant
 
 jobs:
 - job: 'BuildAndTest'
