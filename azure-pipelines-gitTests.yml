@@ -16,32 +16,13 @@ parameters:
     type: string
     default: next
 
-on:
-  workflow_dispatch:
-    inputs:
-      POST_RESULT:
-        description: Post GitHub issue with results
-        required: false
-        default: true
-      REPO_COUNT:
-        description: Repo Count
-        required: false
-        default: 100
-      OLD_VERSION:
-        description: Baseline typescript package version
-        required: false
-        default: 'latest'
-      NEW_VERSION:
-        description: Candidate typescript package version
-        required: false
-        default: 'next'
-  schedule:
-    - cron: "0 18 * * Sun" # time is in UTC
-      displayName: Sunday overnight run
-      always: true
-      branches:
-        include:
-          - main
+schedules:
+  - cron: "0 18 * * Sun" # time is in UTC
+    displayName: Sunday overnight run
+    always: true
+    branches:
+      include:
+        - main
 
 trigger: none
 
