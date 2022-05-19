@@ -1,0 +1,64 @@
+parameters:
+  - name: POST_RESULT
+    displayName: Post GitHub issue with results
+    type: boolean
+    default: true
+  - name: REPO_COUNT
+    displayName: Repo Count
+    type: string
+    default: 100
+  - name: OLD_VERSION
+    displayName: Baseline typescript package version
+    type: string
+    default: latest
+  - name: NEW_VERSION
+    displayName: Candidate typescript package version
+    type: string
+    default: next
+
+on:
+  workflow_dispatch:
+    inputs:
+      POST_RESULT:
+        description: Post GitHub issue with results
+        required: false
+        default: true
+      REPO_COUNT:
+        description: Repo Count
+        required: false
+        default: 100
+      OLD_VERSION:
+        description: Baseline typescript package version
+        required: false
+        default: 'latest'
+      NEW_VERSION:
+        description: Candidate typescript package version
+        required: false
+        default: 'next'
+  schedule:
+    - cron: "0 18 * * Sun" # time is in UTC
+      displayName: Sunday overnight run
+      always: true
+      branches:
+        include:
+          - main
+
+trigger: none
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+jobs:
+- job: 'DetectNewErrors'
+  timeoutInMinutes: 360
+  steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '16.x'
+    displayName: 'Install Node.js'
+  - script: |
+      npm ci
+      npm run build
+      node gitErrors ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }}
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
