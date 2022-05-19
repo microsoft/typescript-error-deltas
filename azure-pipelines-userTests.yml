@@ -24,9 +24,7 @@ parameters:
 trigger: none
 
 pool:
-  name: AzurePipelines-EO
-  demands:
-  - ImageOverride -equals AzurePipelinesUbuntu20.04compliant
+  vmImage: 'ubuntu-latest'
 
 jobs:
 - job: 'UserTestInline'
