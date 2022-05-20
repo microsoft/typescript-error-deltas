@@ -235,7 +235,9 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         i++;
         if (i > maxCount) break;
         console.log(`Starting #${i} / ${maxCount}: ${repo.url ?? repo.name}`);
-        sawNewErrors = sawNewErrors || await innerloop(params, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)
+        if (await innerloop(params, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
+            sawNewErrors = true;
+        }
     }
     const summary = outputs.join("")
 
