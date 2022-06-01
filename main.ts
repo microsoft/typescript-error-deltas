@@ -44,7 +44,7 @@ const executionTimeout = 10 * 60 * 1000;
 export async function innerloop(params: GitParams | UserParams, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
     const { testType } = params
     if (params.tmpfs)
-        await execAsync(processCwd, "sudo mount -t tmpfs -o size=2g tmpfs " + downloadDir);
+        await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
 
     try {
         if (repo.url) {
