@@ -3,6 +3,10 @@ parameters:
     displayName: Post GitHub comment with results
     type: boolean
     default: true
+  - name: TOP_REPOS
+    displayName: Query Github for top TS repos by stars
+    type: boolean
+    default: false
   - name: OLD_TS_REPO_URL
     displayName: Old Typscript Repo Url
     type: string
@@ -37,6 +41,6 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }}
+      node userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }}
     env:
       GITHUB_PAT: $(GITHUB_PAT)

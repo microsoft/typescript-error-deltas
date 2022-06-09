@@ -15,7 +15,7 @@ interface Params {
     tmpfs: boolean;
     /**
      * Number of repos to test, undefined for the default.
-     * Git repos are chosen randomly; default is 100.
+     * Git repos are chosen from Typescript-language repos based on number of stars; default is 100.
      * User repos start at the top of the list; default is all of them.
      */
     repoCount?: number | undefined;
@@ -32,6 +32,7 @@ export interface UserParams extends Params {
     sourceIssue: number;
     requestingUser: string;
     statusComment: number;
+    topRepos: boolean;
 }
 
 const skipRepos = [
@@ -215,7 +216,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const userTestDir = path.join(processCwd, "userTests");
 
-    const repos = testType === "git" ? await git.getPopularTypeScriptRepos(params.repoCount)
+    const repos = testType === "git" || params.topRepos ? await git.getPopularTypeScriptRepos(params.repoCount)
         : testType === "user" ? ur.getUserTestsRepos(userTestDir)
         : undefined;
 
@@ -255,6 +256,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     if (testType === "git") {
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
+[Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
+[File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
 
 ${summary}`;
         return git.createIssue(params.postResult, title, body, !!sawNewErrors);
