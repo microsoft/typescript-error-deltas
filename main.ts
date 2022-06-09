@@ -256,11 +256,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     if (testType === "git") {
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
-
-${summary}
-
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
-[File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)`;
+[File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
+
+${summary}`;
         return git.createIssue(params.postResult, title, body, !!sawNewErrors);
     }
     else if (testType === "user") {
