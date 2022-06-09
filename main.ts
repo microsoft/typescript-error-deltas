@@ -42,7 +42,7 @@ const skipRepos = [
 const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
-export async function innerloop(params: GitParams | UserParams, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
+export async function innerloop(params: GitParams | UserParams, topGithubRepos: boolean, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
     const { testType } = params
     if (params.tmpfs)
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
@@ -66,7 +66,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
 
         try {
             console.log("Installing packages if absent");
-            await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ testType !== "user", repo.types));
+            await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, repo.types));
         }
         catch (err) {
             reportError(err, "Error installing packages for " + repo.name);
@@ -76,7 +76,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
 
         try {
             console.log(`Building with ${oldTscPath} (old)`);
-            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, testType, params.postResult);
+            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, topGithubRepos, params.postResult);
 
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -94,7 +94,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
             }
 
             // User tests ignores build failures.
-            if (testType !== "user" && numFailed === numProjects) {
+            if (testType === "git" && numFailed === numProjects) {
                 console.log(`Skipping build with ${newTscPath} (new)`);
                 return;
             }
@@ -112,7 +112,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
             }
 
             console.log(`Building with ${newTscPath} (new)`);
-            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, testType, params.postResult);
+            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, topGithubRepos, params.postResult);
 
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -126,7 +126,7 @@ export async function innerloop(params: GitParams | UserParams, downloadDir: str
             console.log("Comparing errors");
             for (const oldProjectErrors of oldErrors.projectErrors) {
                 // To keep things simple, we'll focus on projects that used to build cleanly
-                if (testType !== "user" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
+                if (testType === "git" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
                     continue;
                 }
 
@@ -216,7 +216,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const userTestDir = path.join(processCwd, "userTests");
 
-    const repos = testType === "git" || params.topRepos ? await git.getPopularTypeScriptRepos(params.repoCount)
+    const topGithubRepos = testType === "git" || params.topRepos;
+    const repos = topGithubRepos ? await git.getPopularTypeScriptRepos(params.repoCount)
         : testType === "user" ? ur.getUserTestsRepos(userTestDir)
         : undefined;
 
@@ -236,7 +237,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         i++;
         if (i > maxCount) break;
         console.log(`Starting #${i} / ${maxCount}: ${repo.url ?? repo.name}`);
-        if (await innerloop(params, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
+        if (await innerloop(params, topGithubRepos, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
             sawNewErrors = true;
         }
     }
@@ -273,20 +274,20 @@ ${summary}`;
     }
 }
 
-async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, testType: 'git' | 'user', realTimeout: boolean): Promise<ge.RepoErrors> {
+async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, topGithubRepos: boolean, realTimeout: boolean): Promise<ge.RepoErrors> {
     if (realTimeout) {
         const p = new Promise<ge.RepoErrors>((resolve, reject) => {
             const p = cp.fork(path.join(__dirname, "run-build.js"));
             p.on('message', (m: 'ready' | ge.RepoErrors) =>
                 m === 'ready'
-                    ? p.send({ repoDir, tscPath, testType, skipLibCheck })
+                    ? p.send({ repoDir, tscPath, topGithubRepos, skipLibCheck })
                     : resolve(m));
             p.on('exit', reject);
         });
         return withTimeout(executionTimeout, p);
     }
     else {
-        return ge.buildAndGetErrors(repoDir, tscPath, testType, skipLibCheck)
+        return ge.buildAndGetErrors(repoDir, tscPath, topGithubRepos, skipLibCheck)
     }
 }
 

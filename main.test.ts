@@ -17,6 +17,7 @@ describe("main", () => {
             requestingUser: 'sandersn',
             sourceIssue: 44585,
             statusComment: 990374547,
+            topRepos: false,
         }
         const result = await mainAsync(options)
         expect(result).toBeDefined()
@@ -45,10 +46,12 @@ The results of the user tests run you requested are in!
             requestingUser: 'sandersn',
             sourceIssue: 44585,
             statusComment: 990374547,
+            topRepos: false,
         }
         const outputs: string[] = []
         const hasNewErrors = await innerloop(
             options,
+            /*topGithubRepos*/ false,
             "./ts_downloads",
             "./userTests",
             {

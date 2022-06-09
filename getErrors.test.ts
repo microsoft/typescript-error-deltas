@@ -7,7 +7,7 @@ describe("getErrors", () => {
             "./test/simpleProject",
             // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
-            'user',
+            /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
         expect(errors.hasConfigFailure).toBeFalsy()
@@ -25,7 +25,7 @@ describe("getErrors", () => {
             "./test/scriptProject",
             // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
-            'user',
+            /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
         expect(errors.hasConfigFailure).toBeFalsy()
@@ -43,7 +43,7 @@ describe("getErrors", () => {
             "./test/scriptPrettier",
             // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
-            'user',
+            /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
         expect(errors.hasConfigFailure).toBeFalsy()
