@@ -7,6 +7,52 @@ Afterward it will compile new errors that are issued only with the new version a
 
 ## Contributing
 
+### User Tests
+
+There are three kinds of user tests, all of which aim to use popular packages with different versions of Typescript:
+
+1. Example projects, which specify a popular package in package.json and then provide an example use of it.
+2. Clones of a repo of a popular package, built with `tsc`.
+3. Clones of a repo of a popular package, built with a custom `bash` script.
+
+#### Example projects
+
+Use `userTests/axios` as an example:
+
+- Create a package.json with `axios` as a dependency.
+- Create an example program that uses `axios`. In our case, just:
+  - index.ts
+  - tsconfig.json
+
+#### Clone repos (simple build)
+
+Use `userTests/axios-src` as an example:
+
+Create `test.json` like the following:
+
+``` json
+{
+    "cloneUrl": "https://github.com/axios/axios.git",
+    "types": ["node"]
+}
+```
+
+The `types` field is optional; it installs `@types/` packages for each entry in its array before running `tsc`.
+This is mostly useful if the package isn't written in Typescript and doesn't include types in its own devDependencies.
+
+#### Clone repos (script build)
+
+Use `userTests/azure-sdk` as an example; create a script `build.sh` that:
+
+- Clones a repo.
+- Installs its dependencies.
+- Alters its Typescript dependecy to use a custom Typescript version.
+- Builds the repo.
+
+The details vary considerably from project to project.
+
+### Legal
+
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
 Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
 the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
