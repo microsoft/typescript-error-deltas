@@ -5,6 +5,8 @@ For example, this project will clone the prettier repo and compile it with the c
 Then it will compile it with a version of Typescript from a pull request.
 Afterward it will compile new errors that are issued only with the new version and post them as a comment on the pull request.
 
+There is no comparison of types, errors, symbols or language service output.
+
 ## Contributing
 
 ### User Tests
@@ -24,6 +26,10 @@ Use `userTests/axios` as an example:
   - index.ts
   - tsconfig.json
 
+The example projects could be as large as a complete app as long as it compiles with a single invocation of `tsc`.
+However, the current projects almost all consist of a single import, like `import x = require('x')`.
+This could obviously be improved.
+
 #### Clone repos (simple build)
 
 Use `userTests/axios-src` as an example:
@@ -40,16 +46,19 @@ Create `test.json` like the following:
 The `types` field is optional; it installs `@types/` packages for each entry in its array before running `tsc`.
 This is mostly useful if the package isn't written in Typescript and doesn't include types in its own devDependencies.
 
+Like the example projects, the cloned repos must be buildable with a single invocation of `tsc`.
+
 #### Clone repos (script build)
 
 Use `userTests/azure-sdk` as an example; create a script `build.sh` that:
 
 - Clones a repo.
 - Installs its dependencies.
-- Alters its Typescript dependecy to use a custom Typescript version.
+- Alters its Typescript dependency to use a custom Typescript version.
 - Builds the repo.
 
 The details vary considerably from project to project.
+This kind of test allows you to build arbitrary projects.
 
 ### Legal
 
