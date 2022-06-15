@@ -38,7 +38,7 @@ describe("getErrors", () => {
         expect(errors.projectErrors[0].errors[0].fileUrl?.endsWith("test/scriptProject/main.ts(1,35)")).toBeTruthy()
         expect(errors.projectErrors[0].errors[0].projectUrl).toEqual("test/scriptProject/build.sh")
     })
-    it("builds Real Live prettier, For Real", async () => {
+    xit("builds Real Live prettier, For Real", async () => {
         const errors = await buildAndGetErrors(
             "./test/scriptPrettier",
             // TODO: Depends on downloading and building 44585 in main.test.ts

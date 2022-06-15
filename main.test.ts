@@ -35,7 +35,7 @@ The results of the user tests run you requested are in!
 ### /mnt/ts_downloads/TypeScript-Node-Starter/tsconfig.json
 - \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\``)).toBeTruthy()
     })
-    it("build-only correctly caches", async () => {
+    xit("build-only correctly caches", async () => {
         const options: UserParams = {
             postResult: false, // for testing
             tmpfs: false,
