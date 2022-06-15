@@ -1,7 +1,5 @@
 {
     "compilerOptions": {
-        "noImplicitAny": false,
-        "noImplicitThis": false,
         "strict": true,
         "target": "esnext",
         "module": "esnext",
