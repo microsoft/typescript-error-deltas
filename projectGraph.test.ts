@@ -3,10 +3,11 @@ import { getProjectsToBuild } from './projectGraph'
 
 describe("getProjectsToBuild", () => {
     it("gets a simple project", () => {
-        expect(getProjectsToBuild("./test/simpleProject")).toEqual({
+        const result = getProjectsToBuild("./test/simpleProject")
+        expect(result.simpleProjects[0].path.endsWith("test/simpleProject/tsconfig.json"))
+        delete (result.simpleProjects[0] as any).path
+        expect(result).toEqual({
             simpleProjects: [{
-                // TODO: Assertion only on the end of the path
-                path: "/home/nathansa/src/typescript-error-deltas/test/simpleProject/tsconfig.json",
                 hasParseError: false,
                 hasExtensionError: false,
                 hasReferenceError: false,
