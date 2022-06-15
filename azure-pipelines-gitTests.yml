@@ -24,6 +24,7 @@ schedules:
       include:
         - main
 
+pr: none
 trigger: none
 
 pool:
