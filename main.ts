@@ -1,7 +1,7 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
-import type { GitResult, UserResult \} from './gitUtils'
+import type { GitResult, UserResult } from './gitUtils';
 import ip = require("./installPackages");
 import ur = require("./userRepos");
 import cp = require("child_process");
