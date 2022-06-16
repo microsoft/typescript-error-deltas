@@ -18,7 +18,7 @@ interface Params {
      * Git repos are chosen from Typescript-language repos based on number of stars; default is 100.
      * User repos start at the top of the list; default is all of them.
      */
-     repoCount?: number | undefined;
+    repoCount?: number | undefined;
     /**
      * The index to start counting repositories; defaults to `0`.
      * If `repoStartIndex` is 99 and `repoCount` is 100, the 100th to the 199th repos will be tested.
