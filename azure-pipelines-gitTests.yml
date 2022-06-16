@@ -7,6 +7,10 @@ parameters:
     displayName: Repo Count
     type: string
     default: 100
+  - name: REPO_START_INDEX
+    displayName: Repo Start Index
+    type: string
+    default: 0
   - name: OLD_VERSION
     displayName: Baseline typescript package version
     type: string
@@ -41,6 +45,6 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node gitErrors ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }}
+      node gitErrors ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }}
     env:
       GITHUB_PAT: $(GITHUB_PAT)

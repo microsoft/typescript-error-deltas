@@ -18,7 +18,12 @@ interface Params {
      * Git repos are chosen from Typescript-language repos based on number of stars; default is 100.
      * User repos start at the top of the list; default is all of them.
      */
-    repoCount?: number | undefined;
+     repoCount?: number | undefined;
+     /**
+      * The index to start counting repositories; defaults to `0`.
+      * If `repoStartIndex` is 99 and `repoCount` is 100, the 100th to the 199th repos will be tested.
+      */
+     repoStartIndex?: number | undefined;
 }
 export interface GitParams extends Params {
     testType: 'git';
@@ -217,7 +222,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     const userTestDir = path.join(processCwd, "userTests");
 
     const topGithubRepos = testType === "git" || params.topRepos;
-    const repos = topGithubRepos ? await git.getPopularTypeScriptRepos(params.repoCount)
+    const repos = topGithubRepos ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex)
         : testType === "user" ? ur.getUserTestsRepos(userTestDir)
         : undefined;
 
@@ -230,13 +235,14 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     let sawNewErrors: true | undefined = undefined;
 
     let i = 0;
-    const maxCount = Math.min(typeof params.repoCount === 'number' ? params.repoCount : Infinity, repos.length)
+    const startIndex = params.repoStartIndex ?? 0;
+    const maxCount = Math.min(typeof params.repoCount === 'number' ? params.repoCount : Infinity, repos.length) + startIndex;
 
     for (const repo of repos) {
         if (repo.url && skipRepos.includes(repo.url)) continue;
         i++;
         if (i > maxCount) break;
-        console.log(`Starting #${i} / ${maxCount}: ${repo.url ?? repo.name}`);
+        console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
         if (await innerloop(params, topGithubRepos, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
             sawNewErrors = true;
         }
