@@ -19,11 +19,11 @@ interface Params {
      * User repos start at the top of the list; default is all of them.
      */
      repoCount?: number | undefined;
-     /**
-      * The index to start counting repositories; defaults to `0`.
-      * If `repoStartIndex` is 99 and `repoCount` is 100, the 100th to the 199th repos will be tested.
-      */
-     repoStartIndex?: number | undefined;
+    /**
+     * The index to start counting repositories; defaults to `0`.
+     * If `repoStartIndex` is 99 and `repoCount` is 100, the 100th to the 199th repos will be tested.
+     */
+    repoStartIndex?: number | undefined;
 }
 export interface GitParams extends Params {
     testType: 'git';
