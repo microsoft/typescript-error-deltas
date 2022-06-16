@@ -43,6 +43,7 @@ export interface UserParams extends Params {
 const skipRepos = [
     "https://github.com/storybookjs/storybook", // Too big to fit on VM
     "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
+    "https://github.com/BabylonJS/Babylon.js", // Runs out of space during compile
 ];
 const processCwd = process.cwd();
 const processPid = process.pid;
