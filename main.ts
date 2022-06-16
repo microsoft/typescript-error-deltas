@@ -21,7 +21,7 @@ interface Params {
     repoCount?: number | undefined;
     /**
      * The index to start counting repositories; defaults to `0`.
-     * If `repoStartIndex` is 99 and `repoCount` is 100, the 100th to the 199th repos will be tested.
+     * If `repoStartIndex` is 100 and `repoCount` is 100, the 100th to the 199th repos will be tested.
      */
     repoStartIndex?: number | undefined;
 }
