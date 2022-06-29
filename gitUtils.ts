@@ -1,9 +1,11 @@
 import octokit = require("@octokit/rest");
 import utils = require("./packageUtils");
-import git = require("simple-git/promise");
 import fs = require("fs");
 import path = require("path");
 import cp = require("child_process");
+
+// The bundled types don't work with CJS imports
+import { simpleGit as git } from "simple-git";
 
 export interface Repo {
     name: string;
@@ -41,7 +43,7 @@ export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0,
             per_page: perPage,
             page,
         });
-        
+
         let items = response.data.items;
         if (repoStartIndex > 0) {
             if (repoStartIndex < items.length) {
@@ -147,7 +149,7 @@ export async function createComment(sourceIssue: number, statusComment: number, 
     }
 
     console.log("Creating a github comment");
-    
+
     const kit = new octokit.Octokit({
         auth: process.env.GITHUB_PAT,
     });
