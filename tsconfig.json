@@ -7,6 +7,7 @@
         "skipLibCheck": true,
         "declaration": true,
         "sourceMap": true,
+        "useUnknownInCatchVariables": false,
     },
     "include": [
         "*.ts", "github-url/*.ts"

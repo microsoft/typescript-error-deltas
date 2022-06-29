@@ -75,7 +75,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
             await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, repo.types));
         }
         catch (err) {
-            reportError(err, "Error installing packages for " + repo.name);
+            reportError(err, `Error installing packages for ${err.packageRoot ?? "some package.json file"} in ${repo.name}`);
             await reportResourceUsage(downloadDir);
             return;
         }
@@ -304,7 +304,7 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, types?
     for (const { directory: packageRoot, tool, arguments: args } of commands) {
         await new Promise<void>((resolve, reject) => {
             usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
-            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? reject(err) : resolve());
+            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? reject({...err, packageRoot}) : resolve());
         });
     }
     if (usedYarn) {
