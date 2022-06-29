@@ -304,7 +304,7 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, types?
     for (const { directory: packageRoot, tool, arguments: args } of commands) {
         await new Promise<void>((resolve, reject) => {
             usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
-            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? reject({...err, packageRoot}) : resolve());
+            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? (((err as any).packageRoot = packageRoot), reject(err)) : resolve());
         });
     }
     if (usedYarn) {
