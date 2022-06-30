@@ -1,5 +1,4 @@
-import ghUrl = require("./github-url/index");
-import packageUtils = require("./packageUtils");
+import ghLink = require("@typescript/github-link");
 import projectGraph = require("./projectGraph");
 import cp = require("child_process");
 import path = require("path");
@@ -90,7 +89,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, topGit
         if (isEmpty) continue;
 
         const projectDir = path.dirname(projectPath);
-        const projectUrl = topGithubRepos ? await ghUrl.getGithubUrl(projectPath) : projectPath; // Use project path for user tests as they don't contain a git project.
+        const projectUrl = topGithubRepos ? await ghLink.getGithubLink(projectPath) : projectPath; // Use project path for user tests as they don't contain a git project.
 
         let localErrors: LocalError[] = [];
         let currProjectUrl = projectUrl;
@@ -99,7 +98,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, topGit
         for (const line of lines) {
             const projectMatch = isComposite && line.match(beginProjectRegex);
             if (projectMatch) {
-                currProjectUrl = topGithubRepos ? await ghUrl.getGithubUrl(path.resolve(projectDir, projectMatch[1])) : path.resolve(projectDir, projectMatch[1]);
+                currProjectUrl = topGithubRepos ? await ghLink.getGithubLink(path.resolve(projectDir, projectMatch[1])) : path.resolve(projectDir, projectMatch[1]);
                 continue;
             }
             const localError = getLocalErrorFromLine(line, currProjectUrl);
@@ -111,7 +110,7 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, topGit
         const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
 
         const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
-        const fileUrls = topGithubRepos ?  await ghUrl.getGithubUrls(fileLocalErrors) : fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`);
+        const fileUrls = topGithubRepos ?  await ghLink.getGithubLinks(fileLocalErrors) : fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`);
         for (let i = 0; i < fileLocalErrors.length; i++) {
             const localError = fileLocalErrors[i];
             errors.push({
