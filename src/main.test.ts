@@ -1,9 +1,9 @@
 /// <reference types="jest" />
-import { mainAsync, innerloop, UserParams, downloadTypescriptRepoAsync } from './main'
+import { mainAsync, processRepo, UserParams, downloadTypescriptRepoAsync } from './main'
 import { execSync } from "child_process"
 import { existsSync } from "fs"
 import { UserResult } from './gitUtils'
-import path = require('path')
+import * as path from "path"
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000)
     xit("user tests run from scratch", async () => {
@@ -49,7 +49,7 @@ The results of the user tests run you requested are in!
             topRepos: false,
         }
         const outputs: string[] = []
-        const hasNewErrors = await innerloop(
+        const hasNewErrors = await processRepo(
             options,
             /*topGithubRepos*/ false,
             "./ts_downloads",

@@ -49,7 +49,9 @@ const skipRepos = [
 const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
-async function innerloop(processRepo: GitParams | UserParams, topGithubRepos: boolean, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
+
+// Exported for testing
+export async function processRepo(params: GitParams | UserParams, topGithubRepos: boolean, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
     const { testType } = params
     if (params.tmpfs)
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
