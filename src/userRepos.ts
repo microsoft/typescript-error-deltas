@@ -1,7 +1,7 @@
+import { execAsync } from "./execUtils";
 import type { Repo } from "./gitUtils";
 import * as fs from "fs";
 import * as path from "path";
-import * as cp from "child_process";
 
 interface UserConfig {
     types: string[];
@@ -43,23 +43,4 @@ export async function copyUserRepo(parentDir: string, testDir: string, repo: Rep
     const repoDir = path.join(parentDir, repo.name);
     await execAsync(parentDir, `mkdir ${repoDir}`);
     await execAsync(repoDir, `cp -R ${path.join(testDir, repo.name)}/* .`);
-}
-
-async function execAsync(cwd: string, command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        console.log(`${cwd}> ${command}`);
-        cp.exec(command, { cwd }, (err, stdout, stderr) => {
-            if (stdout?.length) {
-                console.log(stdout);
-            }
-            if (stderr?.length) {
-                console.log(stderr); // To stdout to maintain order
-            }
-
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stdout);
-        });
-    });
 }

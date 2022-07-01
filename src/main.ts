@@ -1,6 +1,7 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
+import { execAsync } from "./execUtils";
 import type { GitResult, UserResult } from "./gitUtils";
 import ip = require("./installPackages");
 import ur = require("./userRepos");
@@ -374,25 +375,6 @@ export function reportError(err: any, message: string) {
     console.log(`${message}:`);
     console.log(reduceSpew(err.message ?? "No message").replace(/(^|\n)/g, "$1> "));
     console.log(reduceSpew(err.stack ?? "Unknown Stack").replace(/(^|\n)/g, "$1> "));
-}
-
-async function execAsync(cwd: string, command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        console.log(`${cwd}> ${command}`);
-        cp.exec(command, { cwd }, (err, stdout, stderr) => {
-            if (stdout?.length) {
-                console.log(stdout);
-            }
-            if (stderr?.length) {
-                console.log(stderr); // To stdout to maintain order
-            }
-
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stdout);
-        });
-    });
 }
 
 function reduceSpew(message: string): string {
