@@ -457,7 +457,12 @@ async function downloadTypescriptSourceIssueAsync(cwd: string, repoUrl: string, 
 
 async function buildTsc(repoPath: string) {
     await execAsync(repoPath, "npm ci");
-    await execAsync(repoPath, "npx gulp tsc");
+    await execAsync(repoPath, "npm run build:compiler");
+
+    // We build the LKG for the benefit of scenarios that want to install it as an npm package
+    await execAsync(repoPath, "npx gulp configure-insiders");
+    await execAsync(repoPath, "npx gulp LKG");
+
     return path.join(repoPath, "built", "local", "tsc.js");
 }
 
