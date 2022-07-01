@@ -1,15 +1,12 @@
 {
     "name": "typescript-error-deltas",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Script for comparing the errors from two builds of the TypeScript compiler",
-    "main": "index.js",
-    "bin": {
-        "ts-new-errors": "./bin/ts-new-errors"
-    },
+    "main": "dist/main.js",
+    "typings": "dist/main.d.ts",
     "scripts": {
-        "build": "tsc",
-        "test": "npm run build && jest",
-        "run": "sudo umount /mnt/ts_downloads; sudo rm -r /mnt/ts_downloads; npm run build && node ./userErrors.js false https://github.com/microsoft/typescript main sandersn 44585 990374547"
+        "build": "tsc -p src",
+        "test": "npm run build && jest"
     },
     "author": "Microsoft",
     "license": "MIT",
