@@ -25,6 +25,7 @@ parameters:
     displayName: Typescript-bot comment ID indicating that the run started
     type: number
 
+pr: none
 trigger: none
 
 pool:
