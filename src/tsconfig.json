@@ -8,11 +8,9 @@
         "declaration": true,
         "sourceMap": true,
         "useUnknownInCatchVariables": false,
+        "outDir": "../dist"
     },
-    "include": [
-        "*.ts", "github-url/*.ts"
-    ],
     "exclude": [
-        "userTests", "typescript-*"
+        "**/*.test.ts", // ts-jest will handle these
     ]
 }

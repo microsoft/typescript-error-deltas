@@ -41,6 +41,6 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }}
+      node dist/userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }}
     env:
       GITHUB_PAT: $(GITHUB_PAT)
