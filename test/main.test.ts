@@ -1,15 +1,15 @@
 /// <reference types="jest" />
-import { mainAsync, processRepo, UserParams, downloadTypescriptRepoAsync } from './main'
+import { mainAsync, processRepo, UserParams, downloadTypescriptRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
-import { UserResult } from './gitUtils'
-import * as path from "path"
+import { UserResult } from '../src/gitUtils'
+import path = require("path")
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000)
     xit("user tests run from scratch", async () => {
         const options: UserParams = {
             postResult: false, // for testing
-            // tmpfs: false, // TODO
+            tmpfs: false,
             repoCount: 1, // also for testing
             testType: "user",
             oldTypescriptRepoUrl: 'https://github.com/microsoft/typescript',
@@ -38,7 +38,7 @@ The results of the user tests run you requested are in!
     xit("build-only correctly caches", async () => {
         const options: UserParams = {
             postResult: false, // for testing
-            // tmpfs: false, // TODO
+            tmpfs: false,
             repoCount: 1, // also for testing
             testType: "user",
             oldTypescriptRepoUrl: 'https://github.com/microsoft/typescript',

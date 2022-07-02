@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { buildAndGetErrors } from './getErrors'
+import { buildAndGetErrors } from '../src/getErrors'
 describe("getErrors", () => {
     jest.setTimeout(10 * 60 * 1000)
     it("builds a simple project one time", async () => {
