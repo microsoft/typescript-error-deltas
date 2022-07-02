@@ -6,7 +6,7 @@ describe("getErrors", () => {
         const errors = await buildAndGetErrors(
             "./testResources/simpleProject",
             // TODO: Depends on downloading and building 44585 in main.test.ts
-            path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
+            path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
@@ -24,7 +24,7 @@ describe("getErrors", () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptProject",
             // TODO: Depends on downloading and building 44585 in main.test.ts
-            path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
+            path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
@@ -42,7 +42,7 @@ describe("getErrors", () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptPrettier",
             // TODO: Depends on downloading and building 44585 in main.test.ts
-            path.resolve("./typescript-test-fake-error/built/local/tsc.js"),
+            path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )

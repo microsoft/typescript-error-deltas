@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 import { mainAsync, processRepo, UserParams, downloadTypescriptRepoAsync } from './main'
 import { execSync } from "child_process"
-import { existsSync } from "fs"
+import { existsSync, mkdirSync } from "fs"
 import { UserResult } from './gitUtils'
 import * as path from "path"
 describe("main", () => {
@@ -9,7 +9,7 @@ describe("main", () => {
     xit("user tests run from scratch", async () => {
         const options: UserParams = {
             postResult: false, // for testing
-            tmpfs: false,
+            // tmpfs: false, // TODO
             repoCount: 1, // also for testing
             testType: "user",
             oldTypescriptRepoUrl: 'https://github.com/microsoft/typescript',
@@ -38,7 +38,7 @@ The results of the user tests run you requested are in!
     xit("build-only correctly caches", async () => {
         const options: UserParams = {
             postResult: false, // for testing
-            tmpfs: false,
+            // tmpfs: false, // TODO
             repoCount: 1, // also for testing
             testType: "user",
             oldTypescriptRepoUrl: 'https://github.com/microsoft/typescript',
@@ -66,8 +66,12 @@ The results of the user tests run you requested are in!
         expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     })
     it("downloads from a branch", async () => {
-        if (existsSync("typescript-test-fake-error"))
-            execSync("cd typescript-test-fake-error && git restore . && cd ..")
-        await downloadTypescriptRepoAsync('./', 'https://github.com/sandersn/typescript', 'test-fake-error')
+        if (!existsSync("./testDownloads")) {
+            mkdirSync("./testDownloads");
+        }
+        else if (existsSync("./testDownloads/typescript-test-fake-error")) {
+            execSync("cd ./testDownloads/typescript-test-fake-error && git restore . && cd ..")
+        }
+        await downloadTypescriptRepoAsync('./testDownloads', 'https://github.com/sandersn/typescript', 'test-fake-error')
     })
 })
