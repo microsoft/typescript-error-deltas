@@ -4,7 +4,7 @@ import git = require("./gitUtils");
 import { execAsync } from "./execUtils";
 import type { GitResult, UserResult } from "./gitUtils";
 import ip = require("./installPackages");
-import ur = require("./userRepos");
+import ut = require("./userTestUtils");
 import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
@@ -68,7 +68,7 @@ export async function processRepo(params: GitParams | UserParams, topGithubRepos
             }
         }
         else {
-            await ur.copyUserRepo(downloadDir, userTestDir, repo);
+            await ut.copyUserRepo(downloadDir, userTestDir, repo);
         }
 
         const repoDir = path.join(downloadDir, repo.name);
@@ -229,7 +229,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const topGithubRepos = testType === "git" || params.topRepos;
     const repos = topGithubRepos ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex)
-        : testType === "user" ? ur.getUserTestsRepos(userTestDir)
+        : testType === "user" ? ut.getUserTestsRepos(userTestDir)
         : undefined;
 
     if (!repos) {
