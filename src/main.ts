@@ -318,7 +318,7 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
         promise.finally(() => timeout && clearTimeout(timeout)),
         new Promise<T>((_resolve, reject) =>
             timeout = setTimeout(async () => {
-                await execAsync(processCwd, `../scripts/kill-children-of ${processPid} node`);
+                await execAsync(processCwd, `./scripts/kill-children-of ${processPid} node`);
                 return reject(new Error(`Timed out after ${ms} ms`));
             }, ms)),
     ]);
