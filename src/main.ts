@@ -302,42 +302,37 @@ async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck:
 
 async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {
     let usedYarn = false;
+    let timedOut = false;
     try {
         const startMs = performance.now();
         const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
         for (const { directory: packageRoot, tool, arguments: args } of commands) {
-            let installError: any = undefined;
+            usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
 
             const elapsedMs = performance.now() - startMs;
-            // Fudge factor: don't start an installation with less than 100 ms left
-            // Reduces the odds of a race between starting the install process and killing it
-            if (elapsedMs > timeoutMs - 100) {
-                installError = new Error(`Timed out after ${timeoutMs} ms`);
-            }
-            else {
-                usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
+            const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
 
-                await new Promise<void>(resolve => {
-                    const timeout = setTimeout(async () => {
-                        installError ??= new Error(`Timed out after ${timeoutMs} ms`);
+            await new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(async () => {
+                    timedOut = true;
+                    await execAsync(processCwd, `./scripts/kill-children-of ${processPid} ${tool}`);
 
-                        await execAsync(processCwd, `./scripts/kill-children-of ${processPid} ${tool}`);
-                        resolve();
-                    }, timeoutMs - elapsedMs);
+                    const err = new Error(`Timed out after ${timeoutMs} ms`);
+                    (err as any).packageRoot = packageRootDescription;
+                    reject(err);
+                }, timeoutMs - elapsedMs);
 
-                    cp.execFile(tool, args, { cwd: packageRoot }, err => {
-                        installError ??= err;
+                cp.execFile(tool, args, { cwd: packageRoot }, err => {
+                    if (!timedOut) {
                         clearTimeout(timeout);
+                        if (err) {
+                            (err as any).packageRoot = packageRootDescription;
+                            reject(err);
+                        }
                         resolve();
-                    });
+                    }
                 });
-            }
-
-            if (installError) {
-                // Attach the package root to improve error reporting
-                installError.packageRoot = packageRoot.substring(repoDir.length + 1) || "root directory";
-                throw installError;
-            }
+            });
         }
     }
     finally {
