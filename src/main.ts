@@ -72,7 +72,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
 
         try {
             console.log("Installing packages if absent");
-            await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, repo.types));
+            await installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, executionTimeout, repo.types);
         }
         catch (err) {
             reportError(err, `Error installing packages for ${err.packageRoot ?? "some package.json file"} in ${repo.name}`);
@@ -82,7 +82,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
 
         try {
             console.log(`Building with ${oldTscPath} (old)`);
-            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, topGithubRepos, params.postResult);
+            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, topGithubRepos, /*realTimeout*/params.postResult);
 
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -118,7 +118,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
             }
 
             console.log(`Building with ${newTscPath} (new)`);
-            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, topGithubRepos, params.postResult);
+            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, topGithubRepos, /*realTimeout*/params.postResult);
 
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -193,6 +193,8 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
         // Note that we specifically don't recover and attempt another repo if this fails
         console.log("Cleaning up repo");
         if (params.tmpfs) {
+            // Dump any processes holding onto the download directory in case umount fails
+            await execAsync(processCwd, `lsof | grep ${downloadDir} || true`);
             await execAsync(processCwd, "sudo umount " + downloadDir);
             await reportResourceUsage(downloadDir);
         }
@@ -298,17 +300,50 @@ async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck:
     }
 }
 
-async function installPackages(repoDir: string, recursiveSearch: boolean, types?: string[]) {
-    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
+async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {
     let usedYarn = false;
-    for (const { directory: packageRoot, tool, arguments: args } of commands) {
-        await new Promise<void>((resolve, reject) => {
-            usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
-            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? (((err as any).packageRoot = packageRoot), reject(err)) : resolve());
-        });
+    try {
+        const startMs = performance.now();
+        const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
+        for (const { directory: packageRoot, tool, arguments: args } of commands) {
+            let installError: any = undefined;
+
+            const elapsedMs = performance.now() - startMs;
+            // Fudge factor: don't start an installation with less than 100 ms left
+            // Reduces the odds of a race between starting the install process and killing it
+            if (elapsedMs > timeoutMs - 100) {
+                installError = new Error(`Timed out after ${timeoutMs} ms`);
+            }
+            else {
+                usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
+
+                await new Promise<void>(resolve => {
+                    const timeout = setTimeout(async () => {
+                        installError ??= new Error(`Timed out after ${timeoutMs} ms`);
+
+                        await execAsync(processCwd, `./scripts/kill-children-of ${processPid} ${tool}`);
+                        resolve();
+                    }, timeoutMs - elapsedMs);
+
+                    cp.execFile(tool, args, { cwd: packageRoot }, err => {
+                        installError ??= err;
+                        clearTimeout(timeout);
+                        resolve();
+                    });
+                });
+            }
+
+            if (installError) {
+                // Attach the package root to improve error reporting
+                installError.packageRoot = packageRoot.substring(repoDir.length + 1) || "root directory";
+                throw installError;
+            }
+        }
     }
-    if (usedYarn) {
-        await execAsync(repoDir, "yarn cache clean --all");
+    finally {
+        if (usedYarn) {
+            await execAsync(repoDir, "yarn cache clean --all");
+        }
     }
 }
 
@@ -318,7 +353,7 @@ function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
         promise.finally(() => timeout && clearTimeout(timeout)),
         new Promise<T>((_resolve, reject) =>
             timeout = setTimeout(async () => {
-                await execAsync(processCwd, `../scripts/kill-children-of ${processPid} node`);
+                await execAsync(processCwd, `./scripts/kill-children-of ${processPid} node`);
                 return reject(new Error(`Timed out after ${ms} ms`));
             }, ms)),
     ]);
