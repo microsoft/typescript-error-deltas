@@ -66,12 +66,12 @@ The results of the user tests run you requested are in!
         expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     })
     it("downloads from a branch", async () => {
-        if (!existsSync("./testDownloads")) {
-            mkdirSync("./testDownloads");
+        if (!existsSync("./testDownloads/main")) {
+            mkdirSync("./testDownloads/main", { recursive: true });
         }
-        else if (existsSync("./testDownloads/typescript-test-fake-error")) {
-            execSync("cd ./testDownloads/typescript-test-fake-error && git restore . && cd ..")
+        else if (existsSync("./testDownloads/main/typescript-test-fake-error")) {
+            execSync("cd ./testDownloads/main/typescript-test-fake-error && git restore . && cd ..")
         }
-        await downloadTypescriptRepoAsync('./testDownloads', 'https://github.com/sandersn/typescript', 'test-fake-error')
+        await downloadTypescriptRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error')
     })
 })

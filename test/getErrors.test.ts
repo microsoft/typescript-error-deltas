@@ -6,18 +6,18 @@ describe("getErrors", () => {
     jest.setTimeout(10 * 60 * 1000)
 
     beforeAll(async () => {
-        if (!existsSync("./testDownloads/typescript-test-fake-error/built/local/tsc.js")) {
-            if (!existsSync("./testDownloads")) {
-                mkdirSync("./testDownloads");
+        if (!existsSync("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js")) {
+            if (!existsSync("./testDownloads/getErrors")) {
+                mkdirSync("./testDownloads/getErrors");
             }
-            await downloadTypescriptRepoAsync('./testDownloads', 'https://github.com/sandersn/typescript', 'test-fake-error');
+            await downloadTypescriptRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error');
         }
     });
 
     it("builds a simple project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/simpleProject",
-            path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
+            path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
@@ -34,7 +34,7 @@ describe("getErrors", () => {
     it("builds a script project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptProject",
-            path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
+            path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
@@ -51,7 +51,7 @@ describe("getErrors", () => {
     xit("builds Real Live prettier, For Real", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptPrettier",
-            path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
+            path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
         )
