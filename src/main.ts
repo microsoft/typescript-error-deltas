@@ -72,7 +72,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
 
         try {
             console.log("Installing packages if absent");
-            await withTimeout(executionTimeout, installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, repo.types));
+            await installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, executionTimeout, repo.types);
         }
         catch (err) {
             reportError(err, `Error installing packages for ${err.packageRoot ?? "some package.json file"} in ${repo.name}`);
@@ -82,7 +82,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
 
         try {
             console.log(`Building with ${oldTscPath} (old)`);
-            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, topGithubRepos, params.postResult);
+            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, topGithubRepos, /*realTimeout*/params.postResult);
 
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -118,7 +118,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
             }
 
             console.log(`Building with ${newTscPath} (new)`);
-            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, topGithubRepos, params.postResult);
+            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, topGithubRepos, /*realTimeout*/params.postResult);
 
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -193,6 +193,8 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
         // Note that we specifically don't recover and attempt another repo if this fails
         console.log("Cleaning up repo");
         if (params.tmpfs) {
+            // Dump any processes holding onto the download directory in case umount fails
+            await execAsync(processCwd, `lsof | grep ${downloadDir} || true`);
             await execAsync(processCwd, "sudo umount " + downloadDir);
             await reportResourceUsage(downloadDir);
         }
@@ -298,17 +300,45 @@ async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck:
     }
 }
 
-async function installPackages(repoDir: string, recursiveSearch: boolean, types?: string[]) {
-    const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
+async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {
     let usedYarn = false;
-    for (const { directory: packageRoot, tool, arguments: args } of commands) {
-        await new Promise<void>((resolve, reject) => {
+    let timedOut = false;
+    try {
+        const startMs = performance.now();
+        const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
+        for (const { directory: packageRoot, tool, arguments: args } of commands) {
             usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
-            cp.execFile(tool, args, { cwd: packageRoot }, err => err ? (((err as any).packageRoot = packageRoot), reject(err)) : resolve());
-        });
+
+            const elapsedMs = performance.now() - startMs;
+            const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
+
+            await new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(async () => {
+                    timedOut = true;
+                    await execAsync(processCwd, `./scripts/kill-children-of ${processPid} ${tool}`);
+
+                    const err = new Error(`Timed out after ${timeoutMs} ms`);
+                    (err as any).packageRoot = packageRootDescription;
+                    reject(err);
+                }, timeoutMs - elapsedMs);
+
+                cp.execFile(tool, args, { cwd: packageRoot }, err => {
+                    if (!timedOut) {
+                        clearTimeout(timeout);
+                        if (err) {
+                            (err as any).packageRoot = packageRootDescription;
+                            reject(err);
+                        }
+                        resolve();
+                    }
+                });
+            });
+        }
     }
-    if (usedYarn) {
-        await execAsync(repoDir, "yarn cache clean --all");
+    finally {
+        if (usedYarn) {
+            await execAsync(repoDir, "yarn cache clean --all");
+        }
     }
 }
 
