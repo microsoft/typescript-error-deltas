@@ -12,7 +12,10 @@ import path = require("path");
 interface Params {
     /** True to post the result to Github, false to print to console.  */
     postResult: boolean;
-    /** Store test repos on a tmpfs */
+    /**
+     * Store test repos on a tmpfs.
+     * Basically, the only reason not to do this would be lack of `sudo`.
+     */
     tmpfs: boolean;
     /**
      * Number of repos to test, undefined for the default.
