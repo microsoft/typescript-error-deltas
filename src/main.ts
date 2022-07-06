@@ -1,11 +1,10 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
-import { execAsync } from "./execUtils";
+import { execAsync, execFileWithTimeoutAsync } from "./execUtils";
 import type { GitResult, UserResult } from "./gitUtils";
 import ip = require("./installPackages");
 import ut = require("./userTestUtils");
-import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
 
@@ -51,16 +50,30 @@ const skipRepos = [
 ];
 const processCwd = process.cwd();
 const processPid = process.pid;
+const packageTimeout = 10 * 60 * 1000;
 const executionTimeout = 10 * 60 * 1000;
 
 // Exported for testing
-export async function processRepo(params: GitParams | UserParams, topGithubRepos: boolean, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
-    const { testType } = params
-    if (params.tmpfs)
+export async function repoHasNewErrors(
+    repo: git.Repo,
+    userTestsDir: string,
+    oldTscPath: string,
+    newTscPath: string,
+    ignoreOldTscFailures: boolean,
+    downloadDir: string,
+    isDownloadDirOnTmpFs: boolean,
+    outputs: string[]): Promise<true | undefined> {
+
+    if (isDownloadDirOnTmpFs) {
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
+    }
 
     try {
-        if (repo.url) {
+        const isUserTestRepo = !repo.url;
+        if (isUserTestRepo) {
+            await ut.copyUserRepo(downloadDir, userTestsDir, repo);
+        }
+        else {
             try {
                 console.log("Cloning if absent");
                 await git.cloneRepoIfNecessary(downloadDir, repo);
@@ -70,25 +83,22 @@ export async function processRepo(params: GitParams | UserParams, topGithubRepos
                 return;
             }
         }
-        else {
-            await ut.copyUserRepo(downloadDir, userTestDir, repo);
-        }
 
         const repoDir = path.join(downloadDir, repo.name);
 
         try {
             console.log("Installing packages if absent");
-            await installPackages(repoDir, /*recursiveSearch*/ topGithubRepos, executionTimeout, repo.types);
+            await installPackages(repoDir, /*recursiveSearch*/ !isUserTestRepo, packageTimeout, repo.types);
         }
         catch (err) {
-            reportError(err, `Error installing packages for ${err.packageRoot ?? "some package.json file"} in ${repo.name}`);
+            reportError(err, `Error installing packages for ${repo.name}`);
             await reportResourceUsage(downloadDir);
             return;
         }
 
         try {
             console.log(`Building with ${oldTscPath} (old)`);
-            const oldErrors = await buildAndGetErrors(repoDir, oldTscPath, /*skipLibCheck*/ true, topGithubRepos, /*realTimeout*/params.postResult);
+            const oldErrors = await ge.buildAndGetErrors(repoDir, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
 
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -106,7 +116,7 @@ export async function processRepo(params: GitParams | UserParams, topGithubRepos
             }
 
             // User tests ignores build failures.
-            if (testType === "git" && numFailed === numProjects) {
+            if (!ignoreOldTscFailures && numFailed === numProjects) {
                 console.log(`Skipping build with ${newTscPath} (new)`);
                 return;
             }
@@ -124,7 +134,7 @@ export async function processRepo(params: GitParams | UserParams, topGithubRepos
             }
 
             console.log(`Building with ${newTscPath} (new)`);
-            const newErrors = await buildAndGetErrors(repoDir, newTscPath, /*skipLibCheck*/ true, topGithubRepos, /*realTimeout*/params.postResult);
+            const newErrors = await ge.buildAndGetErrors(repoDir, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
 
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
@@ -138,7 +148,7 @@ export async function processRepo(params: GitParams | UserParams, topGithubRepos
             console.log("Comparing errors");
             for (const oldProjectErrors of oldErrors.projectErrors) {
                 // To keep things simple, we'll focus on projects that used to build cleanly
-                if (testType === "git" && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
+                if (!ignoreOldTscFailures && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
                     continue;
                 }
 
@@ -188,20 +198,26 @@ export async function processRepo(params: GitParams | UserParams, topGithubRepos
             }
         }
         catch (err) {
-            reportError(err, "Error building " + repo.url ?? repo.name);
+            reportError(err, `Error building ${repo.url ?? repo.name}`);
             return;
         }
 
-        console.log("Done " + repo.url ?? repo.name);
+        console.log(`Done ${repo.url ?? repo.name}`);
     }
     finally {
         // Throw away the repo so we don't run out of space
         // Note that we specifically don't recover and attempt another repo if this fails
         console.log("Cleaning up repo");
-        if (params.tmpfs) {
+        if (isDownloadDirOnTmpFs) {
             // Dump any processes holding onto the download directory in case umount fails
             await execAsync(processCwd, `lsof | grep ${downloadDir} || true`);
-            await execAsync(processCwd, "sudo umount " + downloadDir);
+            try {
+                await execAsync(processCwd, "sudo umount " + downloadDir);
+            }
+            catch (e) {
+                await execAsync(processCwd, `pstree -palT ${processPid}`);
+                throw e;
+            }
             await reportResourceUsage(downloadDir);
         }
     }
@@ -228,12 +244,13 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     console.log("Old version = " + oldTscResolvedVersion);
     console.log("New version = " + newTscResolvedVersion);
 
-    const userTestDir = path.join(processCwd, "userTests");
+    const userTestsDir = path.join(processCwd, "userTests");
 
-    const topGithubRepos = testType === "git" || params.topRepos;
-    const repos = topGithubRepos ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex)
-        : testType === "user" ? ut.getUserTestsRepos(userTestDir)
-        : undefined;
+    const repos = testType === "git" || params.topRepos
+        ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex)
+        : testType === "user"
+            ? ut.getUserTestsRepos(userTestsDir)
+            : undefined;
 
     if (!repos) {
         throw new Error(`Parameter <test_type> with value ${testType} is not existent.`);
@@ -252,7 +269,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         i++;
         if (i > maxCount) break;
         console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
-        if (await processRepo(params, topGithubRepos, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
+        if (await repoHasNewErrors(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, outputs)) {
             sawNewErrors = true;
         }
     }
@@ -289,23 +306,6 @@ ${summary}`;
     }
 }
 
-async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck: boolean, topGithubRepos: boolean, realTimeout: boolean): Promise<ge.RepoErrors> {
-    if (realTimeout) {
-        const p = new Promise<ge.RepoErrors>((resolve, reject) => {
-            const p = cp.fork(path.join(__dirname, "run-build.js"));
-            p.on('message', (m: 'ready' | ge.RepoErrors) =>
-                m === 'ready'
-                    ? p.send({ repoDir, tscPath, topGithubRepos, skipLibCheck })
-                    : resolve(m));
-            p.on('exit', reject);
-        });
-        return withTimeout(executionTimeout, p);
-    }
-    else {
-        return ge.buildAndGetErrors(repoDir, tscPath, topGithubRepos, skipLibCheck)
-    }
-}
-
 async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {
     let usedYarn = false;
     try {
@@ -320,27 +320,14 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
             const elapsedMs = performance.now() - startMs;
             const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
 
-            await new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(async () => {
-                    timedOut = true;
-                    await execAsync(processCwd, `./scripts/kill-children-of ${processPid} ${tool}`);
-
-                    const err = new Error(`Timed out after ${timeoutMs} ms`);
-                    (err as any).packageRoot = packageRootDescription;
-                    reject(err);
-                }, timeoutMs - elapsedMs);
-
-                cp.execFile(tool, args, { cwd: packageRoot }, err => {
-                    if (!timedOut) {
-                        clearTimeout(timeout);
-                        if (err) {
-                            (err as any).packageRoot = packageRootDescription;
-                            reject(err);
-                        }
-                        resolve();
-                    }
-                });
-            });
+            const execResult = await execFileWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs);
+            const err: any = execResult
+                ? execResult.err
+                : new Error(`Timed out after ${timeoutMs} ms`);
+            if (err) {
+                err.message = `Failed to install packages for ${packageRootDescription}: ${err.message}`;
+                throw err;
+            }
         }
     }
     finally {
@@ -348,18 +335,6 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
             await execAsync(repoDir, "yarn cache clean --all");
         }
     }
-}
-
-function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
-    let timeout: NodeJS.Timeout | undefined;
-    return Promise.race([
-        promise.finally(() => timeout && clearTimeout(timeout)),
-        new Promise<T>((_resolve, reject) =>
-            timeout = setTimeout(async () => {
-                await execAsync(processCwd, `./scripts/kill-children-of ${processPid} node`);
-                return reject(new Error(`Timed out after ${ms} ms`));
-            }, ms)),
-    ]);
 }
 
 async function reportResourceUsage(downloadDir: string) {
@@ -454,6 +429,7 @@ export async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, 
     const repoPath = path.join(cwd, repoName);
 
     return {
+        // tscPath: path.join(repoPath, "lib", "tsc.js"),// Handy for local testing
         tscPath: await buildTsc(repoPath),
         resolvedVersion: headRef
     };
@@ -469,6 +445,7 @@ async function downloadTypescriptSourceIssueAsync(cwd: string, repoUrl: string, 
     await git.checkout(repoPath, headRef);
 
     return {
+        // tscPath: path.join(repoPath, "lib", "tsc.js"),// Handy for local testing
         tscPath: await buildTsc(repoPath),
         resolvedVersion: headRef
     };

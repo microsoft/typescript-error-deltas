@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { mainAsync, processRepo, UserParams, downloadTypescriptRepoAsync } from '../src/main'
+import { mainAsync, repoHasNewErrors, UserParams, downloadTypescriptRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
 import { UserResult } from '../src/gitUtils'
@@ -36,30 +36,18 @@ The results of the user tests run you requested are in!
 - \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\``)).toBeTruthy()
     })
     xit("build-only correctly caches", async () => {
-        const options: UserParams = {
-            postResult: false, // for testing
-            tmpfs: false,
-            repoCount: 1, // also for testing
-            testType: "user",
-            oldTypescriptRepoUrl: 'https://github.com/microsoft/typescript',
-            oldHeadRef: 'main', // TODO: only branch names seem to work here, not all refs
-            requestingUser: 'sandersn',
-            sourceIssue: 44585,
-            statusComment: 990374547,
-            topRepos: false,
-        }
         const outputs: string[] = []
-        const hasNewErrors = await processRepo(
-            options,
-            /*topGithubRepos*/ false,
-            "./ts_downloads",
-            "./userTests",
+        const hasNewErrors = await repoHasNewErrors(
             {
                 name: "TypeScript-Node-Starter",
                 url: "https://github.com/Microsoft/TypeScript-Node-Starter.git"
             },
+            "./userTests",
             path.resolve("./typescript-main/built/local/tsc.js"),
             path.resolve("./typescript-44585/built/local/tsc.js"),
+            /*ignoreOldTscFailures*/ true, // as in a user test
+            "./ts_downloads",
+            /*isDownloadDirOnTmpFs*/ false,
             outputs)
         expect(hasNewErrors).toBeTruthy()
         expect(outputs.join("").startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()

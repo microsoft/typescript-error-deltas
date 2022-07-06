@@ -17,8 +17,9 @@ describe("getErrors", () => {
     it("builds a simple project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/simpleProject",
+            /*isUserTestRepo*/ true,
             path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
-            /*topGithubRepos*/ false,
+            /*timeoutMs*/ 1e6,
             /*skipLibCheck*/ true,
         )
         expect(errors.hasConfigFailure).toBeFalsy()
@@ -34,8 +35,9 @@ describe("getErrors", () => {
     it("builds a script project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptProject",
+            /*isUserTestRepo*/ true,
             path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
-            /*topGithubRepos*/ false,
+            /*timeoutMs*/ 1e6,
             /*skipLibCheck*/ true,
         )
         expect(errors.hasConfigFailure).toBeFalsy()
@@ -51,8 +53,9 @@ describe("getErrors", () => {
     xit("builds Real Live prettier, For Real", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptPrettier",
+            /*isUserTestRepo*/ false,
             path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
-            /*topGithubRepos*/ false,
+            /*timeoutMs*/ 1e6,
             /*skipLibCheck*/ true,
         )
         expect(errors.hasConfigFailure).toBeFalsy()
