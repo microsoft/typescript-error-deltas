@@ -1,11 +1,22 @@
+import { existsSync, mkdirSync } from "fs"
 import * as path from 'path'
 import { buildAndGetErrors } from '../src/getErrors'
+import { downloadTypescriptRepoAsync } from '../src/main'
 describe("getErrors", () => {
     jest.setTimeout(10 * 60 * 1000)
+
+    beforeAll(async () => {
+        if (!existsSync("./testDownloads/typescript-test-fake-error/built/local/tsc.js")) {
+            if (!existsSync("./testDownloads")) {
+                mkdirSync("./testDownloads");
+            }
+            await downloadTypescriptRepoAsync('./testDownloads', 'https://github.com/sandersn/typescript', 'test-fake-error');
+        }
+    });
+
     it("builds a simple project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/simpleProject",
-            // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
@@ -23,7 +34,6 @@ describe("getErrors", () => {
     it("builds a script project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptProject",
-            // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
@@ -41,7 +51,6 @@ describe("getErrors", () => {
     xit("builds Real Live prettier, For Real", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptPrettier",
-            // TODO: Depends on downloading and building 44585 in main.test.ts
             path.resolve("./testDownloads/typescript-test-fake-error/built/local/tsc.js"),
             /*topGithubRepos*/ false,
             /*skipLibCheck*/ true,
