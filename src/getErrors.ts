@@ -1,6 +1,7 @@
 import ghLink = require("@typescript/github-link");
 import projectGraph = require("./projectGraph");
 import cp = require("child_process");
+import fs = require("fs");
 import path = require("path");
 
 const nodePath = process.argv0;
@@ -61,6 +62,13 @@ export interface RepoErrors {
     projectErrors: readonly ProjectErrors[],
 }
 
+export function errorEquals(error1: Error, error2: Error) {
+    return error1.code === error2.code
+        && error1.fileUrl === error2.fileUrl
+        && error1.projectUrl === error2.projectUrl
+        && error1.text === error2.text;
+}
+
 /**
  * Given a folder and a compiler, identify buildable projects and compile them.
  * Assumes that package installation has already occurred.
@@ -69,64 +77,43 @@ export interface RepoErrors {
  * @param skipLibCheck True pass --skipLibCheck when building non-composite projects.  (Defaults to true)
  */
 export async function buildAndGetErrors(repoDir: string, tscPath: string, topGithubRepos: boolean, skipLibCheck: boolean = true): Promise<RepoErrors> {
+    const projectErrors: ProjectErrors[] = [];
+
+    // If there's a build.sh in the root, don't bother searching for projects
+    // NB: Unless it's a random project from GH - then definitely don't run build.sh
+    if (!topGithubRepos) {
+        const buildScriptPath = path.join(repoDir, "build.sh");
+        if (fs.existsSync(buildScriptPath)) {
+            const { isEmpty, stdout, hasBuildFailure } = await buildScript(tscPath, buildScriptPath);
+
+            if (!isEmpty) {
+                projectErrors.push(await getProjectErrors(buildScriptPath, stdout, hasBuildFailure, /*isComposite*/ false, topGithubRepos));
+            }
+
+            return {
+                hasConfigFailure: false,
+                projectErrors,
+            };
+        }
+    }
+
     const simpleBuildArgs = `--skipLibCheck ${skipLibCheck} --incremental false --pretty false -p`;
     const compositeBuildArgs = `-b -f -v`; // Build mode doesn't support --skipLibCheck or --pretty
 
-    const { simpleProjects, rootCompositeProjects, scriptedProjects, hasError: hasConfigFailure } = projectGraph.getProjectsToBuild(repoDir);
-    // TODO: Move this inside getProjectsToBuild, separating them is pointless
-    const projectsToBuild = simpleProjects.concat(rootCompositeProjects).concat(scriptedProjects);
+    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir);
+    // TODO: Move this inside getProjectsToBuild, separating them is pointless (originally separate to enable simple-only and composite-only runs)
+    const projectsToBuild = simpleProjects.concat(rootCompositeProjects);
     if (!projectsToBuild.length) {
         return {
             hasConfigFailure,
-            projectErrors: [],
+            projectErrors,
         };
     }
-    const projectErrors: ProjectErrors[] = [];
-    for (const { path: projectPath, isComposite, contents } of projectsToBuild) {
-        const { isEmpty, stdout, hasBuildFailure } = contents
-            ? await buildScript(tscPath, projectPath)
-            : await buildProject(tscPath, isComposite ? compositeBuildArgs : simpleBuildArgs, projectPath);
+    for (const { path: projectPath, isComposite } of projectsToBuild) {
+        const { isEmpty, stdout, hasBuildFailure } = await buildProject(tscPath, isComposite ? compositeBuildArgs : simpleBuildArgs, projectPath);
         if (isEmpty) continue;
 
-        const projectDir = path.dirname(projectPath);
-        const projectUrl = topGithubRepos ? await ghLink.getGithubLink(projectPath) : projectPath; // Use project path for user tests as they don't contain a git project.
-
-        let localErrors: LocalError[] = [];
-        let currProjectUrl = projectUrl;
-
-        const lines = stdout.split(/\r\n?|\n/);
-        for (const line of lines) {
-            const projectMatch = isComposite && line.match(beginProjectRegex);
-            if (projectMatch) {
-                currProjectUrl = topGithubRepos ? await ghLink.getGithubLink(path.resolve(projectDir, projectMatch[1])) : path.resolve(projectDir, projectMatch[1]);
-                continue;
-            }
-            const localError = getLocalErrorFromLine(line, currProjectUrl);
-            if (localError) {
-                localErrors.push(localError);
-            }
-        }
-        // Handling the project-level errors separately makes it easier to bulk convert the file-level errors to use GH urls
-        const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
-
-        const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
-        const fileUrls = topGithubRepos ?  await ghLink.getGithubLinks(fileLocalErrors) : fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`);
-        for (let i = 0; i < fileLocalErrors.length; i++) {
-            const localError = fileLocalErrors[i];
-            errors.push({
-                projectUrl: localError.projectUrl,
-                code: localError.code,
-                text: localError.text,
-                fileUrl: fileUrls[i],
-            });
-        }
-        projectErrors.push({
-            projectUrl,
-            isComposite,
-            hasBuildFailure,
-            errors: errors,
-            raw: stdout,
-        });
+        projectErrors.push(await getProjectErrors(projectPath, stdout, hasBuildFailure, isComposite, topGithubRepos));
     }
     return {
         hasConfigFailure,
@@ -134,11 +121,47 @@ export async function buildAndGetErrors(repoDir: string, tscPath: string, topGit
     };
 }
 
-export function errorEquals(error1: Error, error2: Error) {
-    return error1.code === error2.code
-        && error1.fileUrl === error2.fileUrl
-        && error1.projectUrl === error2.projectUrl
-        && error1.text === error2.text;
+async function getProjectErrors(projectPath: string, stdout: string, hasBuildFailure: boolean, isComposite: boolean, topGithubRepos: boolean): Promise<ProjectErrors> {
+    const projectDir = path.dirname(projectPath);
+    const projectUrl = topGithubRepos ? await ghLink.getGithubLink(projectPath) : projectPath; // Use project path for user tests as they don't contain a git project.
+
+    let localErrors: LocalError[] = [];
+    let currProjectUrl = projectUrl;
+
+    const lines = stdout.split(/\r\n?|\n/);
+    for (const line of lines) {
+        const projectMatch = isComposite && line.match(beginProjectRegex);
+        if (projectMatch) {
+            currProjectUrl = topGithubRepos ? await ghLink.getGithubLink(path.resolve(projectDir, projectMatch[1])) : path.resolve(projectDir, projectMatch[1]);
+            continue;
+        }
+        const localError = getLocalErrorFromLine(line, currProjectUrl);
+        if (localError) {
+            localErrors.push(localError);
+        }
+    }
+    // Handling the project-level errors separately makes it easier to bulk convert the file-level errors to use GH urls
+    const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
+
+    const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
+    const fileUrls = topGithubRepos ? await ghLink.getGithubLinks(fileLocalErrors) : fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`);
+    for (let i = 0; i < fileLocalErrors.length; i++) {
+        const localError = fileLocalErrors[i];
+        errors.push({
+            projectUrl: localError.projectUrl,
+            code: localError.code,
+            text: localError.text,
+            fileUrl: fileUrls[i],
+        });
+    }
+
+    return {
+        projectUrl,
+        isComposite,
+        hasBuildFailure,
+        errors: errors,
+        raw: stdout,
+    };
 }
 
 function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | undefined {
@@ -173,9 +196,9 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
     return undefined;
 }
 
-async function buildScript(tscPath: string, projectPath: string) {
+async function buildScript(tscPath: string, scriptPath: string) {
     const repoPath = path.dirname(path.dirname(path.dirname(tscPath)))
-    const { err, stdout, stderr } = await execAsync(path.dirname(projectPath), `TS=${repoPath} ${path.resolve(projectPath)}`);
+    const { err, stdout, stderr } = await execAsync(path.dirname(scriptPath), `TS=${repoPath} ${path.resolve(scriptPath)}`);
     return {
         stdout,
         hasBuildFailure: !!(err || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr

@@ -1,9 +1,9 @@
 /// <reference types="jest" />
-import { mainAsync, innerloop, UserParams, downloadTypescriptRepoAsync } from './main'
+import { mainAsync, processRepo, UserParams, downloadTypescriptRepoAsync } from '../src/main'
 import { execSync } from "child_process"
-import { existsSync } from "fs"
-import { UserResult } from './gitUtils'
-import path = require('path')
+import { existsSync, mkdirSync } from "fs"
+import { UserResult } from '../src/gitUtils'
+import path = require("path")
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000)
     xit("user tests run from scratch", async () => {
@@ -49,7 +49,7 @@ The results of the user tests run you requested are in!
             topRepos: false,
         }
         const outputs: string[] = []
-        const hasNewErrors = await innerloop(
+        const hasNewErrors = await processRepo(
             options,
             /*topGithubRepos*/ false,
             "./ts_downloads",
@@ -66,8 +66,12 @@ The results of the user tests run you requested are in!
         expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     })
     it("downloads from a branch", async () => {
-        if (existsSync("typescript-test-fake-error"))
-            execSync("cd typescript-test-fake-error && git restore . && cd ..")
-        await downloadTypescriptRepoAsync('./', 'https://github.com/sandersn/typescript', 'test-fake-error')
+        if (!existsSync("./testDownloads/main")) {
+            mkdirSync("./testDownloads/main", { recursive: true });
+        }
+        else if (existsSync("./testDownloads/main/typescript-test-fake-error")) {
+            execSync("cd ./testDownloads/main/typescript-test-fake-error && git restore . && cd ..")
+        }
+        await downloadTypescriptRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error')
     })
 })

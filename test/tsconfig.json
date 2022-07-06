@@ -1,0 +1,10 @@
+{
+    "extends": "../tsconfig.settings",
+    "compilerOptions": {
+        "outDir": "dist", // Output files are ignored, but them in a folder for tidiness
+        "emitDeclarationOnly": true,
+    },
+    "references": [
+        { "path": "../src" },
+    ]
+}

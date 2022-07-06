@@ -1,0 +1,10 @@
+{
+    "compilerOptions": {
+        "module": "CommonJS",
+        "target": "ES2019",
+        "composite": true,
+        "strict": true,
+        "skipLibCheck": true,
+        "useUnknownInCatchVariables": false,
+    },
+}

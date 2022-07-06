@@ -1,9 +1,10 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
+import { execAsync } from "./execUtils";
 import type { GitResult, UserResult } from "./gitUtils";
 import ip = require("./installPackages");
-import ur = require("./userRepos");
+import ut = require("./userTestUtils");
 import cp = require("child_process");
 import fs = require("fs");
 import path = require("path");
@@ -11,7 +12,10 @@ import path = require("path");
 interface Params {
     /** True to post the result to Github, false to print to console.  */
     postResult: boolean;
-    /** Store test repos on a tmpfs */
+    /**
+     * Store test repos on a tmpfs.
+     * Basically, the only reason not to do this would be lack of `sudo`.
+     */
     tmpfs: boolean;
     /**
      * Number of repos to test, undefined for the default.
@@ -48,7 +52,9 @@ const skipRepos = [
 const processCwd = process.cwd();
 const processPid = process.pid;
 const executionTimeout = 10 * 60 * 1000;
-export async function innerloop(params: GitParams | UserParams, topGithubRepos: boolean, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
+
+// Exported for testing
+export async function processRepo(params: GitParams | UserParams, topGithubRepos: boolean, downloadDir: string, userTestDir: string, repo: git.Repo, oldTscPath: string, newTscPath: string, outputs: string[]) {
     const { testType } = params
     if (params.tmpfs)
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
@@ -65,7 +71,7 @@ export async function innerloop(params: GitParams | UserParams, topGithubRepos: 
             }
         }
         else {
-            await ur.copyUserRepo(downloadDir, userTestDir, repo);
+            await ut.copyUserRepo(downloadDir, userTestDir, repo);
         }
 
         const repoDir = path.join(downloadDir, repo.name);
@@ -226,7 +232,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const topGithubRepos = testType === "git" || params.topRepos;
     const repos = topGithubRepos ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex)
-        : testType === "user" ? ur.getUserTestsRepos(userTestDir)
+        : testType === "user" ? ut.getUserTestsRepos(userTestDir)
         : undefined;
 
     if (!repos) {
@@ -246,7 +252,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         i++;
         if (i > maxCount) break;
         console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
-        if (await innerloop(params, topGithubRepos, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
+        if (await processRepo(params, topGithubRepos, downloadDir, userTestDir, repo, oldTscPath, newTscPath, outputs)) {
             sawNewErrors = true;
         }
     }
@@ -374,25 +380,6 @@ export function reportError(err: any, message: string) {
     console.log(`${message}:`);
     console.log(reduceSpew(err.message ?? "No message").replace(/(^|\n)/g, "$1> "));
     console.log(reduceSpew(err.stack ?? "Unknown Stack").replace(/(^|\n)/g, "$1> "));
-}
-
-async function execAsync(cwd: string, command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        console.log(`${cwd}> ${command}`);
-        cp.exec(command, { cwd }, (err, stdout, stderr) => {
-            if (stdout?.length) {
-                console.log(stdout);
-            }
-            if (stderr?.length) {
-                console.log(stderr); // To stdout to maintain order
-            }
-
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stdout);
-        });
-    });
 }
 
 function reduceSpew(message: string): string {

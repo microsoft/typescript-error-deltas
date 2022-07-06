@@ -1,4 +1,5 @@
 ts_downloads/
+testDownloads/
 *.tsbuildinfo
 *.d.ts
 *.js.map
