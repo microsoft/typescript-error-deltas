@@ -308,11 +308,13 @@ async function buildAndGetErrors(repoDir: string, tscPath: string, skipLibCheck:
 
 async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {
     let usedYarn = false;
-    let timedOut = false;
     try {
+        let timedOut = false;
         const startMs = performance.now();
         const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
         for (const { directory: packageRoot, tool, arguments: args } of commands) {
+            if (timedOut) break;
+
             usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
 
             const elapsedMs = performance.now() - startMs;
