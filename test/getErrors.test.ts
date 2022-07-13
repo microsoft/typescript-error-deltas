@@ -8,7 +8,7 @@ describe("getErrors", () => {
     beforeAll(async () => {
         if (!existsSync("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js")) {
             if (!existsSync("./testDownloads/getErrors")) {
-                mkdirSync("./testDownloads/getErrors");
+                mkdirSync("./testDownloads/getErrors", { recursive: true });
             }
             await downloadTypescriptRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error');
         }
