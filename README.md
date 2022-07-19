@@ -18,10 +18,10 @@ These commands can also be run locally.
 
 ```sh
 # New Error Detector (a.k.a. "git tests")
-node dist/gitErrors.js [post-results] [repo-count] [repo-start-index]] [old-ts-version-on-npm] [old-ts-version-on-npm]
+node dist/gitErrors.js [post-results] [repo-count] [repo-start-index] [old-ts-version-on-npm] [old-ts-version-on-npm]
 
 # Inline User Test Reporter (a.k.a. "user tests")
-node dist/userErrors.js [post-results] [ts-repo-url] [head-ref]] [requesting-user] [source-issue] [github-comment-id-for-updates] [query-repos-by-stars]
+node dist/userErrors.js [post-results] [ts-repo-url] [head-ref] [requesting-user] [source-issue] [github-comment-id-for-updates] [query-repos-by-stars]
 
 ```
 
