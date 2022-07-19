@@ -48,6 +48,7 @@ const skipRepos = [
     "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
     "https://github.com/BabylonJS/Babylon.js", // Runs out of space during compile
     "https://github.com/eclipse-theia/theia", // Probably same
+    "https://github.com/wbkd/react-flow", // Probably same
 ];
 const processCwd = process.cwd();
 const processPid = process.pid;
