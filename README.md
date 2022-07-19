@@ -1,17 +1,40 @@
 # typescript-error-deltas
 
-Download and compile popular open source repos in order to compare new versions of the Typescript compiler with the current version.
-For example, this project will clone the prettier repo and compile it with the current version of Typescript.
-Then it will compile it with a version of Typescript from a pull request.
+Download and compile popular open source repos in order to compare new versions of the TypeScript compiler with the current version.
+For example, this project will clone the prettier repo and compile it with the current version of TypeScript.
+Then it will compile it with a version of TypeScript from a pull request.
 Afterward it will compile new errors that are issued only with the new version and post them as a comment on the pull request.
 
 There is no comparison of types, errors, symbols or language service output.
+
+## Running 
+
+To run online, you can
+
+* [Run the new error detector from Azure Pipelines](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48) to create a new issue on the TypeScript repository.
+* [Tag typescript-bot](https://github.com/microsoft/TypeScript/wiki/Triggering-TypeScript-Bot) and write a comment of the form `@typescript-bot user test this` on a pull request to get an inline report of new errors.
+
+These commands can also be run locally.
+
+```sh
+# New Error Detector (a.k.a. "git tests")
+node dist/gitErrors.js [post-results] [repo-count] [repo-start-index]] [old-ts-version-on-npm] [old-ts-version-on-npm]
+
+# Inline User Test Reporter (a.k.a. "user tests")
+node dist/userErrors.js [post-results] [ts-repo-url] [head-ref]] [requesting-user] [source-issue] [github-comment-id-for-updates] [query-repos-by-stars]
+
+```
+
+You can view example usage of these commands from how they're currently triggered on Azure Pipelines:
+
+* [New Error Detector](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
+* [Inline User Test Reporter](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-userTests.yml)
 
 ## Contributing
 
 ### User Tests
 
-There are three kinds of user tests, all of which aim to use popular packages with different versions of Typescript:
+There are three kinds of user tests, all of which aim to use popular packages with different versions of TypeScript:
 
 1. Example projects, which specify a popular package in package.json and then provide an example use of it.
 2. Clones of a repo of a popular package, built with `tsc`.
@@ -44,7 +67,7 @@ Create `test.json` like the following:
 ```
 
 The `types` field is optional; it installs `@types/` packages for each entry in its array before running `tsc`.
-This is mostly useful if the package isn't written in Typescript and doesn't include types in its own devDependencies.
+This is mostly useful if the package isn't written in TypeScript and doesn't include types in its own devDependencies.
 
 Like the example projects, the cloned repos must be buildable with a single invocation of `tsc`.
 
@@ -54,7 +77,7 @@ Use `userTests/azure-sdk` as an example; create a script `build.sh` that:
 
 - Clones a repo.
 - Installs its dependencies.
-- Alters its Typescript dependency to use a custom Typescript version.
+- Alters its TypeScript dependency to use a custom TypeScript version.
 - Builds the repo.
 
 The details vary considerably from project to project.
