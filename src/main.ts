@@ -373,7 +373,8 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
             const elapsedMs = performance.now() - startMs;
             const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
 
-            const execResult = await execFileWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs);
+            // yarn2 produces extremely verbose output unless CI=true is set and it should be harmless for yarn1 and npm
+            const execResult = await execFileWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs, {...process.env, CI: "true" });
             const err: any = execResult
                 ? execResult.err
                 : new Error(`Timed out after ${timeoutMs} ms`);

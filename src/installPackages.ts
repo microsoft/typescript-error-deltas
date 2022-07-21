@@ -58,6 +58,10 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
             // Yarn 2 dropped support for most `install` arguments
             if (isProjectYarn2) {
                 args = ["install"]
+
+                if (ignoreScripts) {
+                    args.push("--mode=skip-build");
+                }
             }
             else {
                 args = ["install", "--silent", "--ignore-engines"];
@@ -73,7 +77,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
             const haveLock = await utils.exists(path.join(packageRoot, "package-lock.json")) ||
                 await hasCurrentShrinkwrap(packageRoot);
 
-            args = [haveLock ? "ci" : "install", "--prefer-offline", "--no-audit", "-q", "--no-progress"];
+            args = [haveLock ? "ci" : "install", "--prefer-offline", "--no-audit", "-q", "--no-progress", "--legacy-peer-deps"];
 
             if (ignoreScripts) {
                 args.push("--ignore-scripts");
@@ -90,9 +94,13 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
         });
 
         if (types && types.length > 0) {
-            const args = isProjectYarn2
-                ? ["install", ...types.map(t => `@types/${t}`), "--ignore-scripts"]
-                : ["install", ...types.map(t => `@types/${t}`), "--no-save", "--ignore-scripts", "--legacy-peer-deps"]
+            // `types` is only present for user tests and all known user tests use npm, not yarn
+            const typesPackageNames = types.map(t => `@types/${t}`);
+            const args = tool === InstallTool.Npm
+                ? ["install", ...typesPackageNames, "--no-save", "--ignore-scripts", "--legacy-peer-deps"]
+                : isProjectYarn2
+                    ? ["install", ...typesPackageNames, "--mode=skip-build"]
+                    : ["install", ...typesPackageNames, "--silent", "--ignore-engines", "--ignore-scripts" ]
 
             commands.push({
                 directory: packageRoot,
