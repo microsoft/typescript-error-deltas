@@ -378,7 +378,9 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
             const err: any = execResult
                 ? execResult.err
                 : new Error(`Timed out after ${timeoutMs} ms`);
-            if (err) {
+            // If the file doesn't parse, installing its dependencies can't be important for correctness
+            // (This mostly happens in example files)
+            if (err && !(tool === ip.InstallTool.Npm && err.toString().indexOf("EJSONPARSE") >= 0)) {
                 err.message = `Failed to install packages for ${packageRootDescription}: ${err.message}`;
                 throw err;
             }
