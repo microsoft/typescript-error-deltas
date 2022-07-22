@@ -1,7 +1,7 @@
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
-import { execAsync, execFileWithTimeoutAsync } from "./execUtils";
+import { execAsync, spawnWithTimeoutAsync } from "./execUtils";
 import type { GitResult, UserResult } from "./gitUtils";
 import ip = require("./installPackages");
 import ut = require("./userTestUtils");
@@ -373,13 +373,38 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
             const elapsedMs = performance.now() - startMs;
             const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
 
-            const execResult = await execFileWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs);
-            const err: any = execResult
-                ? execResult.err
-                : new Error(`Timed out after ${timeoutMs} ms`);
-            if (err) {
-                err.message = `Failed to install packages for ${packageRootDescription}: ${err.message}`;
-                throw err;
+            // yarn2 produces extremely verbose output unless CI=true is set and it should be harmless for yarn1 and npm
+            const spawnResult = await spawnWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs, { ...process.env, CI: "true" });
+            if (!spawnResult) {
+                throw new Error(`Timed out after ${timeoutMs} ms`);
+            }
+
+            if (spawnResult.code || spawnResult.signal) {
+                if (tool === ip.InstallTool.Npm && args[0] === "ci" && /update your lock file/.test(spawnResult.stderr)) {
+                    const elapsedMs2 = performance.now() - startMs;
+                    const args2 = args.slice();
+                    args2[0] = "install";
+                    const spawnResult2 = await spawnWithTimeoutAsync(packageRoot, tool, args2, timeoutMs - elapsedMs2, { ...process.env, CI: "true" });
+                    if (spawnResult2 && !spawnResult2.code && !spawnResult2.signal) {
+                        continue; // Succeeded on retry
+                    }
+                }
+
+                const errorText = tool == ip.InstallTool.Yarn ? spawnResult.stdout : spawnResult.stderr;
+
+                if ((tool === ip.InstallTool.Npm && /EJSONPARSE/.test(errorText))) {
+                    // If the file doesn't parse, installing its dependencies can't be important for correctness
+                    // (This mostly happens in example files)
+                    console.log("Ignoring package install parsing error:");
+                    console.log(errorText);
+                }
+                else if (/\/(?:ex|s)amples?\//.test(packageRoot)) {
+                    console.log("Ignoring package install error from sample folder:");
+                    console.log(errorText);
+                }
+                else {
+                    throw new Error(`Failed to install packages for ${packageRootDescription}:\n${errorText}`);
+                }
             }
         }
     }
@@ -408,8 +433,17 @@ async function reportResourceUsage(downloadDir: string) {
 
 export function reportError(err: any, message: string) {
     console.log(`${message}:`);
-    console.log(reduceSpew(err.message ?? "No message").replace(/(^|\n)/g, "$1> "));
-    console.log(reduceSpew(err.stack ?? "Unknown Stack").replace(/(^|\n)/g, "$1> "));
+    if (err.message && err.stack && err.stack.indexOf(err.message) >= 0) {
+        console.log(sanitizeErrorText(err.stack));
+    }
+    else {
+        console.log(sanitizeErrorText(err.message ?? "No message"));
+        console.log(sanitizeErrorText(err.stack ?? "Unknown Stack"));
+    }
+}
+
+function sanitizeErrorText(text: string): string {
+    return reduceSpew(text).replace(/(^|\n)/g, "$1> ");
 }
 
 function reduceSpew(message: string): string {
