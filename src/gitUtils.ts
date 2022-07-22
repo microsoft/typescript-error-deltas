@@ -20,7 +20,7 @@ const repoProperties = {
     repo: "typescript",
 };
 
-export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0, cachePath?: string): Promise<readonly Repo[]> {
+export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0, skipRepos?: string[], cachePath?: string): Promise<readonly Repo[]> {
     const cacheEncoding = { encoding: "utf-8" } as const;
 
     if (cachePath && await utils.exists(cachePath)) {
@@ -59,11 +59,11 @@ export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0,
         if (response.status !== 200) throw response;
 
         for (const repo of items) {
-            if (repo.full_name !== "microsoft/TypeScript" && repo.full_name !== "DefinitelyTyped/DefinitelyTyped") {
+            if (!skipRepos?.includes(repo.html_url)) {
                 repos.push({ url: repo.html_url, name: repo.name, owner: repo.owner.login });
-            }
-            if (repos.length >= count) {
-                break;
+                if (repos.length >= count) {
+                    break;
+                }
             }
         }
 
