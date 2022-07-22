@@ -44,6 +44,8 @@ export interface UserParams extends Params {
 }
 
 const skipRepos = [
+    "https://github.com/microsoft/TypeScript", // Test files expected to have errors
+    "https://github.com/DefinitelyTyped/DefinitelyTyped", // Test files expected to have errors
     "https://github.com/storybookjs/storybook", // Too big to fit on VM
     "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
     "https://github.com/BabylonJS/Babylon.js", // Runs out of space during compile
@@ -55,8 +57,19 @@ const processPid = process.pid;
 const packageTimeout = 10 * 60 * 1000;
 const executionTimeout = 10 * 60 * 1000;
 
+type RepoStatus =
+    | "CloneFailed"
+    | "PackageInstallFailed"
+    | "OldBuildFailed"
+    | "OldBuildHadErrors"
+    | "NewBuildFailed"
+    | "NewBuildHadErrors"
+    | "NewBuildSucceeded"
+    | "UnknownFailure"
+    ;
+
 // Exported for testing
-export async function repoHasNewErrors(
+export async function getRepoStatus(
     repo: git.Repo,
     userTestsDir: string,
     oldTscPath: string,
@@ -64,7 +77,7 @@ export async function repoHasNewErrors(
     ignoreOldTscFailures: boolean,
     downloadDir: string,
     isDownloadDirOnTmpFs: boolean,
-    outputs: string[]): Promise<true | undefined> {
+    outputs: string[]): Promise<RepoStatus> {
 
     if (isDownloadDirOnTmpFs) {
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
@@ -82,7 +95,7 @@ export async function repoHasNewErrors(
             }
             catch (err) {
                 reportError(err, "Error cloning " + repo.url);
-                return;
+                return "CloneFailed";
             }
         }
 
@@ -95,7 +108,7 @@ export async function repoHasNewErrors(
         catch (err) {
             reportError(err, `Error installing packages for ${repo.name}`);
             await reportResourceUsage(downloadDir);
-            return;
+            return "PackageInstallFailed";
         }
 
         try {
@@ -105,7 +118,7 @@ export async function repoHasNewErrors(
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return;
+                return "OldBuildFailed";
             }
 
             const numProjects = oldErrors.projectErrors.length;
@@ -120,7 +133,7 @@ export async function repoHasNewErrors(
             // User tests ignores build failures.
             if (!ignoreOldTscFailures && numFailed === numProjects) {
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return;
+                return "OldBuildHadErrors";
             }
 
             let sawNewRepoErrors = false;
@@ -144,7 +157,7 @@ export async function repoHasNewErrors(
                 repoSummary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
 
                 outputs.push(repoSummary)
-                return true;
+                return "NewBuildFailed";
             }
 
             console.log("Comparing errors");
@@ -196,15 +209,16 @@ export async function repoHasNewErrors(
                 // sawNewErrors = true;
                 // summary += repoSummary;
                 outputs.push(repoSummary)
-                return true;
+                return "NewBuildHadErrors";
             }
         }
         catch (err) {
             reportError(err, `Error building ${repo.url ?? repo.name}`);
-            return;
+            return "UnknownFailure";
         }
 
         console.log(`Done ${repo.url ?? repo.name}`);
+        return "NewBuildSucceeded";
     }
     finally {
         // Throw away the repo so we don't run out of space
@@ -249,7 +263,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     const userTestsDir = path.join(processCwd, "userTests");
 
     const repos = testType === "git" || params.topRepos
-        ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex)
+        ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex, skipRepos)
         : testType === "user"
             ? ut.getUserTestsRepos(userTestsDir)
             : undefined;
@@ -266,12 +280,16 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     const startIndex = params.repoStartIndex ?? 0;
     const maxCount = Math.min(typeof params.repoCount === 'number' ? params.repoCount : Infinity, repos.length) + startIndex;
 
+    const statusCounts = new Map<RepoStatus, number>();
+
     for (const repo of repos) {
-        if (repo.url && skipRepos.includes(repo.url)) continue;
         i++;
         if (i > maxCount) break;
         console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
-        if (await repoHasNewErrors(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, outputs)) {
+
+        const status = await getRepoStatus(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, outputs);
+        incrementCount(statusCounts, status);
+        if (status === "NewBuildFailed" || status === "NewBuildHadErrors") {
             sawNewErrors = true;
         }
     }
@@ -288,13 +306,42 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         await execAsync(processCwd, "rm -rf " + newTscDirPath);
     }
 
+    console.log("Statuses");
+    statusCounts.forEach((count, status) => console.log(`${status}\t${count}`));
+
     if (testType === "git") {
+        let analyzedCount = 0;
+        let totalCount = 0;
+        statusCounts.forEach((count, status) => {
+            totalCount += count;
+            switch (status) {
+                case "NewBuildSucceeded":
+                case "NewBuildFailed":
+                case "NewBuildHadErrors":
+                    analyzedCount += count;
+                    break;
+            }
+        });
+
+        const statuses = `<details>
+<summary>Successfully analyzed ${analyzedCount} of ${totalCount} visited repos</summary>
+
+| Outcome | Count |
+|---------|-------|
+${Array.from(statusCounts.entries()).map(([status, count]) => `| ${status} | ${count} |\n`).join("")}
+</details>`;
+
+console.log("***");
+console.log(statuses);
+console.log("***");
+
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
 [File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
 
-${summary}`;
+${summary}
+${statuses}`;
         return git.createIssue(params.postResult, title, body, !!sawNewErrors);
     }
     else if (testType === "user") {
@@ -306,6 +353,10 @@ ${summary}`;
     else {
         throw new Error(`testType "${(params as any).testType}" is not a recognised test type.`);
     }
+}
+
+function incrementCount(counts: Map<RepoStatus, number>, status: RepoStatus) {
+    counts.set(status, (counts.get(status) ?? 0) + 1);
 }
 
 async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {

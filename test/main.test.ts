@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { mainAsync, repoHasNewErrors, UserParams, downloadTypescriptRepoAsync } from '../src/main'
+import { mainAsync, getRepoStatus, UserParams, downloadTypescriptRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
 import { UserResult } from '../src/gitUtils'
@@ -37,7 +37,7 @@ The results of the user tests run you requested are in!
     })
     xit("build-only correctly caches", async () => {
         const outputs: string[] = []
-        const hasNewErrors = await repoHasNewErrors(
+        const status = await getRepoStatus(
             {
                 name: "TypeScript-Node-Starter",
                 url: "https://github.com/Microsoft/TypeScript-Node-Starter.git"
@@ -49,7 +49,7 @@ The results of the user tests run you requested are in!
             "./ts_downloads",
             /*isDownloadDirOnTmpFs*/ false,
             outputs)
-        expect(hasNewErrors).toBeTruthy()
+        expect(status).toEqual("NewBuildHadErrors")
         expect(outputs.join("").startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()
         expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     })
