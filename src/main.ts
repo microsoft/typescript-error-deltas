@@ -382,6 +382,16 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
             if (err) {
                 err.message = `Failed to install packages for ${packageRootDescription}: ${err.message}`;
 
+                if (tool === ip.InstallTool.Npm && args[0] === "ci" && /update your lock file/.test(err.toString())) {
+                    const elapsedMs2 = performance.now() - startMs;
+                    const args2 = args.slice();
+                    args2[0] = "install";
+                    const execResult2 = await execFileWithTimeoutAsync(packageRoot, tool, args2, timeoutMs - elapsedMs2, {...process.env, CI: "true" });
+                    if (execResult2 && !execResult2.err) {
+                        continue; // Succeeded on retry
+                    }
+                }
+
                 if ((tool === ip.InstallTool.Npm && /EJSONPARSE/.test(err.toString()))) {
                     // If the file doesn't parse, installing its dependencies can't be important for correctness
                     // (This mostly happens in example files)
