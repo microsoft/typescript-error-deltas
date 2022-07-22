@@ -52,7 +52,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
         let args: string[];
 
         const isProjectYarn2 = isRepoYarn2 || await utils.exists(path.join(packageRoot, ".yarnrc.yml"));
-        if (await utils.exists(path.join(packageRoot, "yarn.lock"))) {
+        if (isProjectYarn2 || await utils.exists(path.join(packageRoot, "yarn.lock"))) {
             tool = InstallTool.Yarn;
 
             // Yarn 2 dropped support for most `install` arguments
