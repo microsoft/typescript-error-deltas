@@ -20,31 +20,50 @@ export async function execAsync(cwd: string, command: string): Promise<string> {
     });
 }
 
-export interface ExecFileResult {
-    err: cp.ExecException | null,
+export interface SpawnResult {
     stdout: string,
     stderr: string,
+    code: number | null,
+    signal: NodeJS.Signals | null,
 }
 
 /** Returns undefined if and only if executions times out. */
-export function execFileWithTimeoutAsync(cwd: string, command: string, args: readonly string[], timeoutMs: number, env?: {}): Promise<ExecFileResult | undefined> {
-    return new Promise<ExecFileResult | undefined>((resolve, _reject) => {
-        let timedOut = false;
+export function spawnWithTimeoutAsync(cwd: string, command: string, args: readonly string[], timeoutMs: number, env?: {}): Promise<SpawnResult | undefined> {
+    return new Promise<SpawnResult | undefined>((resolve, _reject) => {
+        if (timeoutMs <= 0) {
+            resolve(undefined);
+            return;
+        }
 
-        const childProcess = cp.execFile(command, args, { cwd, env }, (err, stdout, stderr) => {
-            if (!timedOut) {
-                clearTimeout(timeout);
-                resolve({ err, stdout, stderr } as const);
-            }
+        // We use `spawn`, rather than `execFile`, because package installation tends to write a lot
+        // of data to stdout, overflowing `execFile`'s buffer.
+        const childProcess = cp.spawn(command, args, {
+            cwd,
+            env,
+            windowsHide: true,
+            timeout: timeoutMs | 0, // Truncate to integer for spawn
         });
 
-        const timeout = setTimeout(async () => {
-            timedOut = true;
-            await execAsync(path.join(__dirname, "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
-            if (!childProcess.kill()) {
-                console.log(`Failed to kill ${childProcess.pid}`);
+        let stdout = "";
+        let stderr = "";
+
+        childProcess.stdout.on("data", data => {
+            stdout += data;
+        });
+
+        childProcess.stderr.on("data", data => {
+            stderr += data;
+        });
+
+        childProcess.on("close", async (code, signal) => {
+            // SIGTERM indicates timeout
+            if (signal === "SIGTERM") {
+                await execAsync(path.join(__dirname, "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
+                resolve(undefined);
+                return;
             }
-            resolve(undefined);
-        }, timeoutMs);
+
+            resolve({ stdout, stderr, code, signal });
+        });
     });
 }

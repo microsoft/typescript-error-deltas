@@ -1,6 +1,6 @@
 import ghLink = require("@typescript/github-link");
 import projectGraph = require("./projectGraph");
-import { ExecFileResult, execFileWithTimeoutAsync } from "./execUtils";
+import { SpawnResult, spawnWithTimeoutAsync } from "./execUtils";
 import fs = require("fs");
 import path = require("path");
 
@@ -74,12 +74,12 @@ export async function buildAndGetErrors(repoDir: string, isUserTestRepo: boolean
         if (fs.existsSync(buildScriptPath)) {
             const tsRepoPath = path.dirname(path.dirname(path.dirname(tscPath)))
 
-            const execResult = await execFileWithTimeoutAsync(repoDir, path.resolve(buildScriptPath), [], timeoutMs, { ...process.env, TS: tsRepoPath });
-            if (!execResult) {
+            const spawnResult = await spawnWithTimeoutAsync(repoDir, path.resolve(buildScriptPath), [], timeoutMs, { ...process.env, TS: tsRepoPath });
+            if (!spawnResult) {
                 throw new Error(`build.sh timed out after ${timeoutMs} ms`);
             }
 
-            const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(execResult);
+            const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(spawnResult);
 
             if (!isEmpty) {
                 projectErrors.push(await getProjectErrors(buildScriptPath, stdout, hasBuildFailure, /*isComposite*/ false, /*reportGithubLinks*/ false));
@@ -110,12 +110,12 @@ export async function buildAndGetErrors(repoDir: string, isUserTestRepo: boolean
         const elapsedMs = performance.now() - startMs;
 
         const args = ["--max-old-space-size=3072", tscPath, ...(isComposite ? compositeBuildArgs : simpleBuildArgs), path.basename(projectPath)];
-        const execResult = await execFileWithTimeoutAsync(path.dirname(projectPath), nodePath, args, timeoutMs - elapsedMs);
-        if (!execResult) {
+        const spawnResult = await spawnWithTimeoutAsync(path.dirname(projectPath), nodePath, args, timeoutMs - elapsedMs);
+        if (!spawnResult) {
             throw new Error(`Building ${projectPath} timed out after ${Math.round(timeoutMs - elapsedMs)} ms (of ${timeoutMs} ms for repo)`);
         }
 
-        const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(execResult);
+        const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(spawnResult);
         if (isEmpty) continue;
 
         projectErrors.push(await getProjectErrors(projectPath, stdout, hasBuildFailure, isComposite, /*reportGithubLinks*/ !isUserTestRepo));
@@ -202,10 +202,10 @@ function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | u
     return undefined;
 }
 
-function getBuildSummary({ err, stderr, stdout }: ExecFileResult) {
+function getBuildSummary({ code, signal, stderr, stdout }: SpawnResult) {
     return {
         stdout,
-        hasBuildFailure: !!(err || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr
+        hasBuildFailure: !!(code || signal || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr
         isEmpty: !!stdout.match(/TS18003/)
     };
 }
