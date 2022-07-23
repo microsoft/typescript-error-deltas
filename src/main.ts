@@ -331,10 +331,6 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 ${Array.from(statusCounts.entries()).map(([status, count]) => `| ${status} | ${count} |\n`).join("")}
 </details>`;
 
-console.log("***");
-console.log(statuses);
-console.log("***");
-
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
         const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
