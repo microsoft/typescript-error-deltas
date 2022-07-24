@@ -392,11 +392,11 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
                     // If the file doesn't parse, installing its dependencies can't be important for correctness
                     // (This mostly happens in example files)
                     console.log("Ignoring package install parsing error:");
-                    console.log(errorText);
+                    console.log(sanitizeErrorText(errorText));
                 }
                 else if (/\/(?:ex|s)amples?\//.test(packageRoot)) {
                     console.log("Ignoring package install error from sample folder:");
-                    console.log(errorText);
+                    console.log(sanitizeErrorText(errorText));
                 }
                 else {
                     throw new Error(`Failed to install packages for ${packageRootDescription}:\n${errorText}`);
