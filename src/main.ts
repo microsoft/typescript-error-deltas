@@ -388,13 +388,7 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
 
                 const errorText = tool == ip.InstallTool.Yarn ? spawnResult.stdout : spawnResult.stderr;
 
-                if ((tool === ip.InstallTool.Npm && /EJSONPARSE/.test(errorText))) {
-                    // If the file doesn't parse, installing its dependencies can't be important for correctness
-                    // (This mostly happens in example files)
-                    console.log("Ignoring package install parsing error:");
-                    console.log(sanitizeErrorText(errorText));
-                }
-                else if (/\/(?:ex|s)amples?\//.test(packageRoot)) {
+                if (/\/(?:ex|s)amples?\//.test(packageRoot)) {
                     console.log("Ignoring package install error from sample folder:");
                     console.log(sanitizeErrorText(errorText));
                 }

@@ -9,6 +9,7 @@ import utils = require("./packageUtils");
 export enum InstallTool {
     Npm = "npm",
     Yarn = "yarn",
+    Pnpm = "pnpm",
 }
 
 export interface InstallCommand {
@@ -26,6 +27,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
 
     // The existence of .yarnrc.yml indicates that this repo uses yarn 2
     const isRepoYarn2 = await utils.exists(path.join(repoDir, ".yarnrc.yml"));
+    const isRepoPnpm = await utils.exists(path.join(repoDir, "pnpm-lock.yaml"));
 
     const commands: InstallCommand[] = [];
 
@@ -71,6 +73,15 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
                 }
             }
         }
+        else if (isRepoPnpm || await utils.exists(path.join(packageRoot, "pnpm-lock.yaml"))) {
+            tool = InstallTool.Pnpm;
+            args = ["install", "--prefer-offline", "--reporter=silent"];
+
+            if (ignoreScripts) {
+                args.push("--ignore-scripts");
+            }
+
+        }
         else if (await utils.exists(path.join(packageRoot, "package.json"))) {
             tool = InstallTool.Npm;
 
@@ -95,12 +106,9 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
 
         if (types && types.length > 0) {
             // `types` is only present for user tests and all known user tests use npm, not yarn
+            // Besides, we're using --no-save, so it shouldn't matter which tool we use
             const typesPackageNames = types.map(t => `@types/${t}`);
-            const args = tool === InstallTool.Npm
-                ? ["install", ...typesPackageNames, "--no-save", "--ignore-scripts", "--legacy-peer-deps"]
-                : isProjectYarn2
-                    ? ["install", ...typesPackageNames, "--mode=skip-build"]
-                    : ["install", ...typesPackageNames, "--silent", "--ignore-engines", "--ignore-scripts" ]
+            const args = ["install", ...typesPackageNames, "--no-save", "--ignore-scripts", "--legacy-peer-deps"];
 
             commands.push({
                 directory: packageRoot,
