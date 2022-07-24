@@ -9,6 +9,7 @@ import utils = require("./packageUtils");
 export enum InstallTool {
     Npm = "npm",
     Yarn = "yarn",
+    Pnpm = "pnpm",
 }
 
 export interface InstallCommand {
@@ -26,6 +27,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
 
     // The existence of .yarnrc.yml indicates that this repo uses yarn 2
     const isRepoYarn2 = await utils.exists(path.join(repoDir, ".yarnrc.yml"));
+    const isRepoPnpm = await utils.exists(path.join(repoDir, "pnpm-lock.yaml"));
 
     const commands: InstallCommand[] = [];
 
@@ -70,6 +72,15 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
                     args.push("--ignore-scripts");
                 }
             }
+        }
+        else if (isRepoPnpm || await utils.exists(path.join(packageRoot, "pnpm-lock.yaml"))) {
+            tool = InstallTool.Pnpm;
+            args = ["install", "--prefer-offline", "--reporter=silent"];
+
+            if (ignoreScripts) {
+                args.push("--ignore-scripts");
+            }
+
         }
         else if (await utils.exists(path.join(packageRoot, "package.json"))) {
             tool = InstallTool.Npm;
