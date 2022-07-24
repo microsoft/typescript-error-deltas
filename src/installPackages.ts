@@ -95,12 +95,9 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
 
         if (types && types.length > 0) {
             // `types` is only present for user tests and all known user tests use npm, not yarn
+            // Besides, we're using --no-save, so it shouldn't matter which tool we use
             const typesPackageNames = types.map(t => `@types/${t}`);
-            const args = tool === InstallTool.Npm
-                ? ["install", ...typesPackageNames, "--no-save", "--ignore-scripts", "--legacy-peer-deps"]
-                : isProjectYarn2
-                    ? ["install", ...typesPackageNames, "--mode=skip-build"]
-                    : ["install", ...typesPackageNames, "--silent", "--ignore-engines", "--ignore-scripts" ]
+            const args = ["install", ...typesPackageNames, "--no-save", "--ignore-scripts", "--legacy-peer-deps"];
 
             commands.push({
                 directory: packageRoot,
