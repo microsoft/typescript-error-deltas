@@ -102,16 +102,24 @@ type Result = {
 export type GitResult = Result & { kind: 'git', title: string }
 export type UserResult = Result & { kind: 'user', issue_number: number }
 
-export async function createIssue(postResult: boolean, title: string, body: string, sawNewErrors: boolean): Promise<GitResult | undefined> {
+export async function createIssue(postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
     const issue = {
         ...repoProperties,
         title,
-        body,
+        body: bodyChunks[0],
     };
+
+    const additionalComments = bodyChunks.slice(1).map(chunk => ({
+        ...repoProperties,
+        body: chunk,
+    }));
 
     if (!postResult) {
         console.log("Issue not posted: ");
         console.log(JSON.stringify(issue));
+        for (const comment of additionalComments) {
+            console.log(JSON.stringify(comment));
+        }
         return { kind: 'git', ...issue };
     }
 
@@ -125,6 +133,10 @@ export async function createIssue(postResult: boolean, title: string, body: stri
 
     const issueNumber = created.data.number;
     console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
+
+    for (const comment of additionalComments) {
+        await kit.issues.createComment({ issue_number: issueNumber, ...comment });
+    }
 
     if (!sawNewErrors) {
         await kit.issues.update({

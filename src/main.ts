@@ -302,7 +302,6 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
             sawNewErrors = true;
         }
     }
-    const summary = outputs.join("")
 
     if (params.tmpfs) {
         await execAsync(processCwd, "sudo rm -rf " + downloadDir);
@@ -341,15 +340,31 @@ ${Array.from(statusCounts.entries()).map(([status, count]) => `| ${status} | ${c
 </details>`;
 
         const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
-        const body = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
+        const header = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
 [File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
 
-${summary}
-${statuses}`;
-        return git.createIssue(params.postResult, title, body, !!sawNewErrors);
+${statuses}
+
+
+`;
+
+        // GH caps the maximum body length, so paginate if necessary
+        const bodyChunks: string[] = [];
+        let chunk = header;
+        for (const output of outputs) {
+            if (header.length + output.length > 65536) {
+                bodyChunks.push(chunk);
+                chunk = "";
+            }
+            chunk += output;
+        }
+        bodyChunks.push(chunk);
+
+        return git.createIssue(params.postResult, title, bodyChunks, !!sawNewErrors);
     }
     else if (testType === "user") {
+        const summary = outputs.join("");
         const body = summary
             ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
             : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
