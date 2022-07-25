@@ -1,3 +1,4 @@
+
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
@@ -43,6 +44,7 @@ export interface UserParams extends Params {
     topRepos: boolean;
 }
 
+// If you think we need coverage of one of these, consider adding a user test with custom build steps
 const skipRepos = [
     "https://github.com/microsoft/TypeScript", // Test files expected to have errors
     "https://github.com/DefinitelyTyped/DefinitelyTyped", // Test files expected to have errors
@@ -51,6 +53,13 @@ const skipRepos = [
     "https://github.com/BabylonJS/Babylon.js", // Runs out of space during compile
     "https://github.com/eclipse-theia/theia", // Probably same
     "https://github.com/wbkd/react-flow", // Probably same
+    "https://github.com/remix-run/remix", // Too big to fit on VM
+    "https://github.com/NervJS/taro", // Too big to fit on VM
+    "https://github.com/TanStack/table", // Too big to fit on VM
+    "https://github.com/doczjs/docz", // Too big to fit on VM
+    "https://github.com/NativeScript/NativeScript", // Uses NX package manager
+    "https://github.com/wulkano/Kap", // Incompatible with Linux
+    "https://github.com/lit/lit", // Depends on non-public package
 ];
 const processCwd = process.cwd();
 const processPid = process.pid;
@@ -386,10 +395,11 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
                     }
                 }
 
-                const errorText = tool == ip.InstallTool.Yarn ? spawnResult.stdout : spawnResult.stderr;
+                const errorText = `Exited with ${spawnResult.code ? `code ${spawnResult.code}` : `signal ${spawnResult.signal}`}
+${spawnResult.stdout.trim() || "No stdout"}\n${spawnResult.stderr.trim() || "No stderr"}`;
 
-                if (/\/(?:ex|s)amples?\//.test(packageRoot)) {
-                    console.log("Ignoring package install error from sample folder:");
+                if (/(?:ex|s)amples?\//.test(packageRoot)) {
+                    console.log(`Ignoring package install error from sample folder ${packageRoot}:`);
                     console.log(sanitizeErrorText(errorText));
                 }
                 else {
@@ -437,30 +447,9 @@ function sanitizeErrorText(text: string): string {
 }
 
 function reduceSpew(message: string): string {
-    // Since this is only a warning, it tends to be reported many (i.e. thousands of) times
-    const problemString = "npm WARN tar ENOSPC: no space left on device, write\n";
-    const index = message.indexOf(problemString);
-    if (index < 0) return message;
-
-    return message.substring(0, index) + problemString + replaceAll(message.substring(index), problemString, "");
-}
-
-function replaceAll(message: string, oldStr: string, newStr: string) {
-    let result = "";
-    let index = 0;
-    while (true) {
-        const newIndex = message.indexOf(oldStr, index);
-        if (newIndex < 0) {
-            return index === 0
-                ? message
-                : result + message.substring(index);
-        }
-
-        result += message.substring(index, newIndex);
-        result += newStr;
-
-        index = newIndex + oldStr.length;
-    }
+    // These are uninteresting in general and actually problematic when there are
+    // thousands of instances of ENOSPC (which also appears as an error anyway)
+    return message.replace(/npm WARN.*\n/g, "");
 }
 
 function makeMarkdownLink(url: string) {
