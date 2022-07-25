@@ -31,8 +31,10 @@ export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0,
         }
     }
 
-    const kit = new octokit.Octokit();
-    const perPage = Math.min(100, count);
+    const kit = new octokit.Octokit({
+        auth: process.env.GITHUB_PAT,
+    });
+    const perPage = Math.min(100, count + (skipRepos?.length ?? 0));
 
     let repos: Repo[] = [];
     for (let page = 1; repos.length < count; page++) {
