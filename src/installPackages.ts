@@ -25,6 +25,7 @@ export interface InstallCommand {
 export async function restorePackages(repoDir: string, ignoreScripts: boolean = true, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
     lernaPackages = lernaPackages ?? await utils.getLernaOrder(repoDir);
 
+    const isRepoYarn = await utils.exists(path.join(repoDir, "yarn.lock"));
     // The existence of .yarnrc.yml indicates that this repo uses yarn 2
     const isRepoYarn2 = await utils.exists(path.join(repoDir, ".yarnrc.yml"));
     const isRepoPnpm = await utils.exists(path.join(repoDir, "pnpm-lock.yaml"));
@@ -54,12 +55,14 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
         let args: string[];
 
         const isProjectYarn2 = isRepoYarn2 || await utils.exists(path.join(packageRoot, ".yarnrc.yml"));
-        if (isProjectYarn2 || await utils.exists(path.join(packageRoot, "yarn.lock"))) {
+        if (isProjectYarn2 ||
+            await utils.exists(path.join(packageRoot, "yarn.lock")) ||
+            (isRepoYarn && !(await utils.exists(path.join(packageRoot, "package-lock.json"))))) {
             tool = InstallTool.Yarn;
 
             // Yarn 2 dropped support for most `install` arguments
             if (isProjectYarn2) {
-                args = ["install"]
+                args = ["install", "--no-immutable"]
 
                 if (ignoreScripts) {
                     args.push("--mode=skip-build");
@@ -75,7 +78,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
         }
         else if (isRepoPnpm || await utils.exists(path.join(packageRoot, "pnpm-lock.yaml"))) {
             tool = InstallTool.Pnpm;
-            args = ["install", "--prefer-offline", "--reporter=silent"];
+            args = ["install", "--no-frozen-lockfile", "--prefer-offline", "--reporter=silent"];
 
             if (ignoreScripts) {
                 args.push("--ignore-scripts");
