@@ -353,7 +353,7 @@ ${statuses}
         const bodyChunks: string[] = [];
         let chunk = header;
         for (const output of outputs) {
-            if (header.length + output.length > 65536) {
+            if (chunk.length + output.length > 65536) {
                 bodyChunks.push(chunk);
                 chunk = "";
             }
