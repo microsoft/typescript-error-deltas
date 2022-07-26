@@ -22,7 +22,7 @@ export interface InstallCommand {
  * Traverses the given directory and returns a list of commands that can be used, in order, to restore
  * the packages required for building.
  */
-export async function restorePackages(repoDir: string, ignoreScripts: boolean = true, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
+export async function restorePackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
     lernaPackages = lernaPackages ?? await utils.getLernaOrder(repoDir);
 
     const isRepoYarn = await utils.exists(path.join(repoDir, "yarn.lock"));
@@ -65,6 +65,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
                 args = ["install", "--no-immutable"]
 
                 if (ignoreScripts) {
+                    // TODO: this seems to be called --skip-build in yarn 3 - we might want to try to distinguish
                     args.push("--mode=skip-build");
                 }
             }
@@ -74,14 +75,22 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
                 if (ignoreScripts) {
                     args.push("--ignore-scripts");
                 }
+
+                if (quietOutput) {
+                    args.push("--silent");
+                }
             }
         }
         else if (isRepoPnpm || await utils.exists(path.join(packageRoot, "pnpm-lock.yaml"))) {
             tool = InstallTool.Pnpm;
-            args = ["install", "--no-frozen-lockfile", "--prefer-offline", "--reporter=silent"];
+            args = ["install", "--no-frozen-lockfile", "--prefer-offline"];
 
             if (ignoreScripts) {
                 args.push("--ignore-scripts");
+            }
+
+            if (quietOutput) {
+                args.push("--reporter=silent");
             }
 
         }
@@ -91,10 +100,14 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean = 
             const haveLock = await utils.exists(path.join(packageRoot, "package-lock.json")) ||
                 await hasCurrentShrinkwrap(packageRoot);
 
-            args = [haveLock ? "ci" : "install", "--prefer-offline", "--no-audit", "-q", "--no-progress", "--legacy-peer-deps"];
+            args = [haveLock ? "ci" : "install", "--prefer-offline", "--no-audit", "--no-progress", "--legacy-peer-deps"];
 
             if (ignoreScripts) {
                 args.push("--ignore-scripts");
+            }
+
+            if (quietOutput) {
+                args.push("-q");
             }
         }
         else {

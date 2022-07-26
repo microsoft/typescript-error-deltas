@@ -48,6 +48,7 @@ The results of the user tests run you requested are in!
             /*ignoreOldTscFailures*/ true, // as in a user test
             "./ts_downloads",
             /*isDownloadDirOnTmpFs*/ false,
+            /*diagnosticOutput*/ false,
             outputs)
         expect(status).toEqual("NewBuildHadErrors")
         expect(outputs.join("").startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()

@@ -18,6 +18,11 @@ interface Params {
      */
     tmpfs: boolean;
     /**
+     * True to produce more verbose output (e.g. to help diagnose resource exhaustion issues).
+     * Default is false to save time and space.
+     */
+    diagnosticOutput?: boolean | undefined;
+    /**
      * Number of repos to test, undefined for the default.
      * Git repos are chosen from Typescript-language repos based on number of stars; default is 100.
      * User repos start at the top of the list; default is all of them.
@@ -86,6 +91,7 @@ export async function getRepoStatus(
     ignoreOldTscFailures: boolean,
     downloadDir: string,
     isDownloadDirOnTmpFs: boolean,
+    diagnosticOutput: boolean,
     outputs: string[]): Promise<RepoStatus> {
 
     if (isDownloadDirOnTmpFs) {
@@ -112,11 +118,13 @@ export async function getRepoStatus(
 
         try {
             console.log("Installing packages if absent");
-            await installPackages(repoDir, /*recursiveSearch*/ !isUserTestRepo, packageTimeout, repo.types);
+            await installPackages(repoDir, /*recursiveSearch*/ !isUserTestRepo, packageTimeout, /*quietOutput*/ !diagnosticOutput, repo.types);
         }
         catch (err) {
             reportError(err, `Error installing packages for ${repo.name}`);
-            await reportResourceUsage(downloadDir);
+            if (diagnosticOutput || /ENOSPC/.test(String(err))) {
+                await reportResourceUsage(downloadDir);
+            }
             return "PackageInstallFailed";
         }
 
@@ -234,8 +242,10 @@ export async function getRepoStatus(
         // Note that we specifically don't recover and attempt another repo if this fails
         console.log("Cleaning up repo");
         if (isDownloadDirOnTmpFs) {
-            // Dump any processes holding onto the download directory in case umount fails
-            await execAsync(processCwd, `lsof | grep ${downloadDir} || true`);
+            if (diagnosticOutput) {
+                // Dump any processes holding onto the download directory in case umount fails
+                await execAsync(processCwd, `lsof | grep ${downloadDir} || true`);
+            }
             try {
                 await execAsync(processCwd, "sudo umount " + downloadDir);
             }
@@ -243,7 +253,9 @@ export async function getRepoStatus(
                 await execAsync(processCwd, `pstree -palT ${processPid}`);
                 throw e;
             }
-            await reportResourceUsage(downloadDir);
+            if (diagnosticOutput) {
+                await reportResourceUsage(downloadDir);
+            }
         }
     }
 }
@@ -282,7 +294,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     }
 
     const outputs: string[] = [];
-    // let summary = "";
+
     let sawNewErrors: true | undefined = undefined;
 
     let i = 0;
@@ -296,7 +308,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         if (i > maxCount) break;
         console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
 
-        const status = await getRepoStatus(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, outputs);
+        const status = await getRepoStatus(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput, outputs);
         incrementCount(statusCounts, status);
         if (status === "NewBuildFailed" || status === "NewBuildHadErrors") {
             sawNewErrors = true;
@@ -379,12 +391,12 @@ function incrementCount(counts: Map<RepoStatus, number>, status: RepoStatus) {
     counts.set(status, (counts.get(status) ?? 0) + 1);
 }
 
-async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, types?: string[]) {
+async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, quietOutput: boolean, types?: string[]) {
     let usedYarn = false;
     try {
         let timedOut = false;
         const startMs = performance.now();
-        const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, recursiveSearch, /*lernaPackages*/ undefined, types);
+        const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, quietOutput, recursiveSearch, /*lernaPackages*/ undefined, types);
         for (const { directory: packageRoot, tool, arguments: args } of commands) {
             if (timedOut) break;
 
