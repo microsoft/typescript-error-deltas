@@ -428,8 +428,8 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
                 const errorText = `Exited with ${spawnResult.code ? `code ${spawnResult.code}` : `signal ${spawnResult.signal}`}
 ${spawnResult.stdout.trim() || "No stdout"}\n${spawnResult.stderr.trim() || "No stderr"}`;
 
-                if (/(?:ex|s)amples?\//.test(packageRoot)) {
-                    console.log(`Ignoring package install error from sample folder ${packageRoot}:`);
+                if (/(?:ex|s)amples?\//i.test(packageRootDescription) || /tests?\//i.test(packageRootDescription)) {
+                    console.log(`Ignoring package install error from non-product folder ${packageRootDescription}:`);
                     console.log(sanitizeErrorText(errorText));
                 }
                 else {
