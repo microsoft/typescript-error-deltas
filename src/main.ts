@@ -309,6 +309,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
 
         const status = await getRepoStatus(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput, outputs);
+        console.log(`Repo ${repo.url ?? repo.name} had status ${status}`);
         incrementCount(statusCounts, status);
         if (status === "NewBuildFailed" || status === "NewBuildHadErrors") {
             sawNewErrors = true;
@@ -355,6 +356,8 @@ ${Array.from(statusCounts.entries()).map(([status, count]) => `| ${status} | ${c
         const header = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
 [File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
+
+This run considered ${params.repoCount ?? totalCount} popular TS repos from GH (after skipping the top ${params.repoStartIndex ?? 0}).
 
 ${statuses}
 
