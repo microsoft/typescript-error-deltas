@@ -119,7 +119,10 @@ export async function getProjectsToBuild(repoDir: string, ignoreExtensionErrors:
         let config: any = {};
         try {
             const contents = fs.readFileSync(projectPath, { encoding: "utf-8" });
-            config = json5.parse(contents);
+            // If the tsconfig is empty, stick with {}
+            if (contents.trim().length > 0) {
+                config = json5.parse(contents);
+            }
         }
         catch {
             project.hasParseError = true;
