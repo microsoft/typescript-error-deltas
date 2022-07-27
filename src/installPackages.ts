@@ -51,6 +51,11 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean, q
 
         const packageRoot = path.dirname(packageFile);
 
+        // Heuristic, these are rarely valuable and often fail.
+        if (/fixtures?/i.test(packageRoot)) {
+            continue;
+        }
+
         let tool: InstallTool;
         let args: string[];
 
@@ -128,7 +133,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean, q
 
             commands.push({
                 directory: packageRoot,
-                tool,
+                tool: InstallTool.Npm,
                 arguments: args
             });
         }
