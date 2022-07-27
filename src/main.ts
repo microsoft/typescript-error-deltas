@@ -100,22 +100,29 @@ export async function getRepoStatus(
 
     try {
         const isUserTestRepo = !repo.url;
-        if (isUserTestRepo) {
-            await ut.copyUserRepo(downloadDir, userTestsDir, repo);
-        }
-        else {
-            try {
-                console.log("Cloning if absent");
-                await git.cloneRepoIfNecessary(downloadDir, repo);
+
+        const cloneStart = performance.now();
+        try {
+            if (isUserTestRepo) {
+                await ut.copyUserRepo(downloadDir, userTestsDir, repo);
             }
-            catch (err) {
-                reportError(err, "Error cloning " + repo.url);
-                return "CloneFailed";
+            else {
+                try {
+                    console.log("Cloning if absent");
+                    await git.cloneRepoIfNecessary(downloadDir, repo);
+                }
+                catch (err) {
+                    reportError(err, "Error cloning " + repo.url);
+                    return "CloneFailed";
+                }
             }
+        } finally {
+            logStepTime("clone", cloneStart);
         }
 
         const repoDir = path.join(downloadDir, repo.name);
 
+        const packageInstallStart = performance.now();
         try {
             console.log("Installing packages if absent");
             await installPackages(repoDir, /*recursiveSearch*/ !isUserTestRepo, packageTimeout, /*quietOutput*/ !diagnosticOutput, repo.types);
@@ -127,7 +134,11 @@ export async function getRepoStatus(
             }
             return "PackageInstallFailed";
         }
+        finally {
+            logStepTime("package install", packageInstallStart);
+        }
 
+        const buildStart = performance.now();
         try {
             console.log(`Building with ${oldTscPath} (old)`);
             const oldErrors = await ge.buildAndGetErrors(repoDir, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
@@ -233,6 +244,9 @@ export async function getRepoStatus(
             reportError(err, `Error building ${repo.url ?? repo.name}`);
             return "UnknownFailure";
         }
+        finally {
+            logStepTime("build", buildStart);
+        }
 
         console.log(`Done ${repo.url ?? repo.name}`);
         return "NewBuildSucceeded";
@@ -256,6 +270,13 @@ export async function getRepoStatus(
             if (diagnosticOutput) {
                 await reportResourceUsage(downloadDir);
             }
+        }
+    }
+
+    function logStepTime(step: string, start: number): void {
+        if (diagnosticOutput) {
+            const end = performance.now();
+            console.log(`PERF { "repo": "${repo.url ?? repo.name}", "step": "${step}", "time": ${Math.round(end - start)} }`);
         }
     }
 }
