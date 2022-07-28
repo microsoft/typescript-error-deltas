@@ -65,6 +65,7 @@ const skipRepos = [
     "https://github.com/NativeScript/NativeScript", // Uses NX package manager
     "https://github.com/wulkano/Kap", // Incompatible with Linux
     "https://github.com/lit/lit", // Depends on non-public package
+    "https://github.com/coder/code-server", // Takes ~15 minutes and overlaps heavily with vscode
 ];
 const processCwd = process.cwd();
 const processPid = process.pid;
