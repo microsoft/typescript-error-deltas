@@ -167,12 +167,17 @@ export async function getRepoStatus(
 
             let sawNewRepoErrors = false;
             const owner = repo.owner ? `${repo.owner}/` : "";
-            const url = repo.url ? `(${repo.url})` : "";
+            const url = repo.url ?? "";
 
-            let repoSummary = `# [${owner}${repo.name}]${url}\n`;
+            let repoSummary = `<details open="true">
+<summary>
+<h2><a href="${url}">${owner}${repo.name}</a></h2>
+</summary>
+
+`;
 
             if (numFailed > 0) {
-                const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc`;
+                const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc and were ignored`;
                 console.log(oldFailuresMessage);
                 repoSummary += `**${oldFailuresMessage}**\n`;
             }
@@ -185,6 +190,7 @@ export async function getRepoStatus(
 
                 repoSummary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
 
+                repoSummary += "\n</details>\n";
                 outputs.push(repoSummary)
                 return "NewBuildFailed";
             }
@@ -237,6 +243,7 @@ export async function getRepoStatus(
             if (sawNewRepoErrors) {
                 // sawNewErrors = true;
                 // summary += repoSummary;
+                repoSummary += "\n</details>\n";
                 outputs.push(repoSummary)
                 return "NewBuildHadErrors";
             }
