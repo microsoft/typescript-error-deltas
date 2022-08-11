@@ -23,16 +23,9 @@ interface Params {
      */
     diagnosticOutput?: boolean | undefined;
     /**
-     * Number of repos to test, undefined for the default.
-     * Git repos are chosen from Typescript-language repos based on number of stars; default is 100.
-     * User repos start at the top of the list; default is all of them.
+     * Path to a JSON file containing an array of Repo objects to be processed.
      */
-    repoCount?: number | undefined;
-    /**
-     * The index to start counting repositories; defaults to `0`.
-     * If `repoStartIndex` is 100 and `repoCount` is 100, the 100th to the 199th repos will be tested.
-     */
-    repoStartIndex?: number | undefined;
+    repoListPath: string;
 }
 export interface GitParams extends Params {
     testType: 'git';
@@ -46,27 +39,8 @@ export interface UserParams extends Params {
     sourceIssue: number;
     requestingUser: string;
     statusComment: number;
-    topRepos: boolean;
 }
 
-// If you think we need coverage of one of these, consider adding a user test with custom build steps
-const skipRepos = [
-    "https://github.com/microsoft/TypeScript", // Test files expected to have errors
-    "https://github.com/DefinitelyTyped/DefinitelyTyped", // Test files expected to have errors
-    "https://github.com/storybookjs/storybook", // Too big to fit on VM
-    "https://github.com/microsoft/frontend-bootcamp", // Can't be built twice in a row
-    "https://github.com/BabylonJS/Babylon.js", // Runs out of space during compile
-    "https://github.com/eclipse-theia/theia", // Probably same
-    "https://github.com/wbkd/react-flow", // Probably same
-    "https://github.com/remix-run/remix", // Too big to fit on VM
-    "https://github.com/NervJS/taro", // Too big to fit on VM
-    "https://github.com/TanStack/table", // Too big to fit on VM
-    "https://github.com/doczjs/docz", // Too big to fit on VM
-    "https://github.com/NativeScript/NativeScript", // Uses NX package manager
-    "https://github.com/wulkano/Kap", // Incompatible with Linux
-    "https://github.com/lit/lit", // Depends on non-public package
-    "https://github.com/coder/code-server", // Takes ~15 minutes and overlaps heavily with vscode
-];
 const processCwd = process.cwd();
 const processPid = process.pid;
 const packageTimeout = 10 * 60 * 1000;
@@ -312,30 +286,17 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const userTestsDir = path.join(processCwd, "userTests");
 
-    const repos = testType === "git" || params.topRepos
-        ? await git.getPopularRepos("TypeScript", params.repoCount, params.repoStartIndex, skipRepos)
-        : testType === "user"
-            ? ut.getUserTestsRepos(userTestsDir)
-            : undefined;
-
-    if (!repos) {
-        throw new Error(`Parameter <test_type> with value ${testType} is not existent.`);
-    }
+    const repos: readonly git.Repo[] = JSON.parse(fs.readFileSync(params.repoListPath, { encoding: "utf-8" }));
 
     const outputs: string[] = [];
 
     let sawNewErrors: true | undefined = undefined;
 
-    let i = 0;
-    const startIndex = params.repoStartIndex ?? 0;
-    const maxCount = Math.min(typeof params.repoCount === 'number' ? params.repoCount : Infinity, repos.length) + startIndex;
-
     const statusCounts = new Map<RepoStatus, number>();
 
+    let i = 1;
     for (const repo of repos) {
-        i++;
-        if (i > maxCount) break;
-        console.log(`Starting #${i + startIndex} / ${maxCount}: ${repo.url ?? repo.name}`);
+        console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
 
         const status = await getRepoStatus(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput, outputs);
         console.log(`Repo ${repo.url ?? repo.name} had status ${status}`);
@@ -386,12 +347,12 @@ ${Array.from(statusCounts.entries()).map(([status, count]) => `| ${status} | ${c
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
 [File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
 
-This run considered ${params.repoCount ?? totalCount} popular TS repos from GH (after skipping the top ${params.repoStartIndex ?? 0}).
+This run considered ${repos.length} popular TS repos from GH.
 
 ${statuses}
 
 
-`;
+`; // TODO (acasey): restore skip count to summary
 
         // GH caps the maximum body length, so paginate if necessary
         const bodyChunks: string[] = [];

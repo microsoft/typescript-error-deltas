@@ -39,8 +39,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 jobs:
-- job: 'DetectNewErrors'
-  timeoutInMinutes: 360
+- job: ListRepos
   steps:
   - task: NodeTool@0
     inputs:
@@ -49,7 +48,27 @@ jobs:
   - script: |
       npm ci
       npm run build
+      mkdir artifacts
+      node dist/listTopRepos TypeScript ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} artifacts/repos.json
+    displayName: 'List top TS repos'
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+  - publish: artifacts
+    artifact: RepoList
+- job: 'DetectNewErrors'
+  dependsOn: ListRepos
+  timeoutInMinutes: 360
+  steps:
+  - download: current
+    artifact: RepoList
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '16.x'
+    displayName: 'Install Node.js'
+  - script: |
+      npm ci
+      npm run build
       npm install -g pnpm
-      node dist/gitErrors ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/gitErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     env:
       GITHUB_PAT: $(GITHUB_PAT)

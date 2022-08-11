@@ -36,8 +36,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 jobs:
-- job: 'UserTestInline'
-  timeoutInMinutes: 360
+- job: ListRepos
   steps:
   - task: NodeTool@0
     inputs:
@@ -46,6 +45,32 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }} ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      mkdir artifacts
+  - script: node dist/listTopRepos TypeScript 100 0 artifacts/repos.json
+    condition: eq('${{ parameters.TOP_REPOS }}', 'true')
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+    displayName: 'List top TS repos'
+  - script: node dist/listUserTestRepos ./userTests artifacts/repos.json
+    condition: ne('${{ parameters.TOP_REPOS }}', 'true')
+    displayName: 'List user test repos'
+  - publish: artifacts
+    artifact: RepoList
+- job: UserTestInline
+  dependsOn: ListRepos
+  timeoutInMinutes: 360
+  steps:
+  - download: current
+    artifact: RepoList
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '16.x'
+    displayName: 'Install Node.js'
+  - script: |
+      npm ci
+      npm run build
+      npm install -g pnpm
+      node dist/userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} '$(Pipeline.Workspace)/RepoList/repos.json' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+    displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

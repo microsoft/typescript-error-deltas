@@ -10,14 +10,13 @@ describe("main", () => {
         const options: UserParams = {
             postResult: false, // for testing
             tmpfs: false,
-            repoCount: 1, // also for testing
             testType: "user",
             oldTypescriptRepoUrl: 'https://github.com/microsoft/typescript',
             oldHeadRef: 'main', // TODO: only branch names seem to work here, not all refs
             requestingUser: 'sandersn',
             sourceIssue: 44585,
             statusComment: 990374547,
-            topRepos: false,
+            repoListPath: "ENOENT", // TODO: write Repo for TypeScript-Node-Starter to a json file
         }
         const result = await mainAsync(options)
         expect(result).toBeDefined()
