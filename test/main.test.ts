@@ -1,5 +1,5 @@
 /// <reference types="jest" />
-import { mainAsync, getRepoStatus, UserParams, downloadTypescriptRepoAsync } from '../src/main'
+import { mainAsync, getRepoResult, UserParams, downloadTypescriptRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
 import { UserResult } from '../src/gitUtils'
@@ -35,8 +35,7 @@ The results of the user tests run you requested are in!
 - \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\``)).toBeTruthy()
     })
     xit("build-only correctly caches", async () => {
-        const outputs: string[] = []
-        const status = await getRepoStatus(
+        const { status, summary } = await getRepoResult(
             {
                 name: "TypeScript-Node-Starter",
                 url: "https://github.com/Microsoft/TypeScript-Node-Starter.git"
@@ -47,11 +46,11 @@ The results of the user tests run you requested are in!
             /*ignoreOldTscFailures*/ true, // as in a user test
             "./ts_downloads",
             /*isDownloadDirOnTmpFs*/ false,
-            /*diagnosticOutput*/ false,
-            outputs)
+            /*diagnosticOutput*/ false)
         expect(status).toEqual("NewBuildHadErrors")
-        expect(outputs.join("").startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()
-        expect(outputs.join("").includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
+        expect(summary).toBeDefined()
+        expect(summary!.startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()
+        expect(summary!.includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     })
     it("downloads from a branch", async () => {
         if (!existsSync("./testDownloads/main")) {

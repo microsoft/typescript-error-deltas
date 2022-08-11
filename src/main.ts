@@ -57,8 +57,13 @@ type RepoStatus =
     | "UnknownFailure"
     ;
 
+interface RepoResult {
+    readonly status: RepoStatus;
+    readonly summary?: string;
+}
+
 // Exported for testing
-export async function getRepoStatus(
+export async function getRepoResult(
     repo: git.Repo,
     userTestsDir: string,
     oldTscPath: string,
@@ -66,8 +71,7 @@ export async function getRepoStatus(
     ignoreOldTscFailures: boolean,
     downloadDir: string,
     isDownloadDirOnTmpFs: boolean,
-    diagnosticOutput: boolean,
-    outputs: string[]): Promise<RepoStatus> {
+    diagnosticOutput: boolean): Promise<RepoResult> {
 
     if (isDownloadDirOnTmpFs) {
         await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
@@ -88,7 +92,7 @@ export async function getRepoStatus(
                 }
                 catch (err) {
                     reportError(err, "Error cloning " + repo.url);
-                    return "CloneFailed";
+                    return { status: "CloneFailed" };
                 }
             }
         } finally {
@@ -107,7 +111,7 @@ export async function getRepoStatus(
             if (diagnosticOutput || /ENOSPC/.test(String(err))) {
                 await reportResourceUsage(downloadDir);
             }
-            return "PackageInstallFailed";
+            return { status: "PackageInstallFailed" };
         }
         finally {
             logStepTime("package install", packageInstallStart);
@@ -121,7 +125,7 @@ export async function getRepoStatus(
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return "OldBuildFailed";
+                return { status: "OldBuildFailed" };
             }
 
             const numProjects = oldErrors.projectErrors.length;
@@ -136,14 +140,14 @@ export async function getRepoStatus(
             // User tests ignores build failures.
             if (!ignoreOldTscFailures && numFailed === numProjects) {
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return "OldBuildHadErrors";
+                return { status: "OldBuildHadErrors"};
             }
 
             let sawNewRepoErrors = false;
             const owner = repo.owner ? `${repo.owner}/` : "";
             const url = repo.url ?? "";
 
-            let repoSummary = `<details open="true">
+            let summary = `<details open="true">
 <summary>
 <h2><a href="${url}">${owner}${repo.name}</a></h2>
 </summary>
@@ -153,7 +157,7 @@ export async function getRepoStatus(
             if (numFailed > 0) {
                 const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc and were ignored`;
                 console.log(oldFailuresMessage);
-                repoSummary += `**${oldFailuresMessage}**\n`;
+                summary += `**${oldFailuresMessage}**\n`;
             }
 
             console.log(`Building with ${newTscPath} (new)`);
@@ -162,11 +166,10 @@ export async function getRepoStatus(
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
 
-                repoSummary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
+                summary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
 
-                repoSummary += "\n</details>\n";
-                outputs.push(repoSummary)
-                return "NewBuildFailed";
+                summary += "\n</details>\n";
+                return { status: "NewBuildFailed", summary };
             }
 
             console.log("Comparing errors");
@@ -204,12 +207,12 @@ export async function getRepoStatus(
                     errorMessageMap.get(newErrorText)!.push(newError);
                 }
 
-                repoSummary += `### ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
+                summary += `### ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
                 for (const errorMessage of errorMessages) {
-                    repoSummary += ` - \`${errorMessage}\`\n`;
+                    summary += ` - \`${errorMessage}\`\n`;
 
                     for (const error of errorMessageMap.get(errorMessage)!) {
-                        repoSummary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
+                        summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
                     }
                 }
             }
@@ -217,21 +220,20 @@ export async function getRepoStatus(
             if (sawNewRepoErrors) {
                 // sawNewErrors = true;
                 // summary += repoSummary;
-                repoSummary += "\n</details>\n";
-                outputs.push(repoSummary)
-                return "NewBuildHadErrors";
+                summary += "\n</details>\n";
+                return { status: "NewBuildHadErrors", summary };
             }
         }
         catch (err) {
             reportError(err, `Error building ${repo.url ?? repo.name}`);
-            return "UnknownFailure";
+            return { status: "UnknownFailure" };
         }
         finally {
             logStepTime("build", buildStart);
         }
 
         console.log(`Done ${repo.url ?? repo.name}`);
-        return "NewBuildSucceeded";
+        return { status: "NewBuildSucceeded" };
     }
     finally {
         // Throw away the repo so we don't run out of space
@@ -298,11 +300,14 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
 
-        const status = await getRepoStatus(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput, outputs);
+        const { status, summary } = await getRepoResult(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput);
         console.log(`Repo ${repo.url ?? repo.name} had status ${status}`);
         incrementCount(statusCounts, status);
         if (status === "NewBuildFailed" || status === "NewBuildHadErrors") {
             sawNewErrors = true;
+        }
+        if (summary) {
+            outputs.push(summary);
         }
     }
 
