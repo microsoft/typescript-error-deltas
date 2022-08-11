@@ -20,7 +20,7 @@ const repoProperties = {
     repo: "typescript",
 };
 
-export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0, skipRepos?: string[], cachePath?: string): Promise<readonly Repo[]> {
+export async function getPopularRepos(language = "TypeScript", count = 100, repoStartIndex = 0, skipRepos?: string[], cachePath?: string): Promise<readonly Repo[]> {
     const cacheEncoding = { encoding: "utf-8" } as const;
 
     if (cachePath && await utils.exists(cachePath)) {
@@ -39,7 +39,7 @@ export async function getPopularTypeScriptRepos(count = 100, repoStartIndex = 0,
     let repos: Repo[] = [];
     for (let page = 1; repos.length < count; page++) {
         const response = await kit.search.repos({
-            q: "language:TypeScript+stars:>100 archived:no",
+            q: `language:${language}+stars:>100 archived:no`,
             sort: "stars",
             order: "desc",
             per_page: perPage,

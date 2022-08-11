@@ -313,7 +313,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     const userTestsDir = path.join(processCwd, "userTests");
 
     const repos = testType === "git" || params.topRepos
-        ? await git.getPopularTypeScriptRepos(params.repoCount, params.repoStartIndex, skipRepos)
+        ? await git.getPopularRepos("TypeScript", params.repoCount, params.repoStartIndex, skipRepos)
         : testType === "user"
             ? ut.getUserTestsRepos(userTestsDir)
             : undefined;
