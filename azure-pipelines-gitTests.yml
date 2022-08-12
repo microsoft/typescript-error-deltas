@@ -9,11 +9,11 @@ parameters:
     default: false
   - name: REPO_COUNT
     displayName: Repo Count
-    type: string
-    default: 100
+    type: number
+    default: 200
   - name: REPO_START_INDEX
     displayName: Repo Start Index
-    type: string
+    type: number
     default: 0
   - name: OLD_VERSION
     displayName: Baseline typescript package version
@@ -23,6 +23,15 @@ parameters:
     displayName: Candidate typescript package version
     type: string
     default: next
+  - name: MACHINE_COUNT
+    displayName: Machine Count
+    type: number
+    default: 4
+    values:
+    - 1
+    - 2
+    - 4
+    - 8
 
 schedules:
   - cron: "0 18 * * Sun" # time is in UTC
@@ -57,7 +66,10 @@ jobs:
     artifact: RepoList
 - job: DetectNewErrors
   dependsOn: ListRepos
+  continueOnError: true
   timeoutInMinutes: 360
+  strategy:
+    parallel: ${{ parameters.MACHINE_COUNT }}
   steps:
   - download: current
     artifact: RepoList
@@ -70,17 +82,16 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir artifacts
-      node dist/gitErrors ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/gitErrors ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run tsc on repos'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
   - publish: artifacts
-    artifact: RepoResults
+    artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors
   dependsOn: DetectNewErrors
   steps:
   - download: current
-    artifact: RepoResults
   - task: NodeTool@0
     inputs:
       versionSpec: '16.x'

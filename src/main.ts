@@ -23,6 +23,14 @@ interface Params {
      */
     repoListPath: string;
     /**
+     * How many workers are processing the same repo list.
+     */
+    workerCount: number;
+    /**
+     * 1-indexed position of the current worker.
+     */
+    workerNumber: number;
+    /**
      * Path to a directory in which a summary file should be written for each repo to be included in the output
      * (i.e. those with interesting failures).
      */
@@ -277,6 +285,16 @@ export interface Metadata {
     readonly statusCounts: StatusCounts;
 }
 
+function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, workerNumber: number): git.Repo[] {
+    const workerIndex = workerNumber - 1;
+    const repoCount = allRepos.length;
+    const batchSize = Math.ceil(repoCount / workerCount);
+    const start = workerIndex * batchSize;
+    const end = Math.min((workerIndex + 1) * batchSize, repoCount);
+    console.log(`Worker ${workerNumber} will process repos [${start}, ${end})`);
+    return allRepos.slice(start, end);
+}
+
 export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     const { testType } = params;
 
@@ -304,7 +322,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
     const userTestsDir = path.join(processCwd, "userTests");
 
-    const repos: readonly git.Repo[] = JSON.parse(fs.readFileSync(params.repoListPath, { encoding: "utf-8" }));
+    const allRepos: readonly git.Repo[] = JSON.parse(fs.readFileSync(params.repoListPath, { encoding: "utf-8" }));
+    const repos = getWorkerRepos(allRepos, params.workerCount, params.workerNumber);
 
     // An object is easier to de/serialize than a real map
     const statusCounts: { [P in RepoStatus]?: number } = {};

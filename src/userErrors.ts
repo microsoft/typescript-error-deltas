@@ -17,6 +17,8 @@ mainAsync({
     repoListPath: argv[5],
     resultDirPath: argv[6],
     diagnosticOutput: argv[7].toLowerCase() === "true",
+    workerCount: 1, // TODO (acasey)
+    workerNumber: 1, // TODO (acasey)
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);
