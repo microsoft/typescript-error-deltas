@@ -15,7 +15,7 @@ interface Package {
 /**
  * `glob`, but ignoring node_modules and symlinks, and returning absolute paths.
  */
-export function glob(cwd: string, pattern: string): readonly string[] {
+export function glob(cwd: string, pattern: string): string[] {
     return globCps.sync(pattern, { cwd, absolute: true, ignore: "**/node_modules/**", follow: false })
 }
 
