@@ -149,10 +149,10 @@ export async function createIssue(postResult: boolean, title: string, bodyChunks
     }
 }
 
-export async function createComment(sourceIssue: number, statusComment: number, postResult: boolean, body: string): Promise<UserResult | undefined> {
+export async function createComment(prNumber: number, statusComment: number, postResult: boolean, body: string): Promise<UserResult | undefined> {
     const newComment = {
         ...repoProperties,
-        issue_number: sourceIssue,
+        issue_number: prNumber,
         body,
     };
 

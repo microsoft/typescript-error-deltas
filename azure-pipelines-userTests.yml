@@ -19,13 +19,13 @@ parameters:
     displayName: Old head reference
     type: string
     default: main
-  - name: REQUESTING_USER
-    displayName: User name that requested the run
+  - name: USER_TO_TAG
+    displayName: User to tag when the results are ready
     type: string
-  - name: SOURCE_ISSUE
+  - name: PR_NUMBER
     displayName: PR ID in github
     type: number
-  - name: STATUS_COMMENT
+  - name: COMMENT_NUMBER
     displayName: Typescript-bot comment ID indicating that the run started
     type: number
 
@@ -56,7 +56,7 @@ jobs:
     displayName: 'List user test repos'
   - publish: artifacts
     artifact: RepoList
-- job: UserTestInline
+- job: DetectNewErrors
   dependsOn: ListRepos
   timeoutInMinutes: 360
   steps:
@@ -70,7 +70,26 @@ jobs:
       npm ci
       npm run build
       npm install -g pnpm
-      node dist/userErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} '$(Pipeline.Workspace)/RepoList/repos.json' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      mkdir artifacts
+      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.PR_NUMBER }} '$(Pipeline.Workspace)/RepoList/repos.json' './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run user tests'
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+  - publish: artifacts
+    artifact: RepoResults
+- job: ReportNewErrors
+  dependsOn: DetectNewErrors
+  steps:
+  - download: current
+    artifact: RepoResults
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '16.x'
+    displayName: 'Install Node.js'
+  - script: |
+      npm ci
+      npm run build
+      node dist/updateGhComment ${{ parameters.USER_TO_TAG }} ${{ parameters.PR_NUMBER }} ${{ parameters.COMMENT_NUMBER }} '$(Pipeline.Workspace)' ${{ parameters.POST_RESULT }}
+    displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

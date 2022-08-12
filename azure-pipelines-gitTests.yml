@@ -55,7 +55,7 @@ jobs:
       GITHUB_PAT: $(GITHUB_PAT)
   - publish: artifacts
     artifact: RepoList
-- job: 'DetectNewErrors'
+- job: DetectNewErrors
   dependsOn: ListRepos
   timeoutInMinutes: 360
   steps:
@@ -69,6 +69,26 @@ jobs:
       npm ci
       npm run build
       npm install -g pnpm
-      node dist/gitErrors ${{ parameters.POST_RESULT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      mkdir artifacts
+      node dist/gitErrors ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+    displayName: 'Run tsc on repos'
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+  - publish: artifacts
+    artifact: RepoResults
+- job: ReportNewErrors
+  dependsOn: DetectNewErrors
+  steps:
+  - download: current
+    artifact: RepoResults
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '16.x'
+    displayName: 'Install Node.js'
+  - script: |
+      npm ci
+      npm run build
+      node dist/createGhIssue ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' ${{ parameters.POST_RESULT }}
+    displayName: 'Create issue from new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

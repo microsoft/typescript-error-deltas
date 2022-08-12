@@ -1,17 +1,13 @@
-
 import ge = require("./getErrors");
 import pu = require("./packageUtils");
 import git = require("./gitUtils");
 import { execAsync, spawnWithTimeoutAsync } from "./execUtils";
-import type { GitResult, UserResult } from "./gitUtils";
 import ip = require("./installPackages");
 import ut = require("./userTestUtils");
 import fs = require("fs");
 import path = require("path");
 
 interface Params {
-    /** True to post the result to Github, false to print to console.  */
-    postResult: boolean;
     /**
      * Store test repos on a tmpfs.
      * Basically, the only reason not to do this would be lack of `sudo`.
@@ -26,6 +22,11 @@ interface Params {
      * Path to a JSON file containing an array of Repo objects to be processed.
      */
     repoListPath: string;
+    /**
+     * Path to a directory in which a summary file should be written for each repo to be included in the output
+     * (i.e. those with interesting failures).
+     */
+    resultDirPath: string;
 }
 export interface GitParams extends Params {
     testType: 'git';
@@ -36,9 +37,7 @@ export interface UserParams extends Params {
     testType: 'user';
     oldTypescriptRepoUrl: string;
     oldHeadRef: string;
-    sourceIssue: number;
-    requestingUser: string;
-    statusComment: number;
+    prNumber: number;
 }
 
 const processCwd = process.cwd();
@@ -46,7 +45,7 @@ const processPid = process.pid;
 const packageTimeout = 10 * 60 * 1000;
 const executionTimeout = 10 * 60 * 1000;
 
-type RepoStatus =
+export type RepoStatus =
     | "CloneFailed"
     | "PackageInstallFailed"
     | "OldBuildFailed"
@@ -140,7 +139,7 @@ export async function getRepoResult(
             // User tests ignores build failures.
             if (!ignoreOldTscFailures && numFailed === numProjects) {
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return { status: "OldBuildHadErrors"};
+                return { status: "OldBuildHadErrors" };
             }
 
             let sawNewRepoErrors = false;
@@ -265,7 +264,20 @@ export async function getRepoResult(
     }
 }
 
-export async function mainAsync(params: GitParams | UserParams): Promise<GitResult | UserResult | undefined> {
+export const metadataFileName = "metadata.json";
+export const resultFileNameSuffix = "results.txt";
+
+export type StatusCounts = {
+    [P in RepoStatus]?: number
+};
+
+export interface Metadata {
+    readonly newTscResolvedVersion: string;
+    readonly oldTscResolvedVersion: string;
+    readonly statusCounts: StatusCounts;
+}
+
+export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     const { testType } = params;
 
     const downloadDir = params.tmpfs ? "/mnt/ts_downloads" : "./ts_downloads";
@@ -275,6 +287,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
         await execAsync(processCwd, "sudo mkdir " + downloadDir);
     else
         await execAsync(processCwd, "mkdir " + downloadDir);
+
+    if (!(await pu.exists(params.resultDirPath))) {
+        await fs.promises.mkdir(params.resultDirPath, { recursive: true });
+    }
 
     // TODO: Only download if the commit has changed (need to map refs to commits and then download to typescript-COMMIT instead)
     const { oldTscPath, oldTscResolvedVersion, newTscPath, newTscResolvedVersion } = await downloadTypeScriptAsync(processCwd, params);
@@ -290,11 +306,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
     const repos: readonly git.Repo[] = JSON.parse(fs.readFileSync(params.repoListPath, { encoding: "utf-8" }));
 
-    const outputs: string[] = [];
-
-    let sawNewErrors: true | undefined = undefined;
-
-    const statusCounts = new Map<RepoStatus, number>();
+    // An object is easier to de/serialize than a real map
+    const statusCounts: { [P in RepoStatus]?: number } = {};
 
     let i = 1;
     for (const repo of repos) {
@@ -302,12 +315,12 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
 
         const { status, summary } = await getRepoResult(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput);
         console.log(`Repo ${repo.url ?? repo.name} had status ${status}`);
-        incrementCount(statusCounts, status);
-        if (status === "NewBuildFailed" || status === "NewBuildHadErrors") {
-            sawNewErrors = true;
-        }
+        statusCounts[status] = (statusCounts[status] ?? 0) + 1;
         if (summary) {
-            outputs.push(summary);
+            const filename = repo.owner
+                ? `${repo.owner}.${repo.name}.${resultFileNameSuffix}`
+                : `${repo.name}.${resultFileNameSuffix}`;
+            await fs.promises.writeFile(path.join(params.resultDirPath, filename), summary, { encoding: "utf-8" });
         }
     }
 
@@ -323,70 +336,16 @@ export async function mainAsync(params: GitParams | UserParams): Promise<GitResu
     }
 
     console.log("Statuses");
-    statusCounts.forEach((count, status) => console.log(`${status}\t${count}`));
-
-    if (testType === "git") {
-        let analyzedCount = 0;
-        let totalCount = 0;
-        statusCounts.forEach((count, status) => {
-            totalCount += count;
-            switch (status) {
-                case "NewBuildSucceeded":
-                case "NewBuildFailed":
-                case "NewBuildHadErrors":
-                    analyzedCount += count;
-                    break;
-            }
-        });
-
-        const statuses = `<details>
-<summary>Successfully analyzed ${analyzedCount} of ${totalCount} visited repos</summary>
-
-| Outcome | Count |
-|---------|-------|
-${Array.from(statusCounts.entries()).map(([status, count]) => `| ${status} | ${count} |\n`).join("")}
-</details>`;
-
-        const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
-        const header = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
-[Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
-[File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
-
-This run considered ${repos.length} popular TS repos from GH.
-
-${statuses}
-
-
-`; // TODO (acasey): restore skip count to summary
-
-        // GH caps the maximum body length, so paginate if necessary
-        const bodyChunks: string[] = [];
-        let chunk = header;
-        for (const output of outputs) {
-            if (chunk.length + output.length > 65536) {
-                bodyChunks.push(chunk);
-                chunk = "";
-            }
-            chunk += output;
-        }
-        bodyChunks.push(chunk);
-
-        return git.createIssue(params.postResult, title, bodyChunks, !!sawNewErrors);
+    for (const status of Object.keys(statusCounts).sort()) {
+        console.log(`${status}\t${statusCounts[status as RepoStatus]}`);
     }
-    else if (testType === "user") {
-        const summary = outputs.join("");
-        const body = summary
-            ? `@${params.requestingUser}\nThe results of the user tests run you requested are in!\n<details><summary> Here they are:</summary><p>\n<b>Comparison Report - ${oldTscResolvedVersion}..${newTscResolvedVersion}</b>\n\n${summary}</p></details>`
-            : `@${params.requestingUser}\nGreat news! no new errors were found between ${oldTscResolvedVersion}..${newTscResolvedVersion}`;
-        return git.createComment(params.sourceIssue, params.statusComment, params.postResult, body);
-    }
-    else {
-        throw new Error(`testType "${(params as any).testType}" is not a recognised test type.`);
-    }
-}
 
-function incrementCount(counts: Map<RepoStatus, number>, status: RepoStatus) {
-    counts.set(status, (counts.get(status) ?? 0) + 1);
+    const metadata: Metadata = {
+        newTscResolvedVersion,
+        oldTscResolvedVersion,
+        statusCounts,
+    };
+    await fs.promises.writeFile(path.join(params.resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
 }
 
 async function installPackages(repoDir: string, recursiveSearch: boolean, timeoutMs: number, quietOutput: boolean, types?: string[]) {
@@ -488,7 +447,7 @@ async function downloadTypeScriptAsync(cwd: string, params: GitParams | UserPara
     if (params.testType === 'user') {
         const { tscPath: oldTscPath, resolvedVersion: oldTscResolvedVersion } = await downloadTypescriptRepoAsync(cwd, params.oldTypescriptRepoUrl, params.oldHeadRef);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
-        const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypescriptSourceIssueAsync(cwd, params.oldTypescriptRepoUrl, params.sourceIssue);
+        const { tscPath: newTscPath, resolvedVersion: newTscResolvedVersion } = await downloadTypescriptPrAsync(cwd, params.oldTypescriptRepoUrl, params.prNumber);
 
         return {
             oldTscPath,
@@ -526,12 +485,12 @@ export async function downloadTypescriptRepoAsync(cwd: string, repoUrl: string, 
     };
 }
 
-async function downloadTypescriptSourceIssueAsync(cwd: string, repoUrl: string, sourceIssue: number): Promise<{ tscPath: string, resolvedVersion: string }> {
-    const repoName = `typescript-${sourceIssue}`;
+async function downloadTypescriptPrAsync(cwd: string, repoUrl: string, prNumber: number): Promise<{ tscPath: string, resolvedVersion: string }> {
+    const repoName = `typescript-${prNumber}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });
 
     const repoPath = path.join(cwd, repoName);
-    const headRef = `refs/pull/${sourceIssue}/merge`;
+    const headRef = `refs/pull/${prNumber}/merge`;
 
     await git.checkout(repoPath, headRef);
 
