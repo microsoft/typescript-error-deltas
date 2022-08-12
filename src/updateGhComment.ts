@@ -17,7 +17,7 @@ const postResult = post.toLowerCase() === "true";
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
 const { newTscResolvedVersion, oldTscResolvedVersion }: Metadata = JSON.parse(fs.readFileSync(metadataFilePaths[0], { encoding: "utf-8" }));
 
-const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort();
+const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
 
 // TODO: this should probably be paginated

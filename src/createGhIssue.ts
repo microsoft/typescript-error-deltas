@@ -62,7 +62,7 @@ ${Object.keys(statusCounts).sort().map(status => `| ${status} | ${statusCounts[s
 
 `;
 
-const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort();
+const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
 
 
