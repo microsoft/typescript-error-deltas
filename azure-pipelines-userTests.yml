@@ -28,6 +28,15 @@ parameters:
   - name: COMMENT_NUMBER
     displayName: Typescript-bot comment ID indicating that the run started
     type: number
+  - name: MACHINE_COUNT
+    displayName: Machine Count
+    type: number
+    default: 4
+    values:
+    - 1
+    - 2
+    - 4
+    - 8
 
 pr: none
 trigger: none
@@ -58,7 +67,10 @@ jobs:
     artifact: RepoList
 - job: DetectNewErrors
   dependsOn: ListRepos
+  continueOnError: true
   timeoutInMinutes: 360
+  strategy:
+    parallel: ${{ parameters.MACHINE_COUNT }}
   steps:
   - download: current
     artifact: RepoList
@@ -71,17 +83,16 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir artifacts
-      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.PR_NUMBER }} '$(Pipeline.Workspace)/RepoList/repos.json' './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.PR_NUMBER }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
   - publish: artifacts
-    artifact: RepoResults
+    artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors
   dependsOn: DetectNewErrors
   steps:
   - download: current
-    artifact: RepoResults
   - task: NodeTool@0
     inputs:
       versionSpec: '16.x'

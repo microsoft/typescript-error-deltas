@@ -3,8 +3,8 @@ import { mainAsync, reportError } from "./main";
 
 const { argv } = process;
 
-if (argv.length !== 8) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <old_typescript_repo_url> <old_head_ref> <pr_number> <repo_list_path> <result_dir_path> <diagnostic_output>`);
+if (argv.length !== 10) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <old_typescript_repo_url> <old_head_ref> <pr_number> <repo_list_path> <worker_count> <worker_number> <result_dir_path> <diagnostic_output>`);
     process.exit(-1);
 }
 
@@ -15,10 +15,10 @@ mainAsync({
     oldHeadRef: argv[3],
     prNumber: +argv[4],
     repoListPath: argv[5],
-    resultDirPath: argv[6],
-    diagnosticOutput: argv[7].toLowerCase() === "true",
-    workerCount: 1, // TODO (acasey)
-    workerNumber: 1, // TODO (acasey)
+    workerCount: +argv[6],
+    workerNumber: +argv[7],
+    resultDirPath: argv[8],
+    diagnosticOutput: argv[9].toLowerCase() === "true",
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);
