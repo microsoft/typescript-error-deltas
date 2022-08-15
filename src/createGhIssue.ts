@@ -35,9 +35,9 @@ for (const path of metadataFilePaths) {
         statusCounts[status] = (statusCounts[status] ?? 0) + count;
         totalCount += count;
         switch (status) {
-            case "NewBuildSucceeded":
-            case "NewBuildFailed":
-            case "NewBuildHadErrors":
+            case "Detected no interesting changes":
+            case "Detected interesting changes":
+            case "Detected project-graph error":
                 analyzedCount += count;
                 break;
         }
