@@ -100,7 +100,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/updateGhComment ${{ parameters.USER_TO_TAG }} ${{ parameters.PR_NUMBER }} ${{ parameters.COMMENT_NUMBER }} '$(Pipeline.Workspace)' ${{ parameters.POST_RESULT }}
+      node dist/updateGhComment ${{ parameters.USER_TO_TAG }} ${{ parameters.PR_NUMBER }} ${{ parameters.COMMENT_NUMBER }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' ${{ parameters.POST_RESULT }}
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

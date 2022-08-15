@@ -6,12 +6,12 @@ import pu = require("./packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 6) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <repo_count> <repo_start_index> <result_dir_path> <post_result>`);
+if (argv.length !== 7) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <repo_count> <repo_start_index> <result_dir_path> <log_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [,, repoCount, repoStartIndex, resultDirPath, post] = argv;
+const [,, repoCount, repoStartIndex, resultDirPath, logUri, post] = argv;
 const postResult = post.toLowerCase() === "true";
 
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
@@ -47,6 +47,7 @@ for (const path of metadataFilePaths) {
 const title = `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
 const header = `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
+[Logs for the pipeline run](${logUri})
 [File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
 
 This run considered ${repoCount} popular TS repos from GH (after skipping the top ${repoStartIndex}).
