@@ -19,13 +19,13 @@ parameters:
     displayName: Old head reference
     type: string
     default: main
-  - name: USER_TO_TAG
+  - name: REQUESTING_USER
     displayName: User to tag when the results are ready
     type: string
-  - name: PR_NUMBER
+  - name: SOURCE_ISSUE
     displayName: PR ID in github
     type: number
-  - name: COMMENT_NUMBER
+  - name: STATUS_COMMENT
     displayName: Typescript-bot comment ID indicating that the run started
     type: number
   - name: MACHINE_COUNT
@@ -83,7 +83,7 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir artifacts
-      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.PR_NUMBER }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
@@ -100,7 +100,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/updateGhComment ${{ parameters.USER_TO_TAG }} ${{ parameters.PR_NUMBER }} ${{ parameters.COMMENT_NUMBER }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' ${{ parameters.POST_RESULT }}
+      node dist/updateGhComment ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' ${{ parameters.POST_RESULT }}
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
