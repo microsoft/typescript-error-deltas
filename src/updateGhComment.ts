@@ -65,7 +65,7 @@ const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort(
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
 
 // TODO: this should probably be paginated
-let body = `@${userToTag} Here are the results of running the user test suite comparing ${oldTscResolvedVersion} and ${newTscResolvedVersion}
+let body = `@${userToTag} Here are the results of running the user test suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
 ${summary}`;
 
