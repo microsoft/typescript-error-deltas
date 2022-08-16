@@ -58,20 +58,31 @@ else {
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
 
-// TODO: this should probably be paginated
-let body = `@${userToTag} Here are the results of running the ${isTopReposRun ? "top-repos" : "user test"} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
+const suiteDescription = isTopReposRun ? "top-repos" : "user test";
+let header = `@${userToTag} Here are the results of running the ${suiteDescription} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
 ${summary}`;
 
-if (outputs.length) {
-    body += `
-
-<details>
-<summary>Details</summary>
-
-${outputs.join("")}
-</details>
-`;
+if (!outputs.length) {
+    git.createComment(+prNumber, +commentNumber, postResult, [header]);
 }
+else {
+    const openDetails = `\n\n<details>\n<summary>Details</summary>\n\n`;
+    const closeDetails = `\n</details>`;
 
-git.createComment(+prNumber, +commentNumber, postResult, body);
+    // GH caps the maximum body length, so paginate if necessary
+    const bodyChunks: string[] = [];
+    let chunk = header + openDetails;
+    for (const output of outputs) {
+        if (chunk.length + output.length + closeDetails.length> 65536) {
+            chunk += closeDetails;
+            bodyChunks.push(chunk);
+            chunk = `@${userToTag} Here are some more interesting changes from running the ${suiteDescription} suite${openDetails}`;
+        }
+        chunk += output;
+    }
+    chunk += closeDetails;
+    bodyChunks.push(chunk);
+
+    git.createComment(+prNumber, +commentNumber, postResult, bodyChunks);
+}

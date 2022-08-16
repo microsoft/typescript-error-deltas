@@ -149,36 +149,53 @@ export async function createIssue(postResult: boolean, title: string, bodyChunks
     }
 }
 
-export async function createComment(prNumber: number, statusComment: number, postResult: boolean, body: string): Promise<UserResult | undefined> {
-    const newComment = {
+export async function createComment(prNumber: number, statusComment: number, postResult: boolean, bodyChunks: readonly string[]): Promise<void> {
+    const newComments = bodyChunks.map(body => ({
         ...repoProperties,
         issue_number: prNumber,
         body,
-    };
+    }));
+
+    // Occasionally, GH posting fails, so it helps to dump the comment
+    console.log("GH comment(s): ");
+    console.log(JSON.stringify(newComments, undefined, " "));
 
     if (!postResult) {
-        console.log("Comment not posted: ");
-        console.log(JSON.stringify(newComment));
-        return { kind: 'user', ...newComment };
+        return;
     }
 
-    console.log("Creating a github comment");
+    console.log("Posting github comment(s)");
 
     const kit = new octokit.Octokit({
         auth: process.env.GITHUB_PAT,
     });
 
-    const data = await kit.issues.createComment(newComment);
+    const newCommentUrls: string[] = [];
 
-    const newCommentUrl = data.data.html_url;
-    console.log(`Created comment #${data.data.id}: ${newCommentUrl}`);
+    for (const newComment of newComments) {
+        const response = await kit.issues.createComment(newComment);
+
+        const newCommentUrl = response.data.html_url;
+        console.log(`Created comment #${response.data.id}: ${newCommentUrl}`);
+
+        newCommentUrls.push(newCommentUrl);
+    }
 
     // Update typescript-bot comment
     const comment = await kit.issues.getComment({
         ...repoProperties,
         comment_id: statusComment
     });
-    const newBody = `${comment.data.body}\n\nUpdate: [The results are in!](${newCommentUrl})`;
+
+    let newBody = `${comment.data.body}\n\n`;
+    if (newCommentUrls.length === 1) {
+        newBody += `Update: [The results are in!](${newCommentUrls[0]})`;
+    }
+    else {
+        newBody += `Update: The results are in! `;
+        newBody += newCommentUrls.map((url, i) => `[Part ${i + 1}](${url})`).join(", ");
+    }
+
     await kit.issues.updateComment({
         ...repoProperties,
         comment_id: statusComment,
