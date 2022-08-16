@@ -67,7 +67,7 @@ jobs:
     artifact: RepoList
 - job: DetectNewErrors
   dependsOn: ListRepos
-  continueOnError: true
+  continueOnError: false
   timeoutInMinutes: 360
   strategy:
     parallel: ${{ parameters.MACHINE_COUNT }}
