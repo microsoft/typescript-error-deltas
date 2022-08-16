@@ -37,7 +37,6 @@ for (const path of metadataFilePaths) {
         switch (status) {
             case "Detected no interesting changes":
             case "Detected interesting changes":
-            case "Detected project-graph error":
                 analyzedCount += count;
                 break;
         }

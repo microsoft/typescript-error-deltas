@@ -59,7 +59,6 @@ export type RepoStatus =
     | "Package install failed"
     | "Project-graph error in old TS"
     | "Too many errors in old TS"
-    | "Detected project-graph error"
     | "Detected interesting changes"
     | "Detected no interesting changes"
     ;
@@ -177,10 +176,9 @@ export async function getRepoResult(
             if (newErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
 
-                summary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
-
-                summary += "\n</details>\n";
-                return { status: "Detected project-graph error", summary };
+                // This doesn't depend on tsc at all, so it shouldn't be possible for it to fail.
+                // Throw so we don't get confusing results if the seemingly impossible happens.
+                throw new Error("Project graph changed between builds");
             }
 
             console.log("Comparing errors");

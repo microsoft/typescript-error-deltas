@@ -20,7 +20,6 @@ let newTscResolvedVersion: string | undefined;
 let oldTscResolvedVersion: string | undefined;
 
 let somethingChanged = false;
-let somethingBroke = false;
 let infrastructureFailed = false;
 
 for (const path of metadataFilePaths) {
@@ -37,9 +36,6 @@ for (const path of metadataFilePaths) {
             case "Detected interesting changes":
                 somethingChanged = true;
                 break;
-            case "Detected project-graph error":
-                somethingBroke = false;
-                break;
             default:
                 infrastructureFailed = true;
                 break;
@@ -49,13 +45,10 @@ for (const path of metadataFilePaths) {
 
 let summary: string;
 if (infrastructureFailed) {
-    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change`;
-}
-else if (somethingBroke) {
-    summary = `It looks like this change broke something in a way that prevented tsc from running properly`;
+    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
 }
 else if (somethingChanged) {
-    summary = `Something interesting changed - please have a look`;
+    summary = `Something interesting changed - please have a look.`;
 }
 else {
     summary = `Everything looks good!`;
