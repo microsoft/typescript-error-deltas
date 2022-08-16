@@ -54,14 +54,14 @@ const packageTimeout = 10 * 60 * 1000;
 const executionTimeout = 10 * 60 * 1000;
 
 export type RepoStatus =
-    | "CloneFailed"
-    | "PackageInstallFailed"
-    | "OldBuildFailed"
-    | "OldBuildHadErrors"
-    | "NewBuildFailed"
-    | "NewBuildHadErrors"
-    | "NewBuildSucceeded"
-    | "UnknownFailure"
+    | "Unknown failure"
+    | "Git clone failed"
+    | "Package install failed"
+    | "Project-graph error in old TS"
+    | "Too many errors in old TS"
+    | "Detected project-graph error"
+    | "Detected interesting changes"
+    | "Detected no interesting changes"
     ;
 
 interface RepoResult {
@@ -75,7 +75,12 @@ export async function getRepoResult(
     userTestsDir: string,
     oldTscPath: string,
     newTscPath: string,
-    ignoreOldTscFailures: boolean,
+    /**
+     * Two possible approaches:
+     *   1) If a project fails to build with the old tsc, don't bother building it with the new tsc - the results will be unrelatiable (breaking change detector)
+     *   2) Errors are expected when building with the old tsc and we're specifically interested in changes (user tests)
+     */
+    buildWithNewWhenOldFails: boolean,
     downloadDir: string,
     isDownloadDirOnTmpFs: boolean,
     diagnosticOutput: boolean): Promise<RepoResult> {
@@ -99,7 +104,7 @@ export async function getRepoResult(
                 }
                 catch (err) {
                     reportError(err, "Error cloning " + repo.url);
-                    return { status: "CloneFailed" };
+                    return { status: "Git clone failed" };
                 }
             }
         } finally {
@@ -118,7 +123,7 @@ export async function getRepoResult(
             if (diagnosticOutput || /ENOSPC/.test(String(err))) {
                 await reportResourceUsage(downloadDir);
             }
-            return { status: "PackageInstallFailed" };
+            return { status: "Package install failed" };
         }
         finally {
             logStepTime("package install", packageInstallStart);
@@ -132,7 +137,7 @@ export async function getRepoResult(
             if (oldErrors.hasConfigFailure) {
                 console.log("Unable to build project graph");
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return { status: "OldBuildFailed" };
+                return { status: "Project-graph error in old TS" };
             }
 
             const numProjects = oldErrors.projectErrors.length;
@@ -144,13 +149,12 @@ export async function getRepoResult(
                 }
             }
 
-            // User tests ignores build failures.
-            if (!ignoreOldTscFailures && numFailed === numProjects) {
+            if (!buildWithNewWhenOldFails && numFailed === numProjects) {
                 console.log(`Skipping build with ${newTscPath} (new)`);
-                return { status: "OldBuildHadErrors" };
+                return { status: "Too many errors in old TS" };
             }
 
-            let sawNewRepoErrors = false;
+            let sawDifferentErrors = false;
             const owner = repo.owner ? `${repo.owner}/` : "";
             const url = repo.url ?? "";
 
@@ -161,7 +165,7 @@ export async function getRepoResult(
 
 `;
 
-            if (numFailed > 0) {
+            if (!buildWithNewWhenOldFails && numFailed > 0) {
                 const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc and were ignored`;
                 console.log(oldFailuresMessage);
                 summary += `**${oldFailuresMessage}**\n`;
@@ -176,71 +180,108 @@ export async function getRepoResult(
                 summary += ":exclamation::exclamation: **Unable to build the project graph with the new tsc** :exclamation::exclamation:\n";
 
                 summary += "\n</details>\n";
-                return { status: "NewBuildFailed", summary };
+                return { status: "Detected project-graph error", summary };
             }
 
             console.log("Comparing errors");
             for (const oldProjectErrors of oldErrors.projectErrors) {
-                // To keep things simple, we'll focus on projects that used to build cleanly
-                if (!ignoreOldTscFailures && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
+                if (!buildWithNewWhenOldFails && (oldProjectErrors.hasBuildFailure || oldProjectErrors.errors.length)) {
                     continue;
                 }
+
+                const { projectUrl, isComposite } = oldProjectErrors;
 
                 // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
-                // Filter out errors reported already on "old".
-                const newProjectErrors = newErrors.projectErrors.find(pe => pe.projectUrl == oldProjectErrors.projectUrl)?.errors?.filter(e => e.code !== 5055)
-                    .filter(ne => !oldProjectErrors.errors.find(oe => ge.errorEquals(oe, ne)));
-                if (!newProjectErrors?.length) {
+                const newErrorList = newErrors.projectErrors.find(pe => pe.projectUrl == projectUrl)?.errors?.filter(e => e.code !== 5055) ?? [];
+                const oldErrorList = oldProjectErrors.errors;
+
+                // If both succeeded, there's nothing interesting to report.
+                // Sneakiness: if !buildWithNewWhenOldFails, then we already know oldErrorList is empty.
+                if (!oldErrorList.length && !newErrorList.length) {
                     continue;
                 }
 
-                sawNewRepoErrors = true;
+                const newlyReported = newErrorList.filter(ne => !oldErrorList.find(oe => ge.errorEquals(oe, ne)));
+                const newlyUnreported = buildWithNewWhenOldFails ? oldErrorList.filter(oe => !newErrorList.find(ne => ge.errorEquals(ne, oe))) : [];
 
-                const errorMessageMap = new Map<string, ge.Error[]>();
-                const errorMessages: string[] = [];
-
-                console.log(`New errors for ${oldProjectErrors.isComposite ? "composite" : "non-composite"} project ${oldProjectErrors.projectUrl}`);
-                for (const newError of newProjectErrors) {
-                    const newErrorText = newError.text;
-
-                    console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${oldProjectErrors.isComposite ? ` in ${newError.projectUrl}` : ``}`);
-                    console.log(`\t\t${newErrorText}`);
-
-                    if (!errorMessageMap.has(newErrorText)) {
-                        errorMessageMap.set(newErrorText, []);
-                        errorMessages.push(newErrorText);
-                    }
-
-                    errorMessageMap.get(newErrorText)!.push(newError);
+                // If the errors are exactly the same, there's nothing interesting to report.
+                if (!newlyReported.length || !newlyUnreported.length) {
+                    continue;
                 }
 
-                summary += `### ${makeMarkdownLink(oldProjectErrors.projectUrl)}\n`
-                for (const errorMessage of errorMessages) {
-                    summary += ` - \`${errorMessage}\`\n`;
+                sawDifferentErrors = true;
 
-                    for (const error of errorMessageMap.get(errorMessage)!) {
-                        summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${oldProjectErrors.isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
+                const newlyReportedErrorMessageMap = new Map<string, ge.Error[]>();
+                const newlyReportedErrorMessages: string[] = [];
+
+                console.log(`New errors for ${isComposite ? "composite" : "non-composite"} project ${projectUrl}`);
+                for (const newError of newlyReported) {
+                    const newErrorText = newError.text;
+
+                    console.log(`\tTS${newError.code} at ${newError.fileUrl ?? "project scope"}${isComposite ? ` in ${projectUrl}` : ``}`);
+                    console.log(`\t\t${newErrorText}`);
+
+                    if (!newlyReportedErrorMessageMap.has(newErrorText)) {
+                        newlyReportedErrorMessageMap.set(newErrorText, []);
+                        newlyReportedErrorMessages.push(newErrorText);
+                    }
+
+                    newlyReportedErrorMessageMap.get(newErrorText)!.push(newError);
+                }
+
+                const newlyUnreportedErrorMessageMap = new Map<string, ge.Error[]>();
+                const newlyUnreportedErrorMessages: string[] = [];
+
+                console.log(`No-longer-reported errors for ${isComposite ? "composite" : "non-composite"} project ${projectUrl}`);
+                for (const oldError of newlyUnreported) {
+                    const oldErrorText = oldError.text;
+
+                    console.log(`\tTS${oldError.code} at ${oldError.fileUrl ?? "project scope"}${isComposite ? ` in ${oldError.projectUrl}` : ``}`);
+                    console.log(`\t\t${oldErrorText}`);
+
+                    if (!newlyUnreportedErrorMessageMap.has(oldErrorText)) {
+                        newlyUnreportedErrorMessageMap.set(oldErrorText, []);
+                        newlyUnreportedErrorMessages.push(oldErrorText);
+                    }
+
+                    newlyUnreportedErrorMessageMap.get(oldErrorText)!.push(oldError);
+                }
+
+                summary += `### ${makeMarkdownLink(projectUrl)}\n`;
+
+                for (const errorMessage of newlyReportedErrorMessages) {
+                    summary += ` - ${buildWithNewWhenOldFails ? "[NEW] " : ""}\`${errorMessage}\`\n`;
+
+                    for (const error of newlyReportedErrorMessageMap.get(errorMessage)!) {
+                        summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
+                    }
+                }
+
+                for (const errorMessage of newlyUnreportedErrorMessages) {
+                    summary += ` - ${buildWithNewWhenOldFails ? "[MISSING] " : ""}\`${errorMessage}\`\n`;
+
+                    for (const error of newlyUnreportedErrorMessageMap.get(errorMessage)!) {
+                        summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
                     }
                 }
             }
 
-            if (sawNewRepoErrors) {
-                // sawNewErrors = true;
-                // summary += repoSummary;
-                summary += "\n</details>\n";
-                return { status: "NewBuildHadErrors", summary };
+            summary += "\n</details>\n";
+
+            if (sawDifferentErrors) {
+                return { status: "Detected interesting changes", summary };
             }
         }
         catch (err) {
             reportError(err, `Error building ${repo.url ?? repo.name}`);
-            return { status: "UnknownFailure" };
+            return { status: "Unknown failure" };
         }
         finally {
             logStepTime("build", buildStart);
         }
 
         console.log(`Done ${repo.url ?? repo.name}`);
-        return { status: "NewBuildSucceeded" };
+        return { status: "Detected no interesting changes" };
     }
     finally {
         // Throw away the repo so we don't run out of space
@@ -332,7 +373,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
 
-        const { status, summary } = await getRepoResult(repo, userTestsDir, oldTscPath, newTscPath, /*ignoreOldTscFailures*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput);
+        const { status, summary } = await getRepoResult(repo, userTestsDir, oldTscPath, newTscPath, /*buildWithNewWhenOldFails*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput);
         console.log(`Repo ${repo.url ?? repo.name} had status ${status}`);
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
         if (summary) {
