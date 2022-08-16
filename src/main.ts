@@ -195,6 +195,8 @@ export async function getRepoResult(
                 const newErrorList = newErrors.projectErrors.find(pe => pe.projectUrl == projectUrl)?.errors?.filter(e => e.code !== 5055) ?? [];
                 const oldErrorList = oldProjectErrors.errors;
 
+                console.log(`Error counts for ${projectUrl}: new = ${newErrorList.length}, old = ${oldErrorList.length}`);
+
                 // If both succeeded, there's nothing interesting to report.
                 // Sneakiness: if !buildWithNewWhenOldFails, then we already know oldErrorList is empty.
                 if (!oldErrorList.length && !newErrorList.length) {
