@@ -6,12 +6,13 @@ import pu = require("./packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 8) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <result_dir_path> <log_uri> <post_result>`);
+if (argv.length !== 9) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <is_top_repos_run> <result_dir_path> <log_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, resultDirPath, logUri, post] = argv;
+const [, , userToTag, prNumber, commentNumber, isTop, resultDirPath, logUri, post] = argv;
+const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
@@ -58,7 +59,7 @@ const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort(
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
 
 // TODO: this should probably be paginated
-let body = `@${userToTag} Here are the results of running the user test suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
+let body = `@${userToTag} Here are the results of running the ${isTopReposRun ? "top-repos" : "user test"} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
 ${summary}`;
 
