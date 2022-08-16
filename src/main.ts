@@ -205,7 +205,7 @@ export async function getRepoResult(
                 const newlyUnreported = buildWithNewWhenOldFails ? oldErrorList.filter(oe => !newErrorList.find(ne => ge.errorEquals(ne, oe))) : [];
 
                 // If the errors are exactly the same, there's nothing interesting to report.
-                if (!newlyReported.length || !newlyUnreported.length) {
+                if (!newlyReported.length && !newlyUnreported.length) {
                     continue;
                 }
 
