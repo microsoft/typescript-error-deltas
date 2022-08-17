@@ -74,7 +74,7 @@ else {
     const bodyChunks: string[] = [];
     let chunk = header + openDetails;
     for (const output of outputs) {
-        if (chunk.length + output.length + closeDetails.length> 65536) {
+        if (chunk.length + output.length + closeDetails.length > 65535) {
             chunk += closeDetails;
             bodyChunks.push(chunk);
             chunk = `@${userToTag} Here are some more interesting changes from running the ${suiteDescription} suite${openDetails}`;
@@ -83,6 +83,10 @@ else {
     }
     chunk += closeDetails;
     bodyChunks.push(chunk);
+
+    for (const chunk of bodyChunks) {
+        console.log(`Chunk of size ${chunk.length}`);
+    }
 
     git.createComment(+prNumber, +commentNumber, postResult, bodyChunks);
 }

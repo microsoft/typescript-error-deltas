@@ -67,7 +67,6 @@ jobs:
     artifact: RepoList
 - job: DetectNewErrors
   dependsOn: ListRepos
-  continueOnError: false
   timeoutInMinutes: 360
   strategy:
     parallel: ${{ parameters.MACHINE_COUNT }}
@@ -83,7 +82,7 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir artifacts
-      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

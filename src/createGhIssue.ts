@@ -70,7 +70,7 @@ const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
 const bodyChunks: string[] = [];
 let chunk = header;
 for (const output of outputs) {
-    if (chunk.length + output.length > 65536) {
+    if (chunk.length + output.length > 65535) {
         bodyChunks.push(chunk);
         chunk = "";
     }
