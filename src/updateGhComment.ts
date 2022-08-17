@@ -45,11 +45,11 @@ for (const path of metadataFilePaths) {
 }
 
 let summary: string;
-if (infrastructureFailed) {
-    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
-}
-else if (somethingChanged) {
+if (somethingChanged && (isTopReposRun || !infrastructureFailed)) {
     summary = `Something interesting changed - please have a look.`;
+}
+else if (infrastructureFailed && !isTopReposRun) {
+    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
 }
 else {
     summary = `Everything looks good!`;
