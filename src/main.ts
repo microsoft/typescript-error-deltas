@@ -17,7 +17,11 @@ interface Params {
      * True to produce more verbose output (e.g. to help diagnose resource exhaustion issues).
      * Default is false to save time and space.
      */
-    diagnosticOutput?: boolean | undefined;
+    diagnosticOutput?: boolean;
+    /**
+     * True to allow errors in the baseline build and report as missing any not reported by the candidate build.
+     */
+    buildWithNewWhenOldFails: boolean;
     /**
      * Path to a JSON file containing an array of Repo objects to be processed.
      */
@@ -373,7 +377,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
 
-        const { status, summary } = await getRepoResult(repo, userTestsDir, oldTscPath, newTscPath, /*buildWithNewWhenOldFails*/ testType === "user", downloadDir, params.tmpfs, !!params.diagnosticOutput);
+        const { status, summary } = await getRepoResult(repo, userTestsDir, oldTscPath, newTscPath, params.buildWithNewWhenOldFails, downloadDir, params.tmpfs, !!params.diagnosticOutput);
         console.log(`Repo ${repo.url ?? repo.name} had status ${status}`);
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
         if (summary) {

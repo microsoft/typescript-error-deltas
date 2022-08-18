@@ -14,6 +14,7 @@ mainAsync({
     testType: "git",
     tmpfs: true,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
+    buildWithNewWhenOldFails: false,
     repoListPath,
     workerCount: +workerCount,
     workerNumber: +workerNumber,

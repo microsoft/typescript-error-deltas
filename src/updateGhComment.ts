@@ -45,11 +45,11 @@ for (const path of metadataFilePaths) {
 }
 
 let summary: string;
-if (infrastructureFailed) {
-    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
-}
-else if (somethingChanged) {
+if (somethingChanged && (isTopReposRun || !infrastructureFailed)) {
     summary = `Something interesting changed - please have a look.`;
+}
+else if (infrastructureFailed && !isTopReposRun) {
+    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
 }
 else {
     summary = `Everything looks good!`;
@@ -69,20 +69,38 @@ if (!outputs.length) {
 else {
     const openDetails = `\n\n<details>\n<summary>Details</summary>\n\n`;
     const closeDetails = `\n</details>`;
+    const initialHeader = header + openDetails;
+    const continuationHeader = `@${userToTag} Here are some more interesting changes from running the ${suiteDescription} suite${openDetails}`;
+    const trunctationSuffix = `\n:error: Truncated - see log for full output :error:`;
 
     // GH caps the maximum body length, so paginate if necessary
     const bodyChunks: string[] = [];
-    let chunk = header + openDetails;
+    let chunk = initialHeader;
     for (const output of outputs) {
-        if (chunk.length + output.length + closeDetails.length> 65536) {
+        if (chunk.length + output.length + closeDetails.length > 65535) {
+            if (chunk === initialHeader || chunk === continuationHeader) {
+                // output is too long and bumping it to the next comment won't help
+                console.log("Truncating output to fit in GH comment");
+                chunk += output.substring(0, 65535 - chunk.length - closeDetails.length - trunctationSuffix.length);
+                chunk += trunctationSuffix;
+                chunk += closeDetails;
+                bodyChunks.push(chunk);
+                chunk = continuationHeader;
+                continue; // Specifically, don't append output below
+            }
+
             chunk += closeDetails;
             bodyChunks.push(chunk);
-            chunk = `@${userToTag} Here are some more interesting changes from running the ${suiteDescription} suite${openDetails}`;
+            chunk = continuationHeader;
         }
         chunk += output;
     }
     chunk += closeDetails;
     bodyChunks.push(chunk);
+
+    for (const chunk of bodyChunks) {
+        console.log(`Chunk of size ${chunk.length}`);
+    }
 
     git.createComment(+prNumber, +commentNumber, postResult, bodyChunks);
 }
