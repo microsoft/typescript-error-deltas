@@ -37,6 +37,13 @@ parameters:
     - 2
     - 4
     - 8
+  - name: ENTRYPOINT
+    displayName: TypeScript entrypoint
+    type: string
+    default: tsc
+    values:
+    - tsc
+    - tsserver
 
 pr: none
 trigger: none
@@ -81,12 +88,12 @@ jobs:
       npm ci
       npm run build
       npm install -g pnpm
-      mkdir artifacts
-      node dist/checkUserTestRepos ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      mkdir 'RepoResults$(System.JobPositionInPhase)'
+      node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
-  - publish: artifacts
+  - publish: 'RepoResults$(System.JobPositionInPhase)'
     artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors
   dependsOn: DetectNewErrors
@@ -99,7 +106,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' ${{ parameters.POST_RESULT }}
+      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }}
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

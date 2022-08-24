@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from "fs"
 import * as path from 'path'
 import { buildAndGetErrors } from '../src/utils/getTscErrors'
-import { downloadTypescriptRepoAsync } from '../src/main'
+import { downloadTsRepoAsync } from '../src/main'
 describe("getErrors", () => {
     jest.setTimeout(10 * 60 * 1000)
 
@@ -10,7 +10,7 @@ describe("getErrors", () => {
             if (!existsSync("./testDownloads/getErrors")) {
                 mkdirSync("./testDownloads/getErrors", { recursive: true });
             }
-            await downloadTypescriptRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error');
+            await downloadTsRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc');
         }
     });
 

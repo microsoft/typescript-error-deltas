@@ -1,25 +1,28 @@
 import path = require("path");
-import { mainAsync, reportError } from "./main";
+import { mainAsync, reportError, TsEntrypoint } from "./main";
 
 const { argv } = process;
 
-if (argv.length !== 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <old_typescript_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_path> <diagnostic_output>`);
+if (argv.length !== 12) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output>`);
     process.exit(-1);
 }
+
+const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput] = argv;
 
 mainAsync({
     testType: "user",
     tmpfs: true,
-    oldTypescriptRepoUrl: argv[2],
-    oldHeadRef: argv[3],
-    prNumber: +argv[4],
-    buildWithNewWhenOldFails: argv[5].toLowerCase() !== "true",
-    repoListPath: argv[6],
-    workerCount: +argv[7],
-    workerNumber: +argv[8],
-    resultDirPath: argv[9],
-    diagnosticOutput: argv[10].toLowerCase() === "true",
+    entrypoint: entrypoint as TsEntrypoint,
+    oldTsRepoUrl,
+    oldHeadRef,
+    prNumber: +prNumber,
+    buildWithNewWhenOldFails: buildWithNewWhenOldFails.toLowerCase() !== "true",
+    repoListPath,
+    workerCount: +workerCount,
+    workerNumber: +workerNumber,
+    resultDirName,
+    diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

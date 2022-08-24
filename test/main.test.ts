@@ -1,12 +1,12 @@
 /// <reference types="jest" />
-import { getRepoResult, downloadTypescriptRepoAsync } from '../src/main'
+import { getTscRepoResult, downloadTsRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
 import path = require("path")
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000)
     xit("build-only correctly caches", async () => {
-        const { status, summary } = await getRepoResult(
+        const { status, summary } = await getTscRepoResult(
             {
                 name: "TypeScript-Node-Starter",
                 url: "https://github.com/Microsoft/TypeScript-Node-Starter.git"
@@ -16,7 +16,6 @@ describe("main", () => {
             path.resolve("./typescript-44585/built/local/tsc.js"),
             /*ignoreOldTscFailures*/ true, // as in a user test
             "./ts_downloads",
-            /*isDownloadDirOnTmpFs*/ false,
             /*diagnosticOutput*/ false)
         expect(status).toEqual("NewBuildHadErrors")
         expect(summary).toBeDefined()
@@ -30,6 +29,6 @@ describe("main", () => {
         else if (existsSync("./testDownloads/main/typescript-test-fake-error")) {
             execSync("cd ./testDownloads/main/typescript-test-fake-error && git restore . && cd ..")
         }
-        await downloadTypescriptRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error')
+        await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc')
     })
 })

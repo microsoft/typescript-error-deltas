@@ -22,7 +22,7 @@ export interface InstallCommand {
  * Traverses the given directory and returns a list of commands that can be used, in order, to install
  * the packages required for building.
  */
-export async function installPackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
+export async function installPackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<InstallCommand[]> {
     lernaPackages = lernaPackages ?? await utils.getLernaOrder(repoDir);
 
     const isRepoYarn = await utils.exists(path.join(repoDir, "yarn.lock"));
