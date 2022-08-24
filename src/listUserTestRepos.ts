@@ -1,7 +1,7 @@
 import fs = require("fs");
 import path = require("path");
 import { reportError } from "./main";
-import { getUserTestsRepos } from "./userTestUtils";
+import { getUserTestsRepos } from "./utils/userTestUtils";
 
 const { argv } = process;
 

@@ -19,10 +19,10 @@ export interface InstallCommand {
 }
 
 /**
- * Traverses the given directory and returns a list of commands that can be used, in order, to restore
+ * Traverses the given directory and returns a list of commands that can be used, in order, to install
  * the packages required for building.
  */
-export async function restorePackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
+export async function installPackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<readonly InstallCommand[]> {
     lernaPackages = lernaPackages ?? await utils.getLernaOrder(repoDir);
 
     const isRepoYarn = await utils.exists(path.join(repoDir, "yarn.lock"));
@@ -41,7 +41,7 @@ export async function restorePackages(repoDir: string, ignoreScripts: boolean, q
             if (inLernaPackageDir = packageFile.startsWith(lernaPackage)) break;
         }
         if (inLernaPackageDir) {
-            // Skipping restore of lerna package
+            // Skipping installation of lerna package
             continue;
         }
 

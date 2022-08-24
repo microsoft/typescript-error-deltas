@@ -1,9 +1,9 @@
-import ge = require("./getErrors");
-import pu = require("./packageUtils");
-import git = require("./gitUtils");
-import { execAsync, spawnWithTimeoutAsync } from "./execUtils";
-import ip = require("./installPackages");
-import ut = require("./userTestUtils");
+import ge = require("./utils/getTscErrors");
+import pu = require("./utils/packageUtils");
+import git = require("./utils/gitUtils");
+import { execAsync, spawnWithTimeoutAsync } from "./utils/execUtils";
+import ip = require("./utils/installPackages");
+import ut = require("./utils/userTestUtils");
 import fs = require("fs");
 import path = require("path");
 
@@ -417,7 +417,7 @@ async function installPackages(repoDir: string, recursiveSearch: boolean, timeou
     try {
         let timedOut = false;
         const startMs = performance.now();
-        const commands = await ip.restorePackages(repoDir, /*ignoreScripts*/ true, quietOutput, recursiveSearch, /*lernaPackages*/ undefined, types);
+        const commands = await ip.installPackages(repoDir, /*ignoreScripts*/ true, quietOutput, recursiveSearch, /*lernaPackages*/ undefined, types);
         for (const { directory: packageRoot, tool, arguments: args } of commands) {
             if (timedOut) break;
 

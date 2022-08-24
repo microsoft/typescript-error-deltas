@@ -1,8 +1,8 @@
 import fs = require("fs");
 import path = require("path");
 import { Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
-import git = require("./gitUtils");
-import pu = require("./packageUtils");
+import git = require("./utils/gitUtils");
+import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 

@@ -1,4 +1,4 @@
-import { getProjectsToBuild } from '../src/projectGraph'
+import { getProjectsToBuild } from '../src/utils/projectGraph'
 
 describe("getProjectsToBuild", () => {
     it("gets a simple project", async () => {

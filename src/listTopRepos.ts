@@ -1,6 +1,6 @@
 import fs = require("fs");
 import path = require("path");
-import { getPopularRepos } from "./gitUtils";
+import { getPopularRepos } from "./utils/gitUtils";
 import { reportError } from "./main";
 
 const { argv } = process;

@@ -1,8 +1,7 @@
 /// <reference types="jest" />
-import { mainAsync, getRepoResult, UserParams, downloadTypescriptRepoAsync } from '../src/main'
+import { getRepoResult, downloadTypescriptRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
-import { UserResult } from '../src/gitUtils'
 import path = require("path")
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000)
