@@ -82,7 +82,7 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir artifacts
-      node dist/userErrors ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/checkUserTestRepos ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
@@ -99,7 +99,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/updateGhComment ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' ${{ parameters.POST_RESULT }}
+      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' ${{ parameters.POST_RESULT }}
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

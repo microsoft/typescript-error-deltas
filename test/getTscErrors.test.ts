@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "fs"
 import * as path from 'path'
-import { buildAndGetErrors } from '../src/getErrors'
+import { buildAndGetErrors } from '../src/utils/getTscErrors'
 import { downloadTypescriptRepoAsync } from '../src/main'
 describe("getErrors", () => {
     jest.setTimeout(10 * 60 * 1000)
