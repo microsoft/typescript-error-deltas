@@ -58,7 +58,7 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
         childProcess.on("close", async (code, signal) => {
             // SIGTERM indicates timeout
             if (signal === "SIGTERM") {
-                await execAsync(path.join(__dirname, "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
+                await execAsync(path.join(__dirname, "..", "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
                 resolve(undefined);
                 return;
             }
