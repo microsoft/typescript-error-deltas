@@ -6,12 +6,12 @@ import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 9) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result>`);
+if (argv.length !== 10) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [, , ep, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post] = argv;
+const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post] = argv;
 const postResult = post.toLowerCase() === "true";
 const entrypoint = ep as TsEntrypoint;
 
@@ -45,7 +45,7 @@ for (const path of metadataFilePaths) {
 }
 
 const title = entrypoint === "tsserver"
-    ? `[ServerErrors] ${newTscResolvedVersion}`
+    ? `[ServerErrors][${language}] ${newTscResolvedVersion}`
     : `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
 const description = entrypoint === "tsserver"
     ? `The following errors were reported by ${newTscResolvedVersion}`
