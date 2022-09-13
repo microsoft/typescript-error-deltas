@@ -16,4 +16,4 @@ extends:
   template: azure-pipelines-gitTests-template.yml
   parameters:
     ENTRYPOINT: tsserver
-    LANGUAGE: JAVASCRIPT
+    LANGUAGE: JavaScript
