@@ -1,17 +1,17 @@
 import fs = require("fs");
 import path = require("path");
-import { Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
+import { artifactFolderUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 8) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <is_top_repos_run> <result_dir_path> <post_result>`);
+if (argv.length !== 9) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, isTop, resultDirPath, post] = argv;
+const [, , userToTag, prNumber, commentNumber, isTop, resultDirPath, artifactsUri, post] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
@@ -26,8 +26,8 @@ let infrastructureFailed = false;
 for (const path of metadataFilePaths) {
     const metadata: Metadata = JSON.parse(fs.readFileSync(path, { encoding: "utf-8" }));
 
-    newTscResolvedVersion ??= metadata.newTscResolvedVersion;
-    oldTscResolvedVersion ??= metadata.oldTscResolvedVersion;
+    newTscResolvedVersion ??= metadata.newTsResolvedVersion;
+    oldTscResolvedVersion ??= metadata.oldTsResolvedVersion;
 
     for (const s in metadata.statusCounts) {
         const status = s as RepoStatus;
@@ -56,7 +56,7 @@ else {
 }
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
-const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }));
+const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri));
 
 const suiteDescription = isTopReposRun ? "top-repos" : "user test";
 let header = `@${userToTag} Here are the results of running the ${suiteDescription} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:

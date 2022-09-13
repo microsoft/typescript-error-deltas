@@ -16,11 +16,11 @@ parameters:
     type: number
     default: 0
   - name: OLD_VERSION
-    displayName: Baseline typescript package version
+    displayName: Baseline TypeScript package version
     type: string
     default: latest
   - name: NEW_VERSION
-    displayName: Candidate typescript package version
+    displayName: Candidate TypeScript package version
     type: string
     default: next
   - name: MACHINE_COUNT
@@ -32,6 +32,13 @@ parameters:
     - 2
     - 4
     - 8
+  - name: ENTRYPOINT
+    displayName: TypeScript entrypoint
+    type: string
+    default: tsc
+    values:
+    - tsc
+    - tsserver
 
 schedules:
   - cron: "0 18 * * Sun" # time is in UTC
@@ -81,12 +88,13 @@ jobs:
       npm ci
       npm run build
       npm install -g pnpm
-      mkdir artifacts
-      node dist/checkGithubRepos ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) './artifacts' ${{ parameters.DIAGNOSTIC_OUTPUT }}
-    displayName: 'Run tsc on repos'
+      mkdir 'RepoResults$(System.JobPositionInPhase)'
+      node dist/checkGithubRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+    displayName: 'Run TypeScript on repos'
+    continueOnError: true
     env:
       GITHUB_PAT: $(GITHUB_PAT)
-  - publish: artifacts
+  - publish: 'RepoResults$(System.JobPositionInPhase)'
     artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors
   dependsOn: DetectNewErrors
@@ -99,7 +107,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubIssue ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' ${{ parameters.POST_RESULT }}
+      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }}
     displayName: 'Create issue from new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

@@ -58,6 +58,7 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
         childProcess.on("close", async (code, signal) => {
             // SIGTERM indicates timeout
             if (signal === "SIGTERM") {
+                // CONSIDER: Does this do anything?  Won't all child processes have PPID 1 by now, since the parent has exited?
                 await execAsync(path.join(__dirname, "..", "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
                 resolve(undefined);
                 return;
