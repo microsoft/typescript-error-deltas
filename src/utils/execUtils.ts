@@ -29,7 +29,7 @@ export interface SpawnResult {
 
 /** Returns undefined if and only if executions times out. */
 export function spawnWithTimeoutAsync(cwd: string, command: string, args: readonly string[], timeoutMs: number, env?: {}): Promise<SpawnResult | undefined> {
-    return new Promise<SpawnResult | undefined>((resolve, _reject) => {
+    return new Promise<SpawnResult | undefined>((resolve, reject) => {
         if (timeoutMs <= 0) {
             resolve(undefined);
             return;
@@ -41,11 +41,19 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
             cwd,
             env,
             windowsHide: true,
-            timeout: timeoutMs | 0, // Truncate to integer for spawn
         });
+
+        let timedOut = false;
 
         let stdout = "";
         let stderr = "";
+
+        childProcess.on("close", (code, signal) => {
+            if (!timedOut) {
+                clearTimeout(timeout);
+                resolve({ stdout, stderr, code, signal });
+            }
+        });
 
         childProcess.stdout.on("data", data => {
             stdout += data;
@@ -55,16 +63,12 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
             stderr += data;
         });
 
-        childProcess.on("close", async (code, signal) => {
-            // SIGTERM indicates timeout
-            if (signal === "SIGTERM") {
-                // CONSIDER: Does this do anything?  Won't all child processes have PPID 1 by now, since the parent has exited?
-                await execAsync(path.join(__dirname, "..", "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
-                resolve(undefined);
-                return;
-            }
-
-            resolve({ stdout, stderr, code, signal });
-        });
+        const timeout = setTimeout(async () => {
+            timedOut = true;
+            // Note that killing childProcess resets the PPID of each of its children to 1, so this has to happen first
+            await execAsync(path.join(__dirname, "..", "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
+            childProcess.kill("SIGKILL"); // This may fail if the process exited when its children were killed
+            resolve(undefined);
+        }, timeoutMs | 0); // Truncate to int
     });
 }
