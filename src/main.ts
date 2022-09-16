@@ -505,7 +505,7 @@ export async function getTscRepoResult(
             }
         }
 
-        summary += "\n</details>\n";
+        summary += "\n</details>\n\n";
 
         if (sawDifferentErrors) {
             return { status: "Detected interesting changes", summary };
