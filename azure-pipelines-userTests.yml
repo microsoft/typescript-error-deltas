@@ -44,6 +44,10 @@ parameters:
     values:
     - tsc
     - tsserver
+  - name: PRNG_SEED
+    displayName: Pseudo-random number generator seed
+    type: string
+    default: ''
 
 pr: none
 trigger: none
@@ -89,7 +93,7 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

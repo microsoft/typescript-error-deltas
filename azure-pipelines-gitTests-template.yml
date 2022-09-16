@@ -33,6 +33,10 @@ parameters:
   - name: LANGUAGE
     displayName: Language of repos on GitHub (tsserver only)
     type: string
+  - name: PRNG_SEED
+    displayName: Pseudo-random number generator seed
+    type: string
+    default: ''
 
 jobs:
 - job: ListRepos
@@ -69,7 +73,7 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkGithubRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }}
+      node dist/checkGithubRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run TypeScript on repos'
     continueOnError: true
     env:
