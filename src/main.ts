@@ -249,13 +249,51 @@ async function getTsServerRepoResult(
         const owner = repo.owner ? `${repo.owner}/` : "";
         const url = repo.url ? `(${repo.url})` : "";
 
-        let summary = `# [${owner}${repo.name}]${url}\n`;
+        let summary = `## [${owner}${repo.name}]${url}\n`;
 
-        summary += `## Repro Steps\n`;
+        if (oldServerFailed) {
+            const oldServerError = oldSpawnResult?.stdout
+                ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
+                : `Timed out after ${executionTimeout} ms`;
+            summary += `
+<details>
+<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} also had errors :warning:</summary>
+
+\`\`\`
+${oldServerError}
+\`\`\`
+
+</details>
+
+`;
+        }
+
+        summary += `
+
+\`\`\`
+${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
+\`\`\`
+
+`;
+
+        summary += `
+<details>
+<summary><h3>Last few requests</h3></summary>
+
+\`\`\`json
+${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n")}
+\`\`\`
+
+</details>
+
+`;
 
         // Markdown doesn't seem to support a <details> list item, so this chunk is in HTML
 
-        summary += "<ol>\n";
+        summary += `<details>
+<summary><h3>Repro Steps</h3></summary>
+<ol>
+`;
         if (isUserTestRepo) {
             summary += `<li>Download user test <code>${repo.name}</code></li>\n`;
         }
@@ -285,45 +323,10 @@ async function getTsServerRepoResult(
         summary += `<li>Download <code>${replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
         summary += `<li><code>npm install --no-save @typescript/server-replay</code></li>\n`;
         summary += `<li><code>npx tsreplay ./${repo.name} ./${replayScriptName} path/to/tsserver.js</code></li>\n`;
-        summary += "</ol>\n";
 
-        summary += `
-<details>
-<summary>Last few requests</summary>
-
-\`\`\`json
-${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n")}
-\`\`\`
-
+        summary += `</ol>
 </details>
-
 `;
-
-        summary += `
-## Error
-
-\`\`\`
-${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
-\`\`\`
-
-`;
-
-        if (oldServerFailed) {
-            const oldServerError = oldSpawnResult?.stdout
-                ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
-                : `Timed out after ${executionTimeout} ms`;
-            summary += `
-<details>
-<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} also had errors :warning:</summary>
-
-\`\`\`
-${oldServerError}
-\`\`\`
-
-</details>
-
-`;
-        }
 
         return { status: "Detected interesting changes", summary, replayScriptPath };
     }
