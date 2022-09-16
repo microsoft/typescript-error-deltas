@@ -49,7 +49,7 @@ parameters:
   - name: PRNG_SEED
     displayName: Pseudo-random number generator seed
     type: string
-    default: ''
+    default: 'n/a'
 
 schedules:
   - cron: "0 18 * * Sun" # time is in UTC

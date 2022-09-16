@@ -48,9 +48,9 @@ interface Params {
     entrypoint: TsEntrypoint;
     /**
      * Used to make runs repeatable (e.g. when confirming that a PR no longer introduces failures).
-     * Pass "" to have a seed generated.
+     * Pass undefined to have a seed generated.
      */
-    prngSeed: string;
+    prngSeed: string | undefined;
 }
 export interface GitParams extends Params {
     testType: "github";

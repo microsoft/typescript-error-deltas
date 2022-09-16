@@ -23,7 +23,7 @@ mainAsync({
     workerNumber: +workerNumber,
     resultDirName,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
-    prngSeed,
+    prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);
