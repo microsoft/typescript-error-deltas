@@ -6,6 +6,7 @@ import process = require("process");
 import path = require("path");
 import glob = require("glob");
 import { performance } from "perf_hooks";
+import randomSeed = require("random-seed");
 import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED } from "./exerciseServerConstants";
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
@@ -14,15 +15,16 @@ const exitTimeoutMs = 5000;
 
 const argv = process.argv;
 
-if (argv.length !== 6) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <server_path> <diagnostic_output>`);
+if (argv.length !== 7) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <server_path> <diagnostic_output> <prng_seed>`);
     process.exit(EXIT_BAD_ARGS);
 }
 
 // CONVENTION: stderr is for output to the log; stdout is for output to the user
 
-const [, , testDir, replayScriptPath, tsserverPath, diag] = argv;
+const [, , testDir, replayScriptPath, tsserverPath, diag, seed] = argv;
 const diagnosticOutput = diag.toLocaleLowerCase() === "true";
+const prng = randomSeed.create(seed);
 
 exerciseServer(testDir, replayScriptPath, tsserverPath).catch(e => {
     console.error(e);
@@ -138,7 +140,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         // NB: greater than 1 behaves the same as 1
         const skipFileProb = 1000 / files.length;
         for (const openFileRelativePath of files) {
-            if (Math.random() > skipFileProb) continue;
+            if (prng.random() > skipFileProb) continue;
 
             const openFileAbsolutePath = path.join(testDirPlaceholder, openFileRelativePath).replace(/\\/g, "/");
 
@@ -271,7 +273,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                             "file": openFileAbsolutePath,
                             "line": line,
                             "offset": column,
-                            "includeExternalModuleExports": Math.random() < 0.01, // auto-imports are too slow to test everywhere
+                            "includeExternalModuleExports": prng.random() < 0.01, // auto-imports are too slow to test everywhere
                             "includeInsertTextCompletions": true,
                             "triggerKind": 1,
                         }
@@ -369,7 +371,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
     }
 
     async function message(request: any, prob = 1) {
-        if (Math.random() > prob) return undefined;
+        if (prng.random() > prob) return undefined;
 
         request = {
             "seq": seq++,

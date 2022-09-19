@@ -7,6 +7,7 @@ import ip = require("./utils/installPackages");
 import ut = require("./utils/userTestUtils");
 import fs = require("fs");
 import path = require("path");
+import randomSeed = require("random-seed");
 
 interface Params {
     /**
@@ -45,6 +46,11 @@ interface Params {
      * Which TypeScript entrypoint (tsc or tsserver) to test.
      */
     entrypoint: TsEntrypoint;
+    /**
+     * Used to make runs repeatable (e.g. when confirming that a PR no longer introduces failures).
+     * Pass undefined to have a seed generated.
+     */
+    prngSeed: string | undefined;
 }
 export interface GitParams extends Params {
     testType: "github";
@@ -63,6 +69,8 @@ export type TsEntrypoint = "tsc" | "tsserver";
 const processCwd = process.cwd();
 const packageTimeout = 10 * 60 * 1000;
 const executionTimeout = 10 * 60 * 1000;
+
+const prng = randomSeed.create();
 
 export type RepoStatus =
     | "Unknown failure"
@@ -174,7 +182,7 @@ async function getTsServerRepoResult(
     const repoDir = path.join(downloadDir, repo.name);
 
     // Presumably, people occasionally browse repos without installing the packages first
-    const installCommands = (Math.random() > 0.2)
+    const installCommands = (prng.random() > 0.2)
         ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
@@ -186,7 +194,7 @@ async function getTsServerRepoResult(
     const lsStart = performance.now();
     try {
         console.log(`Testing with ${newTsServerPath} (new)`);
-        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString()], executionTimeout);
+        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
             console.log(`New server timed out after ${executionTimeout} ms`);
@@ -548,6 +556,10 @@ function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, work
 }
 
 export async function mainAsync(params: GitParams | UserParams): Promise<void> {
+    if (params.prngSeed) {
+        prng.seed(params.prngSeed);
+    }
+
     const downloadDir = params.tmpfs ? "/mnt/ts_downloads" : path.join(processCwd, "ts_downloads");
     // TODO: check first whether the directory exists and skip downloading if possible
     // TODO: Seems like this should come after the typescript download
