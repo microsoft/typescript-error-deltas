@@ -334,6 +334,7 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
 
         summary += `</ol>
 </details>
+
 `;
 
         return { status: "Detected interesting changes", summary, replayScriptPath };
