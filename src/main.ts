@@ -306,7 +306,7 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
             summary += `<li>Download user test <code>${repo.name}</code></li>\n`;
         }
         else {
-            summary += `<li><code>git clone ${repo.url}</code></li>\n`;
+            summary += `<li><code>git clone ${repo.url} --recurse-submodules</code></li>\n`;
 
             try {
                 console.log("Extracting commit SHA for repro steps");
@@ -318,7 +318,7 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
         }
 
         if (installCommands.length > 1) {
-            summary += "<li><details><summary>Install packages</summary><ol>\n";
+            summary += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
         }
         for (const command of installCommands) {
             summary += `  <li>In dir <code>${path.relative(downloadDir, command.directory)}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
