@@ -228,6 +228,10 @@ async function getTsServerRepoResult(
             case exercise.EXIT_UNHANDLED_EXCEPTION:
             default:
                 console.log(`Exited with code ${newSpawnResult.code}`);
+                // Don't duplicate if printed above
+                if (!diagnosticOutput) {
+                    dumpSpawnResult(newSpawnResult);
+                }
                 return { status: "Unknown failure" };
         }
 
