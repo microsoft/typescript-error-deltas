@@ -47,6 +47,7 @@ for (const path of metadataFilePaths) {
 const title = entrypoint === "tsserver"
     ? `[ServerErrors][${language}] ${newTscResolvedVersion}`
     : `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
+
 const description = entrypoint === "tsserver"
     ? `The following errors were reported by ${newTscResolvedVersion}`
     : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
@@ -63,25 +64,10 @@ This run considered ${repoCount} popular TS repos from GH (after skipping the to
 | Outcome | Count |
 |---------|-------|
 ${Object.keys(statusCounts).sort().map(status => `| ${status} | ${statusCounts[status as RepoStatus]} |\n`).join("")}
-</details>
-
-
-`;
+</details>`;
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri));
 
-
-// GH caps the maximum body length, so paginate if necessary
-const bodyChunks: string[] = [];
-let chunk = header;
-for (const output of outputs) {
-    if (chunk.length + output.length > 65535) {
-        bodyChunks.push(chunk);
-        chunk = "";
-    }
-    chunk += output;
-}
-bodyChunks.push(chunk);
-
+const bodyChunks = [header, ...outputs];
 git.createIssue(postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);
