@@ -680,6 +680,10 @@ async function installPackages(repoDir: string, commands: readonly ip.InstallCom
         for (const { directory: packageRoot, tool, arguments: args } of commands) {
             if (timedOut) break;
 
+            if (tool === ip.InstallTool.Pnpm) {
+                throw new Error("Skipping pnpm for now");
+            }
+
             usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
 
             const elapsedMs = performance.now() - startMs;
