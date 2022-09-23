@@ -87,15 +87,8 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
             "--expose-gc",
         ]);
 
-    process.once("SIGTERM", () => {
-        exitExpected = true;
-        server.kill();
-        // This is a sneaky way to invoke node's default SIGTERM handler
-        process.kill(process.pid, "SIGTERM");
-    });
-
     let loadedNewProject = false;
-    server.on("event", (e: any) => {
+    server.on("event", async (e: any) => {
         switch (e.event) {
             case "projectLoadingFinish":
                 loadedNewProject = true;
@@ -105,7 +98,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                     const languageServiceDisabledProject = e.body.projectName ? path.normalize(e.body.projectName) : "unknown project";
                     console.error(`Language service disabled for ${languageServiceDisabledProject}`);
                     exitExpected = true;
-                    server.kill();
+                    await server.kill();
                     process.exit(EXIT_LANGUAGE_SERVICE_DISABLED);
                 }
                 break;
@@ -366,7 +359,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         console.error(e);
 
         exitExpected = true;
-        server.kill();
+        await server.kill();
         process.exit(EXIT_UNHANDLED_EXCEPTION);
     }
 
@@ -417,7 +410,7 @@ ${JSON.stringify(response, undefined, 2)}`);
             console.log(JSON.stringify(response));
 
             exitExpected = true;
-            server.kill();
+            await server.kill();
             process.exit(EXIT_SERVER_ERROR);
         }
 
