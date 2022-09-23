@@ -75,7 +75,7 @@ export async function installPackages(repoDir: string, ignoreScripts: boolean, q
                 }
             }
             else {
-                args = ["install", "--silent", "--ignore-engines"];
+                args = ["install", "--ignore-engines"];
 
                 if (ignoreScripts) {
                     args.push("--ignore-scripts");
