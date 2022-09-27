@@ -13,8 +13,8 @@
     "dependencies": {
         "@octokit/rest": "^16.43.2",
         "@typescript/github-link": "^0.2.1",
-        "@typescript/server-harness": "^0.3.3",
-        "@typescript/server-replay": "^0.2.7",
+        "@typescript/server-harness": "^0.3.4",
+        "@typescript/server-replay": "^0.2.10",
         "glob": "^7.2.3",
         "json5": "^2.2.1",
         "random-seed": "^0.3.0",
