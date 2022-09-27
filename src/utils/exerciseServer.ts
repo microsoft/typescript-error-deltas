@@ -106,9 +106,9 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
     });
 
     let exitExpected = false;
-    server.on("exit", (code: number | null) => {
+    server.on("close", (code: number | null, signal: NodeJS.Signals | null) => {
         if (!exitExpected) {
-            console.log(`Server exited prematurely with code ${code ?? "unknown"}`);
+            console.log(`Server exited prematurely with code ${code ?? "unknown"} and signal ${signal ?? "unknown"}`);
             process.exit(EXIT_SERVER_CRASH);
         }
     });

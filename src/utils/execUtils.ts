@@ -48,7 +48,7 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
         let stdout = "";
         let stderr = "";
 
-        childProcess.on("close", (code, signal) => {
+        childProcess.once("close", (code, signal) => {
             if (!timedOut) {
                 clearTimeout(timeout);
                 resolve({ stdout, stderr, code, signal });
