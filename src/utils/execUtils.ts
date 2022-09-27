@@ -65,10 +65,59 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
 
         const timeout = setTimeout(async () => {
             timedOut = true;
-            // Note that killing childProcess resets the PPID of each of its children to 1, so this has to happen first
-            await execAsync(path.join(__dirname, "..", "..", "scripts"), `./kill-children-of ${childProcess.pid}`);
-            childProcess.kill("SIGKILL"); // This may fail if the process exited when its children were killed
+            await killTree(childProcess);
             resolve(undefined);
         }, timeoutMs | 0); // Truncate to int
+    });
+}
+
+function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        // Ideally, we would wait for all of the processes to close, but we only get events for
+        // this one, so we'll kill it last and hope for the best.
+        childProcess.once("close", () => {
+            resolve();
+        });
+
+        cp.exec("ps -e -o pid,ppid --no-headers", (err, stdout) => {
+            if (err) {
+                reject (err);
+                return;
+            }
+
+            const childMap: Record<number, number[]> = {};
+            const pidList = stdout.trim().split(/\s+/);
+            for (let i = 0; i + 1 < pidList.length; i += 2) {
+                const childPid = +pidList[i];
+                const parentPid = +pidList[i + 1];
+                childMap[parentPid] ||= [];
+                childMap[parentPid].push(childPid);
+            }
+
+            if (!childMap[childProcess.pid]) {
+                // Descendent processes may still be alive, but we have no way to identify them
+                resolve();
+                return;
+            }
+
+            const strictDescendentPids: number[] = [];
+            const stack: number[] = [ childProcess.pid ];
+            while (stack.length) {
+                const pid = stack.pop()!;
+                if (pid !== childProcess.pid) {
+                    strictDescendentPids.push(pid);
+                }
+                const children = childMap[pid];
+                if (children) {
+                    stack.push(...children);
+                }
+            }
+
+            console.log(`Killing process ${childProcess.pid} and its descendents: ${strictDescendentPids.join(", ")}`);
+
+            strictDescendentPids.forEach(pid => process.kill(pid, "SIGKILL"));
+            childProcess.kill("SIGKILL");
+            // Resolve when we detect that childProcess has closed (above)
+        });
     });
 }
