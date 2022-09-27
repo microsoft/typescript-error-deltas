@@ -85,26 +85,32 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
                 return;
             }
 
+            const childProcessPid = childProcess.pid;
+            let sawChildProcessPid = false;
+
             const childMap: Record<number, number[]> = {};
             const pidList = stdout.trim().split(/\s+/);
             for (let i = 0; i + 1 < pidList.length; i += 2) {
                 const childPid = +pidList[i];
                 const parentPid = +pidList[i + 1];
+
                 childMap[parentPid] ||= [];
                 childMap[parentPid].push(childPid);
+
+                sawChildProcessPid ||= childPid === childProcessPid;
             }
 
-            if (!childMap[childProcess.pid]) {
+            if (!sawChildProcessPid) {
                 // Descendent processes may still be alive, but we have no way to identify them
                 resolve();
                 return;
             }
 
             const strictDescendentPids: number[] = [];
-            const stack: number[] = [ childProcess.pid ];
+            const stack: number[] = [ childProcessPid ];
             while (stack.length) {
                 const pid = stack.pop()!;
-                if (pid !== childProcess.pid) {
+                if (pid !== childProcessPid) {
                     strictDescendentPids.push(pid);
                 }
                 const children = childMap[pid];
@@ -113,7 +119,7 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
                 }
             }
 
-            console.log(`Killing process ${childProcess.pid} and its descendents: ${strictDescendentPids.join(", ")}`);
+            console.log(`Killing process ${childProcessPid} and its descendents: ${strictDescendentPids.join(", ")}`);
 
             strictDescendentPids.forEach(pid => process.kill(pid, "SIGKILL"));
             childProcess.kill("SIGKILL");
