@@ -7,7 +7,7 @@ import path = require("path");
 import glob = require("glob");
 import { performance } from "perf_hooks";
 import randomSeed = require("random-seed");
-import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED } from "./exerciseServerConstants";
+import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED, EXIT_SERVER_COMMUNICATION_ERROR } from "./exerciseServerConstants";
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
 
@@ -103,6 +103,13 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                 }
                 break;
         }
+    });
+
+    server.on("communicationError", async (err: any) => {
+        console.error(`Error communicating with server:\n${err}`);
+        exitExpected = true;
+        await server.kill();
+        process.exit(EXIT_SERVER_COMMUNICATION_ERROR);
     });
 
     let exitExpected = false;
