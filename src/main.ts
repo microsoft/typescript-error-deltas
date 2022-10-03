@@ -641,8 +641,21 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                     await execAsync(processCwd, "sudo umount " + downloadDir);
                 }
                 catch (e) {
-                    await execAsync(processCwd, `pstree -palT`);
-                    throw e;
+                    // HACK: Sometimes the server lingers for a brief period, so retry.
+                    // Obviously, it would be better to have a way to know when it is gone-gone,
+                    // but Linux doesn't provide such a mechanism for non-child processes.
+                    // (You can poll for a process with the given PID after sending a kill signal,
+                    // but best practice is to guard against the possibility of a new process
+                    // being given the same PID.)
+                    try {
+                        console.log("umount failed - trying again after delay");
+                        await new Promise(resolve => setTimeout(resolve, 5000));
+                        await execAsync(processCwd, "sudo umount " + downloadDir);
+                    }
+                    catch {
+                        await execAsync(processCwd, `pstree -palT`);
+                        throw e;
+                    }
                 }
             }
         }
