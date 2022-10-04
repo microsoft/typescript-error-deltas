@@ -87,6 +87,15 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
             "--expose-gc",
         ]);
 
+    // You can only wait for kill if the process being killed is the current process's
+    // child, so it's helpful to our caller if we tear down the server.
+    process.once("SIGTERM", async () => {
+        exitExpected = true; // Shouldn't matter, but might as well
+        await server.kill();
+        // This is a sneaky way to invoke node's default SIGTERM handler
+        process.kill(process.pid, "SIGTERM");
+    });
+
     let loadedNewProject = false;
     server.on("event", async (e: any) => {
         switch (e.event) {

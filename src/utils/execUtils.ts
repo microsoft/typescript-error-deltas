@@ -121,8 +121,8 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
 
             console.log(`Killing process ${childProcessPid} and its descendents: ${strictDescendentPids.join(", ")}`);
 
-            strictDescendentPids.forEach(pid => process.kill(pid, "SIGKILL"));
-            childProcess.kill("SIGKILL");
+            strictDescendentPids.forEach(pid => process.kill(pid));
+            childProcess.kill();
             // Resolve when we detect that childProcess has closed (above)
         });
     });
