@@ -59,7 +59,7 @@ const header = `${description}
 This run considered ${repoCount} popular TS repos from GH (after skipping the top ${repoStartIndex}).
 
 <details>
-<summary>Successfully analyzed ${analyzedCount} of ${totalCount} visited repos</summary>
+<summary>Successfully analyzed ${analyzedCount} of ${totalCount} visited repos${totalCount < +repoCount ? ` (:warning: expected ${repoCount})` : ""}</summary>
 
 | Outcome | Count |
 |---------|-------|
