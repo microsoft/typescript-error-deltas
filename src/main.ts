@@ -332,9 +332,10 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
         }
 
         // The URL of the artifact can be determined via AzDO REST APIs, but not until after the artifact is published
-        summary += `<li>Download <code>${replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
+        summary += `<li>Back in the initial folder, download <code>${replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
         summary += `<li><code>npm install --no-save @typescript/server-replay</code></li>\n`;
         summary += `<li><code>npx tsreplay ./${repo.name} ./${replayScriptName} path/to/tsserver.js</code></li>\n`;
+        summary += `<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>\n`;
 
         summary += `</ol>
 </details>
