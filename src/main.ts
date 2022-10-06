@@ -444,7 +444,9 @@ export async function getTscRepoResult(
 
             // TS 5055 generally indicates that the project can't be built twice in a row without cleaning in between.
             const newErrorList = newErrors.projectErrors.find(pe => pe.projectUrl == projectUrl)?.errors?.filter(e => e.code !== 5055) ?? [];
-            const oldErrorList = oldProjectErrors.errors;
+            // Obviously, 5055 doesn't indicate a problem with building twice if it occurs during the first build,
+            // but it's still not interesting to report that it went away (which we would, since we drop it from `newErrorList`).
+            const oldErrorList = oldProjectErrors.errors.filter(e => e.code !== 5055);
 
             console.log(`Error counts for ${projectUrl}: new = ${newErrorList.length}, old = ${oldErrorList.length}`);
 
