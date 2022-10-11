@@ -27,11 +27,11 @@ export async function exists(path: string): Promise<boolean> {
 }
 
 /**
- * Heuristically returns a list of package.json paths in lerna dependency order.
+ * Heuristically returns a list of package.json paths in monorepo dependency order.
  * NB: Does not actually consume lerna.json.
  */
-export async function getLernaOrder(repoDir: string): Promise<readonly string[]> {
-    const lernaOrder: string[] = [];
+export async function getMonorepoOrder(repoDir: string): Promise<readonly string[]> {
+    const monorepoOrder: string[] = [];
     const lernaFiles = glob(repoDir, "**/lerna.json");
     for (const lernaFile of lernaFiles) {
         const lernaDir = path.dirname(lernaFile);
@@ -77,10 +77,10 @@ export async function getLernaOrder(repoDir: string): Promise<readonly string[]>
                 }
 
                 pkg.meta_state = "visited";
-                lernaOrder.push(pkg.meta_dir);
+                monorepoOrder.push(pkg.meta_dir);
             }
         }
     }
 
-    return lernaOrder;
+    return monorepoOrder;
 }

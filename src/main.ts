@@ -139,7 +139,7 @@ async function installPackagesAndGetCommands(
                 /*ignoreScripts*/ true,
                 /*quietOutput*/ !diagnosticOutput,
                 /*recursiveSearch*/ !isUserTestRepo,
-                /*lernaPackages*/ undefined,
+                /*monorepoPackages*/ undefined,
             repo.types);
         await installPackages(repoDir, commands, packageTimeout);
         return commands;
