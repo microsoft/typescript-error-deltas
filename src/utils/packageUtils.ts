@@ -7,9 +7,10 @@ interface Package {
     meta_dir: string,
     meta_state: "unvisited" | "visiting" | "visited",
     name: string,
-    dependencies: string[],
-    devDependencies: string[],
-    peerDependencies: string[],
+    workspaces?: readonly string[],
+    dependencies?: readonly string[],
+    devDependencies?: readonly string[],
+    peerDependencies?: readonly string[],
 }
 
 /**
@@ -31,19 +32,45 @@ export async function exists(path: string): Promise<boolean> {
  * NB: Does not actually consume lerna.json.
  */
 export async function getMonorepoOrder(repoDir: string): Promise<readonly string[]> {
-    const monorepoOrder: string[] = [];
     const lernaFiles = glob(repoDir, "**/lerna.json");
-    for (const lernaFile of lernaFiles) {
-        const lernaDir = path.dirname(lernaFile);
-        if (await exists(path.join(lernaDir, "packages"))) {
-            const pkgPaths = glob(path.join(lernaDir, "packages"), "**/package.json");
-            await getMonorepoOrderWorker(pkgPaths, monorepoOrder);
+    if (lernaFiles.length) {
+        const lernaOrder: string[] = [];
+        for (const lernaFile of lernaFiles) {
+            const lernaDir = path.dirname(lernaFile);
+            if (await exists(path.join(lernaDir, "packages"))) {
+                const pkgPaths = glob(path.join(lernaDir, "packages"), "**/package.json");
+                await appendOrderedMonorepoPackages(pkgPaths, lernaOrder);
+            }
         }
+        return lernaOrder;
     }
 
-    return monorepoOrder;
+    const yarnLockFiles = glob(repoDir, "**/yarn.lock");
+    if (yarnLockFiles.length) {
+        const yarnWorkspaceOrder: string[] = [];
+        for (const yarnLockFile of yarnLockFiles) {
+            const yarnDir = path.dirname(yarnLockFile);
+            const pkgPath = path.join(yarnDir, "package.json");
+            if (await exists(pkgPath)) {
+                const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
+                const pkg: Package = json5.parse(contents);
+                const workspaceDirs = pkg.workspaces;
+                if (workspaceDirs) {
+                    for (const workspaceDir of workspaceDirs) {
+                        // workspaceDir might end with `/*`
+                        const pkgPaths = glob(yarnDir, path.join(workspaceDir, "package.json"));
+                        await appendOrderedMonorepoPackages(pkgPaths, yarnWorkspaceOrder);
+                    }
+                }
+            }
+        }
+        return yarnWorkspaceOrder;
+    }
+
+    return [];
 }
-async function getMonorepoOrderWorker(pkgPaths: string[], monorepoOrder: string[]) {
+
+async function appendOrderedMonorepoPackages(pkgPaths: string[], monorepoOrder: string[]) {
     const pkgs = await Promise.all(pkgPaths.map(async (pkgPath) => {
         const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
         const pkg: Package = json5.parse(contents);
@@ -68,19 +95,25 @@ async function getMonorepoOrderWorker(pkgPaths: string[], monorepoOrder: string[
 
         pkg.meta_state = "visiting";
 
-        for (const dep in pkg.dependencies) {
-            const depPkg = pkgMap[dep];
-            if (depPkg) visit(depPkg);
+        if (pkg.dependencies) {
+            for (const dep in pkg.dependencies) {
+                const depPkg = pkgMap[dep];
+                if (depPkg) visit(depPkg);
+            }
         }
 
-        for (const dep in pkg.devDependencies) {
-            const depPkg = pkgMap[dep];
-            if (depPkg) visit(depPkg);
+        if (pkg.devDependencies) {
+            for (const dep in pkg.devDependencies) {
+                const depPkg = pkgMap[dep];
+                if (depPkg) visit(depPkg);
+            }
         }
 
-        for (const dep in pkg.peerDependencies) {
-            const depPkg = pkgMap[dep];
-            if (depPkg) visit(depPkg);
+        if (pkg.peerDependencies) {
+            for (const dep in pkg.peerDependencies) {
+                const depPkg = pkgMap[dep];
+                if (depPkg) visit(depPkg);
+            }
         }
 
         pkg.meta_state = "visited";
