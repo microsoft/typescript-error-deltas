@@ -2,6 +2,7 @@ import fs = require("fs");
 import globCps = require("glob");
 import json5 = require("json5");
 import path = require("path");
+import yaml = require("js-yaml");
 
 interface Package {
     meta_dir: string,
@@ -65,6 +66,27 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
             }
         }
         return yarnWorkspaceOrder;
+    }
+
+    const pnpmWorkspaceFiles = glob(repoDir, "**/pnpm-workspace.yaml");
+    if (pnpmWorkspaceFiles.length) {
+        const pnpmWorkspaceOrder: string[] = [];
+        for (const pnpmWorkspaceFile of pnpmWorkspaceFiles) {
+            const contents = await fs.promises.readFile(pnpmWorkspaceFile, { encoding: "utf-8" });
+            const config = yaml.load(contents) as { packages?: string[] };
+            const workspaceDirs = config.packages;
+            if (workspaceDirs) {
+                const pnpmDir = path.dirname(pnpmWorkspaceFile);
+                for (const workspaceDir of workspaceDirs) {
+                    // CONSIDER: Should technically exclude those beginning with `!`
+                    if (workspaceDir.startsWith("!")) continue;
+                    // workspaceDir might end with `/*`
+                    const pkgPaths = glob(pnpmDir, path.join(workspaceDir, "package.json"));
+                    await appendOrderedMonorepoPackages(pkgPaths, pnpmWorkspaceOrder);
+                }
+            }
+        }
+        return pnpmWorkspaceOrder;
     }
 
     return [];
