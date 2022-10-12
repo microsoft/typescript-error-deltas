@@ -33,19 +33,6 @@ export async function exists(path: string): Promise<boolean> {
  * NB: Does not actually consume lerna.json.
  */
 export async function getMonorepoOrder(repoDir: string): Promise<readonly string[]> {
-    const lernaFiles = glob(repoDir, "**/lerna.json");
-    if (lernaFiles.length) {
-        const lernaOrder: string[] = [];
-        for (const lernaFile of lernaFiles) {
-            const lernaDir = path.dirname(lernaFile);
-            if (await exists(path.join(lernaDir, "packages"))) {
-                const pkgPaths = glob(path.join(lernaDir, "packages"), "**/package.json");
-                await appendOrderedMonorepoPackages(pkgPaths, lernaOrder);
-            }
-        }
-        return lernaOrder;
-    }
-
     const yarnLockFiles = glob(repoDir, "**/yarn.lock");
     if (yarnLockFiles.length) {
         const yarnWorkspaceOrder: string[] = [];
@@ -87,6 +74,19 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
             }
         }
         return pnpmWorkspaceOrder;
+    }
+
+    const lernaFiles = glob(repoDir, "**/lerna.json");
+    if (lernaFiles.length) {
+        const lernaOrder: string[] = [];
+        for (const lernaFile of lernaFiles) {
+            const lernaDir = path.dirname(lernaFile);
+            if (await exists(path.join(lernaDir, "packages"))) {
+                const pkgPaths = glob(path.join(lernaDir, "packages"), "**/package.json");
+                await appendOrderedMonorepoPackages(pkgPaths, lernaOrder);
+            }
+        }
+        return lernaOrder;
     }
 
     return [];
