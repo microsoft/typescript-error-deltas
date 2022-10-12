@@ -90,8 +90,8 @@ function dependsOnProjectWithError(project: Project, ignoreExtensionErrors: bool
  * Heuristically, returns a collection of projects that should be built (excluding, for example, downstream and base projects).
  * Note: Providing a list of monorepoPackages is a performance optimization - they'll be computed otherwise.
  */
-export async function getProjectsToBuild(repoDir: string, ignoreExtensionErrors: boolean = true, monorepoPackages?: readonly string[]): Promise<ProjectsToBuild> {
-    monorepoPackages = await utils.getMonorepoOrder(repoDir);
+export async function getProjectsToBuild(repoDir: string, monorepoPackages?: readonly string[], ignoreExtensionErrors: boolean = true): Promise<ProjectsToBuild> {
+    monorepoPackages = monorepoPackages ?? await utils.getMonorepoOrder(repoDir);
 
     const projectPaths = await getProjectPaths(repoDir, monorepoPackages);
 
