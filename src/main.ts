@@ -124,6 +124,16 @@ async function cloneRepo(
     }
 }
 
+async function getMonorepoPackages(repoDir: string): Promise<readonly string[] | undefined> {
+    try {
+        return await pu.getMonorepoOrder(repoDir);
+    }
+    catch (e) {
+        reportError(e, `Error identifying monorepo packages for ${repoDir} - treating as separate packages`);
+        return undefined;
+    }
+}
+
 async function installPackagesAndGetCommands(
     repo: git.Repo,
     downloadDir: string,
@@ -181,10 +191,10 @@ async function getTsServerRepoResult(
     }
 
     const repoDir = path.join(downloadDir, repo.name);
-    const monorepoPackages = await pu.getMonorepoOrder(repoDir);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
 
     // Presumably, people occasionally browse repos without installing the packages first
-    const installCommands = (prng.random() > 0.2)
+    const installCommands = (prng.random() > 0.2) && monorepoPackages
         ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
@@ -376,9 +386,9 @@ export async function getTscRepoResult(
     }
 
     const repoDir = path.join(downloadDir, repo.name);
-    const monorepoPackages = await pu.getMonorepoOrder(repoDir);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
 
-    if (!await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
+    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
         return { status: "Package install failed" };
     }
 
