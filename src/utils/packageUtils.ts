@@ -120,34 +120,27 @@ async function appendOrderedMonorepoPackages(pkgPaths: string[], monorepoOrder: 
 
         if (pkg.dependencies) {
             for (const dep in pkg.dependencies) {
-                const depPkg = pkgMap[stripWorkspaceProtocol(dep)];
+                const depPkg = pkgMap[dep];
                 if (depPkg) visit(depPkg);
             }
         }
 
         if (pkg.devDependencies) {
             for (const dep in pkg.devDependencies) {
-                const depPkg = pkgMap[stripWorkspaceProtocol(dep)];
+                const depPkg = pkgMap[dep];
                 if (depPkg) visit(depPkg);
             }
         }
 
         if (pkg.peerDependencies) {
             for (const dep in pkg.peerDependencies) {
-                const depPkg = pkgMap[stripWorkspaceProtocol(dep)];
+                const depPkg = pkgMap[dep];
                 if (depPkg) visit(depPkg);
             }
         }
 
         pkg.meta_state = "visited";
         monorepoOrder.push(pkg.meta_dir);
-
-        function stripWorkspaceProtocol(name: string): string {
-            const protocolPrefix = "workspace:";
-            return name.startsWith(protocolPrefix)
-                ? name.substring(protocolPrefix.length)
-                : name;
-        }
     }
 }
 
