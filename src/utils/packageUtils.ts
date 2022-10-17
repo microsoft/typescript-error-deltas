@@ -8,7 +8,7 @@ interface Package {
     meta_dir: string,
     meta_state: "unvisited" | "visiting" | "visited",
     name: string,
-    workspaces?: /*readonly*/ string[] | { packages: readonly string[] }, // readonly messes up narrowing
+    workspaces?: readonly string[] | { packages: readonly string[] },
     dependencies?: readonly string[],
     devDependencies?: readonly string[],
     peerDependencies?: readonly string[],
@@ -44,7 +44,7 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
                 const pkg: Package = json5.parse(contents);
                 const workspaces = pkg.workspaces;
                 if (workspaces) {
-                    const workspaceDirs = Array.isArray(workspaces) ? workspaces : workspaces.packages;
+                    const workspaceDirs = "packages" in workspaces ? workspaces.packages : workspaces;
                     for (const workspaceDir of workspaceDirs) {
                         // workspaceDir might end with `/*` - glob will do the right thing
                         const pkgPaths = glob(yarnDir, path.join(workspaceDir, "package.json"));
