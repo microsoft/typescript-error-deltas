@@ -8,7 +8,7 @@ interface Package {
     meta_dir: string,
     meta_state: "unvisited" | "visiting" | "visited",
     name: string,
-    workspaces?: readonly string[],
+    workspaces?: /*readonly*/ string[] | { packages: readonly string[] }, // readonly messes up narrowing
     dependencies?: readonly string[],
     devDependencies?: readonly string[],
     peerDependencies?: readonly string[],
@@ -42,10 +42,11 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
             if (await exists(pkgPath)) {
                 const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
                 const pkg: Package = json5.parse(contents);
-                const workspaceDirs = pkg.workspaces;
-                if (workspaceDirs) {
+                const workspaces = pkg.workspaces;
+                if (workspaces) {
+                    const workspaceDirs = Array.isArray(workspaces) ? workspaces : workspaces.packages;
                     for (const workspaceDir of workspaceDirs) {
-                        // workspaceDir might end with `/*`
+                        // workspaceDir might end with `/*` - glob will do the right thing
                         const pkgPaths = glob(yarnDir, path.join(workspaceDir, "package.json"));
                         await appendOrderedMonorepoPackages(pkgPaths, yarnWorkspaceOrder);
                     }
@@ -67,7 +68,7 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
                 for (const workspaceDir of workspaceDirs) {
                     // CONSIDER: Should technically exclude those beginning with `!`
                     if (workspaceDir.startsWith("!")) continue;
-                    // workspaceDir might end with `/*`
+                        // workspaceDir might end with `/*` - glob will do the right thing
                     const pkgPaths = glob(pnpmDir, path.join(workspaceDir, "package.json"));
                     await appendOrderedMonorepoPackages(pkgPaths, pnpmWorkspaceOrder);
                 }
@@ -119,27 +120,34 @@ async function appendOrderedMonorepoPackages(pkgPaths: string[], monorepoOrder: 
 
         if (pkg.dependencies) {
             for (const dep in pkg.dependencies) {
-                const depPkg = pkgMap[dep];
+                const depPkg = pkgMap[stripWorkspaceProtocol(dep)];
                 if (depPkg) visit(depPkg);
             }
         }
 
         if (pkg.devDependencies) {
             for (const dep in pkg.devDependencies) {
-                const depPkg = pkgMap[dep];
+                const depPkg = pkgMap[stripWorkspaceProtocol(dep)];
                 if (depPkg) visit(depPkg);
             }
         }
 
         if (pkg.peerDependencies) {
             for (const dep in pkg.peerDependencies) {
-                const depPkg = pkgMap[dep];
+                const depPkg = pkgMap[stripWorkspaceProtocol(dep)];
                 if (depPkg) visit(depPkg);
             }
         }
 
         pkg.meta_state = "visited";
         monorepoOrder.push(pkg.meta_dir);
+
+        function stripWorkspaceProtocol(name: string): string {
+            const protocolPrefix = "workspace:";
+            return name.startsWith(protocolPrefix)
+                ? name.substring(protocolPrefix.length)
+                : name;
+        }
     }
 }
 
