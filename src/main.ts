@@ -7,6 +7,7 @@ import ip = require("./utils/installPackages");
 import ut = require("./utils/userTestUtils");
 import fs = require("fs");
 import path = require("path");
+import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 
 interface Params {
@@ -273,7 +274,7 @@ async function getTsServerRepoResult(
         const owner = repo.owner ? `${repo.owner}/` : "";
         const url = repo.url ? `(${repo.url})` : "";
 
-        let summary = `## [${owner}${repo.name}]${url}\n`;
+        let summary = `## [${mdEscape(owner)}${mdEscape(repo.name)}]${url}\n`;
 
         if (oldServerFailed) {
             const oldServerError = oldSpawnResult?.stdout
@@ -281,10 +282,10 @@ async function getTsServerRepoResult(
                 : `Timed out after ${executionTimeout} ms`;
             summary += `
 <details>
-<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} also had errors :warning:</summary>
+<summary>:warning: Note that ${mdEscape(path.basename(path.dirname(path.dirname(oldTsServerPath))))} also had errors :warning:</summary>
 
 \`\`\`
-${oldServerError}
+${mdEscape(oldServerError)}
 \`\`\`
 
 </details>
@@ -295,7 +296,7 @@ ${oldServerError}
         summary += `
 
 \`\`\`
-${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
+${mdEscape(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true))}
 \`\`\`
 
 `;
@@ -305,7 +306,7 @@ ${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
 <summary><h3>Last few requests</h3></summary>
 
 \`\`\`json
-${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n")}
+${mdEscape(fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"))}
 \`\`\`
 
 </details>
@@ -319,15 +320,15 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
 <ol>
 `;
         if (isUserTestRepo) {
-            summary += `<li>Download user test <code>${repo.name}</code></li>\n`;
+            summary += `<li>Download user test <code>${mdEscape(repo.name)}</code></li>\n`;
         }
         else {
-            summary += `<li><code>git clone ${repo.url} --recurse-submodules</code></li>\n`;
+            summary += `<li><code>git clone ${mdEscape(repo.url!)} --recurse-submodules</code></li>\n`;
 
             try {
                 console.log("Extracting commit SHA for repro steps");
                 const commit = (await execAsync(repoDir, `git rev-parse @`)).trim();
-                summary += `<li>In dir <code>${repo.name}</code>, run <code>git reset --hard ${commit}</code></li>\n`;
+                summary += `<li>In dir <code>${mdEscape(repo.name)}</code>, run <code>git reset --hard ${commit}</code></li>\n`;
             }
             catch {
             }
@@ -337,16 +338,16 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
             summary += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
         }
         for (const command of installCommands) {
-            summary += `  <li>In dir <code>${path.relative(downloadDir, command.directory)}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
+            summary += `  <li>In dir <code>${mdEscape(path.relative(downloadDir, command.directory))}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
         }
         if (installCommands.length > 1) {
             summary += "</ol></details>\n";
         }
 
         // The URL of the artifact can be determined via AzDO REST APIs, but not until after the artifact is published
-        summary += `<li>Back in the initial folder, download <code>${replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
+        summary += `<li>Back in the initial folder, download <code>${mdEscape(replayScriptArtifactPath)}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
         summary += `<li><code>npm install --no-save @typescript/server-replay</code></li>\n`;
-        summary += `<li><code>npx tsreplay ./${repo.name} ./${replayScriptName} path/to/tsserver.js</code></li>\n`;
+        summary += `<li><code>npx tsreplay ./${mdEscape(repo.name)} ./${mdEscape(replayScriptName)} path/to/tsserver.js</code></li>\n`;
         summary += `<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>\n`;
 
         summary += `</ol>
@@ -425,7 +426,7 @@ export async function getTscRepoResult(
 
         let summary = `<details open="true">
 <summary>
-<h2><a href="${url}">${owner}${repo.name}</a></h2>
+<h2><a href="${url}">${mdEscape(owner)}${mdEscape(repo.name)}</a></h2>
 </summary>
 
 `;
@@ -433,7 +434,7 @@ export async function getTscRepoResult(
         if (!buildWithNewWhenOldFails && numFailed > 0) {
             const oldFailuresMessage = `${numFailed} of ${numProjects} projects failed to build with the old tsc and were ignored`;
             console.log(oldFailuresMessage);
-            summary += `**${oldFailuresMessage}**\n`;
+            summary += `**${mdEscape(oldFailuresMessage)}**\n`;
         }
 
         console.log(`Building with ${newTscPath} (new)`);
@@ -518,7 +519,7 @@ export async function getTscRepoResult(
             summary += `### ${makeMarkdownLink(projectUrl)}\n`;
 
             for (const errorMessage of newlyReportedErrorMessages) {
-                summary += ` - ${buildWithNewWhenOldFails ? "[NEW] " : ""}\`${errorMessage}\`\n`;
+                summary += ` - ${buildWithNewWhenOldFails ? "[NEW] " : ""}\`${mdEscape(errorMessage)}\`\n`;
 
                 for (const error of newlyReportedErrorMessageMap.get(errorMessage)!) {
                     summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
@@ -838,7 +839,7 @@ function makeMarkdownLink(url: string) {
     const match = /\/blob\/[a-f0-9]+\/(.+)$/.exec(url);
     return !match
         ? url
-        : `[${match[1]}](${url})`;
+        : `[${mdEscape(match[1])}](${url})`;
 }
 
 async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string, oldTsResolvedVersion: string, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
