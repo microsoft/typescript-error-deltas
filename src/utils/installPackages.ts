@@ -22,8 +22,8 @@ export interface InstallCommand {
  * Traverses the given directory and returns a list of commands that can be used, in order, to install
  * the packages required for building.
  */
-export async function installPackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, lernaPackages?: readonly string[], types?: string[]): Promise<InstallCommand[]> {
-    lernaPackages = lernaPackages ?? await utils.getLernaOrder(repoDir);
+export async function installPackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, monorepoPackages?: readonly string[], types?: string[]): Promise<InstallCommand[]> {
+    monorepoPackages = monorepoPackages ?? await utils.getMonorepoOrder(repoDir);
 
     const isRepoYarn = await utils.exists(path.join(repoDir, "yarn.lock"));
     // The existence of .yarnrc.yml indicates that this repo uses yarn 2
@@ -36,12 +36,12 @@ export async function installPackages(repoDir: string, ignoreScripts: boolean, q
     const packageFiles = utils.glob(repoDir, globPattern);
 
     for (const packageFile of packageFiles) {
-        let inLernaPackageDir = false;
-        for (const lernaPackage of lernaPackages) {
-            if (inLernaPackageDir = packageFile.startsWith(lernaPackage)) break;
+        let inMonorepoPackageDir = false;
+        for (const monorepoPackage of monorepoPackages) {
+            if (inMonorepoPackageDir = packageFile.startsWith(monorepoPackage)) break;
         }
-        if (inLernaPackageDir) {
-            // Skipping installation of lerna package
+        if (inMonorepoPackageDir) {
+            // Skipping installation of monorepo package
             continue;
         }
 

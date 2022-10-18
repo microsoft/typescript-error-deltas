@@ -37,15 +37,15 @@ function getFileNameFromProjectName(projectName: string): string {
 }
 
 /**
- * Note that the returned projects are ordered in lerna scenarios -
+ * Note that the returned projects are ordered in monorepo scenarios -
  * they should be built in the order in which they are returned.
  */
-async function getProjectPaths(repoDir: string, lernaOrder: readonly string[]): Promise<readonly string[]> {
+async function getProjectPaths(repoDir: string, monorepoOrder: readonly string[]): Promise<readonly string[]> {
     const projectPaths = [];
     const seen = new Set<string>();
 
-    for (const lernaDir of lernaOrder) {
-        for (const path of (await utils.glob(lernaDir, "**/*tsconfig*.json"))) {
+    for (const monorepoDir of monorepoOrder) {
+        for (const path of (await utils.glob(monorepoDir, "**/*tsconfig*.json"))) {
             if (!seen.has(path)) {
                 seen.add(path);
                 projectPaths.push(path);
@@ -88,12 +88,12 @@ function dependsOnProjectWithError(project: Project, ignoreExtensionErrors: bool
 
 /**
  * Heuristically, returns a collection of projects that should be built (excluding, for example, downstream and base projects).
- * Note: Providing a list of lernaPackages is a performance optimization - they'll be computed otherwise.
+ * Note: Providing a list of monorepoPackages is a performance optimization - they'll be computed otherwise.
  */
-export async function getProjectsToBuild(repoDir: string, ignoreExtensionErrors: boolean = true, lernaPackages?: readonly string[]): Promise<ProjectsToBuild> {
-    lernaPackages = await utils.getLernaOrder(repoDir);
+export async function getProjectsToBuild(repoDir: string, monorepoPackages?: readonly string[], ignoreExtensionErrors: boolean = true): Promise<ProjectsToBuild> {
+    monorepoPackages = monorepoPackages ?? await utils.getMonorepoOrder(repoDir);
 
-    const projectPaths = await getProjectPaths(repoDir, lernaPackages);
+    const projectPaths = await getProjectPaths(repoDir, monorepoPackages);
 
     const projectMap = new Map<string, Project>(); // path to data
     for (const projectPath of projectPaths) {

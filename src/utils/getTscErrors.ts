@@ -64,7 +64,7 @@ export function errorEquals(error1: Error, error2: Error) {
  * @param tscPath The path to tsc.js.
  * @param skipLibCheck True pass --skipLibCheck when building non-composite projects.  (Defaults to true)
  */
-export async function buildAndGetErrors(repoDir: string, isUserTestRepo: boolean, tscPath: string, timeoutMs: number, skipLibCheck: boolean = true): Promise<RepoErrors> {
+export async function buildAndGetErrors(repoDir: string, monorepoPackages: readonly string[], isUserTestRepo: boolean, tscPath: string, timeoutMs: number, skipLibCheck: boolean = true): Promise<RepoErrors> {
     const projectErrors: ProjectErrors[] = [];
 
     // If it's a user test repo and there's a build.sh in the root, don't bother searching for projects
@@ -95,7 +95,7 @@ export async function buildAndGetErrors(repoDir: string, isUserTestRepo: boolean
     const simpleBuildArgs = ["--skipLibCheck", `${skipLibCheck}`, "--incremental", "false", "--pretty", "false", "-p"];
     const compositeBuildArgs = ["-b", "-f", "-v"]; // Build mode doesn't support --skipLibCheck or --pretty
 
-    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir);
+    const { simpleProjects, rootCompositeProjects, hasError: hasConfigFailure } = await projectGraph.getProjectsToBuild(repoDir, monorepoPackages);
     // TODO: Move this inside getProjectsToBuild, separating them is pointless (originally separate to enable simple-only and composite-only runs)
     const projectsToBuild = simpleProjects.concat(rootCompositeProjects);
     if (!projectsToBuild.length) {

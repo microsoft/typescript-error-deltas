@@ -124,10 +124,21 @@ async function cloneRepo(
     }
 }
 
+async function getMonorepoPackages(repoDir: string): Promise<readonly string[] | undefined> {
+    try {
+        return await pu.getMonorepoOrder(repoDir);
+    }
+    catch (e) {
+        reportError(e, `Error identifying monorepo packages for ${repoDir} - treating as separate packages`);
+        return undefined;
+    }
+}
+
 async function installPackagesAndGetCommands(
     repo: git.Repo,
     downloadDir: string,
     repoDir: string,
+    monorepoPackages: readonly string[],
     cleanOnFailure: boolean,
     diagnosticOutput: boolean): Promise<ip.InstallCommand[] | undefined> {
     const packageInstallStart = performance.now();
@@ -139,7 +150,7 @@ async function installPackagesAndGetCommands(
                 /*ignoreScripts*/ true,
                 /*quietOutput*/ !diagnosticOutput,
                 /*recursiveSearch*/ !isUserTestRepo,
-                /*lernaPackages*/ undefined,
+                /*monorepoPackages*/ monorepoPackages,
             repo.types);
         await installPackages(repoDir, commands, packageTimeout);
         return commands;
@@ -180,10 +191,11 @@ async function getTsServerRepoResult(
     }
 
     const repoDir = path.join(downloadDir, repo.name);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
 
     // Presumably, people occasionally browse repos without installing the packages first
-    const installCommands = (prng.random() > 0.2)
-        ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, /*cleanOnFailure*/ true, diagnosticOutput))!
+    const installCommands = (prng.random() > 0.2) && monorepoPackages
+        ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
     const isUserTestRepo = !repo.url;
@@ -374,8 +386,9 @@ export async function getTscRepoResult(
     }
 
     const repoDir = path.join(downloadDir, repo.name);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
 
-    if (!await installPackagesAndGetCommands(repo, downloadDir, repoDir, /*cleanOnFailure*/ false, diagnosticOutput)) {
+    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
         return { status: "Package install failed" };
     }
 
@@ -384,7 +397,7 @@ export async function getTscRepoResult(
     const buildStart = performance.now();
     try {
         console.log(`Building with ${oldTscPath} (old)`);
-        const oldErrors = await ge.buildAndGetErrors(repoDir, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
+        const oldErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
 
         if (oldErrors.hasConfigFailure) {
             console.log("Unable to build project graph");
@@ -424,7 +437,7 @@ export async function getTscRepoResult(
         }
 
         console.log(`Building with ${newTscPath} (new)`);
-        const newErrors = await ge.buildAndGetErrors(repoDir, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
+        const newErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
 
         if (newErrors.hasConfigFailure) {
             console.log("Unable to build project graph");

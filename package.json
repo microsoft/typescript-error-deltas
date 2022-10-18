@@ -16,6 +16,7 @@
         "@typescript/server-harness": "^0.3.4",
         "@typescript/server-replay": "^0.2.11",
         "glob": "^7.2.3",
+        "js-yaml": "^4.1.0",
         "json5": "^2.2.1",
         "random-seed": "^0.3.0",
         "simple-git": "^3.10.0"
@@ -23,6 +24,7 @@
     "devDependencies": {
         "@types/glob": "^7.2.0",
         "@types/jest": "^27.5.2",
+        "@types/js-yaml": "^4.0.5",
         "@types/node": "^14.18.21",
         "@types/random-seed": "^0.3.3",
         "jest": "^27.4.4",

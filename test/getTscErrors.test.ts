@@ -17,6 +17,7 @@ describe("getErrors", () => {
     it("builds a simple project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/simpleProject",
+            /*monorepoPackages*/ [],
             /*isUserTestRepo*/ true,
             path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
             /*timeoutMs*/ 1e6,
@@ -35,6 +36,7 @@ describe("getErrors", () => {
     it("builds a script project one time", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptProject",
+            /*monorepoPackages*/ [],
             /*isUserTestRepo*/ true,
             path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
             /*timeoutMs*/ 1e6,
@@ -53,6 +55,7 @@ describe("getErrors", () => {
     xit("builds Real Live prettier, For Real", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptPrettier",
+            /*monorepoPackages*/ [],
             /*isUserTestRepo*/ false,
             path.resolve("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js"),
             /*timeoutMs*/ 1e6,
