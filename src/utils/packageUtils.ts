@@ -53,7 +53,9 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
                 }
             }
         }
-        return yarnWorkspaceOrder;
+        if (yarnWorkspaceOrder.length) {
+            return yarnWorkspaceOrder;
+        }
     }
 
     const pnpmWorkspaceFiles = glob(repoDir, "**/pnpm-workspace.yaml");
@@ -61,8 +63,8 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
         const pnpmWorkspaceOrder: string[] = [];
         for (const pnpmWorkspaceFile of pnpmWorkspaceFiles) {
             const contents = await fs.promises.readFile(pnpmWorkspaceFile, { encoding: "utf-8" });
-            const config = yaml.load(contents) as { packages?: string[] };
-            const workspaceDirs = config.packages;
+            const config = yaml.load(contents) as { packages?: string[] } | undefined; // undefined for an empty test fixture
+            const workspaceDirs = config?.packages;
             if (workspaceDirs) {
                 const pnpmDir = path.dirname(pnpmWorkspaceFile);
                 for (const workspaceDir of workspaceDirs) {
@@ -74,7 +76,9 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
                 }
             }
         }
-        return pnpmWorkspaceOrder;
+        if (pnpmWorkspaceOrder.length) {
+            return pnpmWorkspaceOrder;
+        }
     }
 
     const lernaFiles = glob(repoDir, "**/lerna.json");
@@ -87,7 +91,9 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
                 await appendOrderedMonorepoPackages(pkgPaths, lernaOrder);
             }
         }
-        return lernaOrder;
+        if (lernaOrder.length) {
+            return lernaOrder;
+        }
     }
 
     return [];
