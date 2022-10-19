@@ -7,6 +7,7 @@ import ip = require("./utils/installPackages");
 import ut = require("./utils/userTestUtils");
 import fs = require("fs");
 import path = require("path");
+import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 
 interface Params {
@@ -270,10 +271,10 @@ async function getTsServerRepoResult(
                         : `Timed out after ${executionTimeout} ms`));
         }
 
-        const owner = repo.owner ? `${repo.owner}/` : "";
+        const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
         const url = repo.url ? `(${repo.url})` : "";
 
-        let summary = `## [${owner}${repo.name}]${url}\n`;
+        let summary = `## [${owner}${mdEscape(repo.name)}]${url}\n`;
 
         if (oldServerFailed) {
             const oldServerError = oldSpawnResult?.stdout
@@ -322,7 +323,7 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
             summary += `<li>Download user test <code>${repo.name}</code></li>\n`;
         }
         else {
-            summary += `<li><code>git clone ${repo.url} --recurse-submodules</code></li>\n`;
+            summary += `<li><code>git clone ${repo.url!} --recurse-submodules</code></li>\n`;
 
             try {
                 console.log("Extracting commit SHA for repro steps");
@@ -420,12 +421,12 @@ export async function getTscRepoResult(
         }
 
         let sawDifferentErrors = false;
-        const owner = repo.owner ? `${repo.owner}/` : "";
+        const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
         const url = repo.url ?? "";
 
         let summary = `<details open="true">
 <summary>
-<h2><a href="${url}">${owner}${repo.name}</a></h2>
+<h2><a href="${url}">${owner}${mdEscape(repo.name)}</a></h2>
 </summary>
 
 `;
@@ -838,7 +839,7 @@ function makeMarkdownLink(url: string) {
     const match = /\/blob\/[a-f0-9]+\/(.+)$/.exec(url);
     return !match
         ? url
-        : `[${match[1]}](${url})`;
+        : `[${mdEscape(match[1])}](${url})`;
 }
 
 async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string, oldTsResolvedVersion: string, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
