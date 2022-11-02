@@ -136,7 +136,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
             "command": "configure",
             "arguments": {
                 "preferences": {
-                    "disableLineTextInReferences": "true", // Match VS Code (and avoid uninteresting errors)
+                    "disableLineTextInReferences": true, // Match VS Code (and avoid uninteresting errors)
                     "includePackageJsonAutoImports": "off" // Handle per-request instead
                 },
                 "watchOptions": {
