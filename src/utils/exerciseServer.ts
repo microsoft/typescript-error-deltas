@@ -15,36 +15,38 @@ const exitTimeoutMs = 5000;
 
 const argv = process.argv;
 
-if (argv.length !== 7) {
+if (argv.length !== 8) {
     console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <server_path> <diagnostic_output> <prng_seed>`);
     process.exit(EXIT_BAD_ARGS);
 }
 
 // CONVENTION: stderr is for output to the log; stdout is for output to the user
 
-const [, , testDir, replayScriptPath, tsserverPath, diag, seed] = argv;
+const [, , testDir, replayScriptPath, rawErrorsScriptPath, tsserverPath, diag, seed] = argv;
 const diagnosticOutput = diag.toLocaleLowerCase() === "true";
 const prng = randomSeed.create(seed);
 
-exerciseServer(testDir, replayScriptPath, tsserverPath).catch(e => {
+exerciseServer(testDir, replayScriptPath, rawErrorsScriptPath, tsserverPath).catch(e => {
     console.error(e);
     process.exit(EXIT_UNHANDLED_EXCEPTION);
 });
 
-export async function exerciseServer(testDir: string, replayScriptPath: string, tsserverPath: string): Promise<void> {
+export async function exerciseServer(testDir: string, replayScriptPath: string, rawErrorsScriptPath: string, tsserverPath: string): Promise<void> {
     const requestTimes: Record<string, number> = {};
     const requestCounts: Record<string, number> = {};
     const start = performance.now();
 
     const oldCwd = process.cwd();
     const replayScriptHandle = await fs.promises.open(replayScriptPath, "w");
+    const rawErrorsScriptHandle = await fs.promises.open(rawErrorsScriptPath, "w");
     try {
         // Needed for excludedDirectories
         process.chdir(testDir);
-        await exerciseServerWorker(testDir, tsserverPath, replayScriptHandle, requestTimes, requestCounts);
+        await exerciseServerWorker(testDir, tsserverPath, replayScriptHandle, rawErrorsScriptHandle, requestTimes, requestCounts);
     }
     finally {
         await replayScriptHandle.close();
+        await rawErrorsScriptHandle.close();
 
         process.chdir(oldCwd);
 
@@ -58,9 +60,9 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
     }
 }
 
-async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
+async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, rawErrorsScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
     const files = await (new Promise<string[]>((resolve, reject) => {
-        glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false }, (err, results) => {
+        glob("**/*.min.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", ], nodir: true, follow: false }, (err, results) => {
             if (err) {
                 reject(err);
             }
@@ -75,6 +77,11 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
     ];
 
     replayScriptHandle.write(JSON.stringify({
+        rootDirPlaceholder: testDirPlaceholder,
+        serverArgs,
+    }) + "\n");
+
+    rawErrorsScriptHandle.write(JSON.stringify({
         rootDirPlaceholder: testDirPlaceholder,
         serverArgs,
     }) + "\n");
@@ -136,7 +143,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
             "command": "configure",
             "arguments": {
                 "preferences": {
-                    "disableLineTextInReferences": "true", // Match VS Code (and avoid uninteresting errors)
+                    "disableLineTextInReferences": false, // Match VS Code (and avoid uninteresting errors)
                     "includePackageJsonAutoImports": "off" // Handle per-request instead
                 },
                 "watchOptions": {
@@ -399,7 +406,9 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         }
 
         const replayString = JSON.stringify(request) + "\n";
+        const rawErrorsString = JSON.stringify(request) + "\n";
         await replayScriptHandle.write(replayString);
+        await rawErrorsScriptHandle.write(rawErrorsString);
 
         for (let i = 0; i < openFileContents.length; i++) {
             const propName = request.command === "updateOpen" ? "fileContent" : "content";

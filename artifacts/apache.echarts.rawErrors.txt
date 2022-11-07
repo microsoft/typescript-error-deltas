@@ -1,0 +1,19 @@
+Req #2718 - references
+Error processing request. Invalid string length
+RangeError: Invalid string length
+    at JSON.stringify (<anonymous>)
+    at formatMessage (/home/navyasingh/typescript-error-deltas/typescript-4.9.0-dev.20221030/lib/tsserver.js:179280:29)
+    at Session.writeMessage (/home/navyasingh/typescript-error-deltas/typescript-4.9.0-dev.20221030/lib/tsserver.js:180355:31)
+    at Session.send (/home/navyasingh/typescript-error-deltas/typescript-4.9.0-dev.20221030/lib/tsserver.js:180352:22)
+    at Session.doOutput (/home/navyasingh/typescript-error-deltas/typescript-4.9.0-dev.20221030/lib/tsserver.js:180405:22)
+    at Session.onMessage (/home/navyasingh/typescript-error-deltas/typescript-4.9.0-dev.20221030/lib/tsserver.js:182052:30)
+    at Interface.<anonymous> (/home/navyasingh/typescript-error-deltas/typescript-4.9.0-dev.20221030/lib/tsserver.js:186163:31)
+    at Interface.emit (node:events:513:28)
+    at [_onLine] [as _onLine] (node:internal/readline/interface:425:12)
+    at [_normalWrite] [as _normalWrite] (node:internal/readline/interface:614:59)
+    at Socket.ondata (node:internal/readline/interface:252:23)
+    at Socket.emit (node:events:513:28)
+    at addChunk (node:internal/streams/readable:324:12)
+    at readableAddChunk (node:internal/streams/readable:297:9)
+    at Readable.push (node:internal/streams/readable:234:10)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:190:23)
