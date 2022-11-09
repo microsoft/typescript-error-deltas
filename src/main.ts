@@ -304,7 +304,7 @@ ${oldServerError}
 \`\`\`
 ${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
 \`\`\`
-That is a filtered view of the text. To see the raw errors text, go to ${rawErrorsScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n
+That is a filtered view of the text. To see the raw error text, go to ${rawErrorsScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n
 `;
 
         summary += `
