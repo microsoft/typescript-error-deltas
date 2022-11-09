@@ -15,38 +15,37 @@ const exitTimeoutMs = 5000;
 
 const argv = process.argv;
 
-if (argv.length !== 8) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <requests_path> <server_path> <diagnostic_output> <prng_seed>`);
+if (argv.length !== 7) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <server_path> <diagnostic_output> <prng_seed>`);
     process.exit(EXIT_BAD_ARGS);
 }
 
 // CONVENTION: stderr is for output to the log; stdout is for output to the user
 
-const [, , testDir, replayScriptPath, rawErrorsScriptPath, tsserverPath, diag, seed] = argv;
+const [, , testDir, replayScriptPath, tsserverPath, diag, seed] = argv;
 const diagnosticOutput = diag.toLocaleLowerCase() === "true";
 const prng = randomSeed.create(seed);
 
-exerciseServer(testDir, replayScriptPath, rawErrorsScriptPath, tsserverPath).catch(e => {
+exerciseServer(testDir, replayScriptPath, tsserverPath).catch(e => {
     console.error(e);
     process.exit(EXIT_UNHANDLED_EXCEPTION);
 });
 
-export async function exerciseServer(testDir: string, replayScriptPath: string, rawErrorsScriptPath: string, tsserverPath: string): Promise<void> {
+export async function exerciseServer(testDir: string, replayScriptPath: string, tsserverPath: string): Promise<void> {
     const requestTimes: Record<string, number> = {};
     const requestCounts: Record<string, number> = {};
     const start = performance.now();
 
     const oldCwd = process.cwd();
     const replayScriptHandle = await fs.promises.open(replayScriptPath, "w");
-    const rawErrorsScriptHandle = await fs.promises.open(rawErrorsScriptPath, "w");
+
     try {
         // Needed for excludedDirectories
         process.chdir(testDir);
-        await exerciseServerWorker(testDir, tsserverPath, replayScriptHandle, rawErrorsScriptHandle, requestTimes, requestCounts);
+        await exerciseServerWorker(testDir, tsserverPath, replayScriptHandle, requestTimes, requestCounts);
     }
     finally {
         await replayScriptHandle.close();
-        await rawErrorsScriptHandle.close();
 
         process.chdir(oldCwd);
 
@@ -60,7 +59,7 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
     }
 }
 
-async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, rawErrorsScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
+async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
     const files = await (new Promise<string[]>((resolve, reject) => {
         glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false }, (err, results) => {
             if (err) {

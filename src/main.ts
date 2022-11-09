@@ -255,7 +255,7 @@ async function getTsServerRepoResult(
 
         console.log(`Issue found in ${newTsServerPath} (new):`);
         console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
-        await fs.promises.writeFile(rawErrorsScriptPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, false));
+        await fs.promises.writeFile(rawErrorsScriptPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
@@ -650,9 +650,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 if (replayScriptPath) {
                     await fs.promises.copyFile(replayScriptPath, path.join(resultDirPath, replayScriptFileName));
                 }
-                if (rawErrorsScriptPath) {
-                    await fs.promises.copyFile(rawErrorsScriptPath, path.join(resultDirPath, rawErrorsScriptFileName));
-                }
+
             }
 
         }
