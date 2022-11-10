@@ -88,7 +88,7 @@ interface RepoResult {
     readonly status: RepoStatus;
     readonly summary?: string;
     readonly replayScriptPath?: string;
-    readonly rawErrorsScriptPath?: string;
+    readonly rawErrorScriptPath?: string;
 }
 
 function logStepTime(diagnosticOutput: boolean, repo: git.Repo, step: string, start: number): void {
@@ -186,7 +186,7 @@ async function getTsServerRepoResult(
     newTsServerPath: string,
     downloadDir: string,
     replayScriptArtifactPath: string,
-    rawErrorsScriptArtifactPath: string,
+    rawErrorScriptArtifactPath: string,
     diagnosticOutput: boolean): Promise<RepoResult> {
 
     if (!await cloneRepo(repo, userTestsDir, downloadDir, diagnosticOutput)) {
@@ -206,13 +206,13 @@ async function getTsServerRepoResult(
     const replayScriptName = path.basename(replayScriptArtifactPath);
     const replayScriptPath = path.join(downloadDir, replayScriptName);
 
-    const rawErrorsScriptName = path.basename(rawErrorsScriptArtifactPath);
-    const rawErrorsScriptPath = path.join(downloadDir, rawErrorsScriptName);
+    const rawErrorScriptName = path.basename(rawErrorScriptArtifactPath);
+    const rawErrorScriptPath = path.join(downloadDir, rawErrorScriptName);
 
     const lsStart = performance.now();
     try {
         console.log(`Testing with ${newTsServerPath} (new)`);
-        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, rawErrorsScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
             console.log(`New server timed out after ${executionTimeout} ms`);
@@ -255,7 +255,7 @@ async function getTsServerRepoResult(
 
         console.log(`Issue found in ${newTsServerPath} (new):`);
         console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
-        await fs.promises.writeFile(rawErrorsScriptPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+        await fs.promises.writeFile(rawErrorScriptPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
@@ -304,7 +304,7 @@ ${oldServerError}
 \`\`\`
 ${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
 \`\`\`
-That is a filtered view of the text. To see the raw error text, go to ${rawErrorsScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n
+That is a filtered view of the text. To see the raw error text, go to ${rawErrorScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n
 `;
 
         summary += `
@@ -361,7 +361,7 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
 
 `;
 
-        return { status: "Detected interesting changes", summary, replayScriptPath, rawErrorsScriptPath };
+        return { status: "Detected interesting changes", summary, replayScriptPath, rawErrorScriptPath };
     }
     catch (err) {
         reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
@@ -561,7 +561,7 @@ export async function getTscRepoResult(
 export const metadataFileName = "metadata.json";
 export const resultFileNameSuffix = "results.txt";
 export const replayScriptFileNameSuffix = "replay.txt";
-export const rawErrorsScriptFileNameSuffix = "rawErrors.txt";
+export const rawErrorScriptFileNameSuffix = "rawError.txt";
 export const artifactFolderUrlPlaceholder = "PLACEHOLDER_ARTIFACT_FOLDER";
 
 export type StatusCounts = {
@@ -634,10 +634,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 ? `${repo.owner}.${repo.name}`
                 : repo.name;
             const replayScriptFileName = `${repoPrefix}.${replayScriptFileNameSuffix}`;
-            const rawErrorsScriptFileName = `${repoPrefix}.${rawErrorsScriptFileNameSuffix}`;
-            const { status, summary, replayScriptPath, rawErrorsScriptPath } = params.entrypoint === "tsc"
+            const rawErrorScriptFileName = `${repoPrefix}.${rawErrorScriptFileNameSuffix}`;
+            const { status, summary, replayScriptPath, rawErrorScriptPath } = params.entrypoint === "tsc"
                 ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorsScriptFileName), diagnosticOutput);
+                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorScriptFileName), diagnosticOutput);
             console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
             statusCounts[status] = (statusCounts[status] ?? 0) + 1;
             if (summary) {
@@ -649,6 +649,9 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 // There can be replay steps without a summary, but then they're not interesting
                 if (replayScriptPath) {
                     await fs.promises.copyFile(replayScriptPath, path.join(resultDirPath, replayScriptFileName));
+                }
+                if (rawErrorScriptPath) {
+                    await fs.promises.copyFile(rawErrorScriptPath, path.join(resultDirPath, rawErrorScriptFileName));
                 }
 
             }
