@@ -88,6 +88,7 @@ interface RepoResult {
     readonly status: RepoStatus;
     readonly summary?: string;
     readonly replayScriptPath?: string;
+    readonly rawErrorPath?: string;
 }
 
 function logStepTime(diagnosticOutput: boolean, repo: git.Repo, step: string, start: number): void {
@@ -185,6 +186,7 @@ async function getTsServerRepoResult(
     newTsServerPath: string,
     downloadDir: string,
     replayScriptArtifactPath: string,
+    rawErrorArtifactPath: string,
     diagnosticOutput: boolean): Promise<RepoResult> {
 
     if (!await cloneRepo(repo, userTestsDir, downloadDir, diagnosticOutput)) {
@@ -203,6 +205,9 @@ async function getTsServerRepoResult(
 
     const replayScriptName = path.basename(replayScriptArtifactPath);
     const replayScriptPath = path.join(downloadDir, replayScriptName);
+
+    const rawErrorName = path.basename(rawErrorArtifactPath);
+    const rawErrorPath = path.join(downloadDir, rawErrorName);
 
     const lsStart = performance.now();
     try {
@@ -250,6 +255,7 @@ async function getTsServerRepoResult(
 
         console.log(`Issue found in ${newTsServerPath} (new):`);
         console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
+        await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
@@ -298,7 +304,7 @@ ${oldServerError}
 \`\`\`
 ${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
 \`\`\`
-
+That is a filtered view of the text. To see the raw error text, go to ${rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n
 `;
 
         summary += `
@@ -355,7 +361,7 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
 
 `;
 
-        return { status: "Detected interesting changes", summary, replayScriptPath };
+        return { status: "Detected interesting changes", summary, replayScriptPath, rawErrorPath };
     }
     catch (err) {
         reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
@@ -555,6 +561,7 @@ export async function getTscRepoResult(
 export const metadataFileName = "metadata.json";
 export const resultFileNameSuffix = "results.txt";
 export const replayScriptFileNameSuffix = "replay.txt";
+export const rawErrorFileNameSuffix = "rawError.txt";
 export const artifactFolderUrlPlaceholder = "PLACEHOLDER_ARTIFACT_FOLDER";
 
 export type StatusCounts = {
@@ -627,9 +634,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 ? `${repo.owner}.${repo.name}`
                 : repo.name;
             const replayScriptFileName = `${repoPrefix}.${replayScriptFileNameSuffix}`;
-            const { status, summary, replayScriptPath } = params.entrypoint === "tsc"
+            const rawErrorFileName = `${repoPrefix}.${rawErrorFileNameSuffix}`;
+            const { status, summary, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
                 ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), diagnosticOutput);
+                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorFileName), diagnosticOutput);
             console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
             statusCounts[status] = (statusCounts[status] ?? 0) + 1;
             if (summary) {
@@ -642,6 +650,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 if (replayScriptPath) {
                     await fs.promises.copyFile(replayScriptPath, path.join(resultDirPath, replayScriptFileName));
                 }
+                if (rawErrorPath) {
+                    await fs.promises.copyFile(rawErrorPath, path.join(resultDirPath, rawErrorFileName));
+                }
+
             }
 
         }
