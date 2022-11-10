@@ -38,7 +38,6 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
 
     const oldCwd = process.cwd();
     const replayScriptHandle = await fs.promises.open(replayScriptPath, "w");
-
     try {
         // Needed for excludedDirectories
         process.chdir(testDir);
@@ -79,7 +78,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         rootDirPlaceholder: testDirPlaceholder,
         serverArgs,
     }) + "\n");
-    
+
     const server = sh.launchServer(
         tsserverPath,
         serverArgs,
