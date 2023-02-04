@@ -137,7 +137,18 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
             "arguments": {
                 "preferences": {
                     "disableLineTextInReferences": true, // Match VS Code (and avoid uninteresting errors)
-                    "includePackageJsonAutoImports": "off" // Handle per-request instead
+                    "includePackageJsonAutoImports": "off", // Handle per-request instead
+
+                    // Completions preferences
+                    "includeCompletionsForImportStatements": true,
+                    "includeCompletionsWithSnippetText": true,
+                    "includeAutomaticOptionalChainCompletions": true,
+                    "includeCompletionsWithInsertText": true,
+                    "includeCompletionsWithClassMemberSnippets": true,
+                    "allowIncompleteCompletions": true,
+
+                    // 'includeExternalModuleExports' configures this per request.
+                    "includeCompletionsForModuleExports": false,
                 },
                 "watchOptions": {
                     "excludeDirectories": ["**/node_modules"]
@@ -284,7 +295,6 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                             "line": line,
                             "offset": column,
                             "includeExternalModuleExports": prng.random() < 0.01, // auto-imports are too slow to test everywhere
-                            "includeInsertTextCompletions": true,
                             "triggerKind": 1,
                         }
                     }, isAt ? 0.5 : 0.001);
@@ -312,7 +322,6 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                                 "line": line,
                                 "offset": column,
                                 "includeExternalModuleExports": false,
-                                "includeInsertTextCompletions": true,
                                 "triggerKind": 2,
                                 "triggerCharacter": triggerChars[triggerCharIndex],
                             }
