@@ -288,13 +288,16 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                         }
                     }, isAt ? 0.5 : 0.00005);
 
+                    // auto-imports are too slow to test everywhere
+                    const requestWithAutoImports = prng.random() < 0.02;
+
                     const invokedResponse = await message({
                         "command": "completionInfo",
                         "arguments": {
                             "file": openFileAbsolutePath,
                             "line": line,
                             "offset": column,
-                            "includeExternalModuleExports": prng.random() < 0.01, // auto-imports are too slow to test everywhere
+                            "includeExternalModuleExports": requestWithAutoImports,
                             "triggerKind": 1,
                         }
                     }, isAt ? 0.5 : 0.001);
@@ -311,6 +314,30 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                                 ],
                             }
                         });
+
+                        // Auto-import completions frequently cause issues with completion entry details.
+                        if (requestWithAutoImports) {
+                            const completionEntries = invokedResponse.body.entries;
+                            for (let entry of completionEntries) {
+                                if (entry.hasAction && entry.source !== undefined && "data" in entry) {
+                                    const { name, source, data } = entry;
+                                    
+                                    // 'completionEntryDetails' can take multiple entries; however, it's not useful for diagnostics
+                                    // to report that "this command failed when asking for details on any of these 100 completions."
+                                    await message({
+                                        "command": "completionEntryDetails",
+                                        "arguments": {
+                                            "file": openFileAbsolutePath,
+                                            "line": line,
+                                            "offset": column,
+                                            "entryNames": [
+                                                { name, source, data },
+                                            ],
+                                        }
+                                    })
+                                }
+                            }
+                        }
                     }
 
                     const triggerCharIndex = triggerChars.indexOf(curr);
