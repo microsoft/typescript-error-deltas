@@ -235,7 +235,6 @@ async function getTsServerRepoResult(
                 }
 
                 console.log("No issues found");
-                return { status: "Detected no interesting changes" };
             case exercise.EXIT_LANGUAGE_SERVICE_DISABLED:
                 console.log("Skipping since language service was disabled");
                 return { status: "Language service disabled in new TS" };
@@ -255,9 +254,13 @@ async function getTsServerRepoResult(
                 return { status: "Unknown failure" };
         }
 
-        console.log(`Issue found in ${newTsServerPath} (new):`);
-        console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
-        await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+        const newServerFailed = !newSpawnResult.code;
+
+        if (newServerFailed) {
+            console.log(`Issue found in ${newTsServerPath} (new):`);
+            console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
+            await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+        }
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
@@ -270,6 +273,10 @@ async function getTsServerRepoResult(
         // NB: Unlike newServerFailed, this includes timeouts because "it used to timeout" is useful context for an error in the new server
         const oldServerFailed = !oldSpawnResult || !!oldSpawnResult.code || !!oldSpawnResult.signal;
 
+        if (!newServerFailed && !oldServerFailed) {
+            return { status: "Detected no interesting changes" };
+        }
+
         if (oldServerFailed) {
             console.log(`Issue found in ${oldTsServerPath} (old):`);
             console.log(
@@ -278,7 +285,7 @@ async function getTsServerRepoResult(
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
 
-            if (isPr && oldSpawnResult) {
+            if (isPr && newServerFailed && oldSpawnResult) {
                 const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
                 const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
 
@@ -303,7 +310,7 @@ async function getTsServerRepoResult(
                 : `Timed out after ${executionTimeout} ms`;
             summary += `
 <details>
-<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} also had errors :warning:</summary>
+<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} had errors :warning:</summary>
 
 \`\`\`
 ${oldServerError}
@@ -312,6 +319,16 @@ ${oldServerError}
 </details>
 
 `;
+            if (!newServerFailed) {
+                summary += `
+:tada: New server no longer has errors :tada:
+`;
+                return { status: "Detected interesting changes", summary }
+            }
+        }
+        
+        if (!newServerFailed) {
+            return { status: "Detected no interesting changes" };
         }
 
         summary += `
