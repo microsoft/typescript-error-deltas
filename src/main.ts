@@ -187,7 +187,9 @@ async function getTsServerRepoResult(
     downloadDir: string,
     replayScriptArtifactPath: string,
     rawErrorArtifactPath: string,
-    diagnosticOutput: boolean): Promise<RepoResult> {
+    diagnosticOutput: boolean,
+    isPr: boolean,
+): Promise<RepoResult> {
 
     if (!await cloneRepo(repo, userTestsDir, downloadDir, diagnosticOutput)) {
         return { status: "Git clone failed" };
@@ -233,7 +235,6 @@ async function getTsServerRepoResult(
                 }
 
                 console.log("No issues found");
-                return { status: "Detected no interesting changes" };
             case exercise.EXIT_LANGUAGE_SERVICE_DISABLED:
                 console.log("Skipping since language service was disabled");
                 return { status: "Language service disabled in new TS" };
@@ -253,9 +254,13 @@ async function getTsServerRepoResult(
                 return { status: "Unknown failure" };
         }
 
-        console.log(`Issue found in ${newTsServerPath} (new):`);
-        console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
-        await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+        const newServerFailed = !newSpawnResult.code;
+
+        if (newServerFailed) {
+            console.log(`Issue found in ${newTsServerPath} (new):`);
+            console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
+            await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+        }
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
@@ -268,6 +273,10 @@ async function getTsServerRepoResult(
         // NB: Unlike newServerFailed, this includes timeouts because "it used to timeout" is useful context for an error in the new server
         const oldServerFailed = !oldSpawnResult || !!oldSpawnResult.code || !!oldSpawnResult.signal;
 
+        if (!newServerFailed && !oldServerFailed) {
+            return { status: "Detected no interesting changes" };
+        }
+
         if (oldServerFailed) {
             console.log(`Issue found in ${oldTsServerPath} (old):`);
             console.log(
@@ -275,6 +284,21 @@ async function getTsServerRepoResult(
                     oldSpawnResult?.stdout
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
+
+            // We don't want to drown PRs with comments.
+            // Override the results to say nothing interesting changed.
+            if (isPr && newServerFailed && oldSpawnResult) {
+                const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
+                const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
+
+                if (
+                    typeof oldOut !== "string" && typeof newOut !== "string"
+                    && oldOut.request_seq === newOut.request_seq
+                    && oldOut.command === newOut.command
+                ) {
+                    return { status: "Detected no interesting changes" };
+                }
+            }
         }
 
         const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
@@ -288,7 +312,7 @@ async function getTsServerRepoResult(
                 : `Timed out after ${executionTimeout} ms`;
             summary += `
 <details>
-<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} also had errors :warning:</summary>
+<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} had errors :warning:</summary>
 
 \`\`\`
 ${oldServerError}
@@ -297,6 +321,16 @@ ${oldServerError}
 </details>
 
 `;
+            if (!newServerFailed) {
+                summary += `
+:tada: New server no longer has errors :tada:
+`;
+                return { status: "Detected interesting changes", summary }
+            }
+        }
+        
+        if (!newServerFailed) {
+            return { status: "Detected no interesting changes" };
         }
 
         summary += `
@@ -621,6 +655,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     // An object is easier to de/serialize than a real map
     const statusCounts: { [P in RepoStatus]?: number } = {};
 
+    const isPr = params.testType === "user" && !!params.prNumber
+
     let i = 1;
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
@@ -637,7 +673,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
             const rawErrorFileName = `${repoPrefix}.${rawErrorFileNameSuffix}`;
             const { status, summary, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
                 ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorFileName), diagnosticOutput);
+                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorFileName), diagnosticOutput, isPr);
             console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
             statusCounts[status] = (statusCounts[status] ?? 0) + 1;
             if (summary) {
@@ -805,22 +841,37 @@ ${spawnResult.stderr}
 `);
 }
 
-function prettyPrintServerHarnessOutput(error: string, filter: boolean): string {
-    try {
-        const errorObj = JSON.parse(error);
-        if (errorObj.message) {
-            return `Req #${errorObj.request_seq} - ${errorObj.command}
-${filter ? filterToTsserverLines(errorObj.message) : errorObj.message}`;
-        }
 
-        // It's not really clear how this could happen, but reporting the whole repsonse should be fine
-        // if there's no message property
-        return JSON.stringify(errorObj, undefined, 2);
+export interface ServerHarnessOutput {
+    request_seq: number;
+    command: string;
+    message: string
+}
+
+function parseServerHarnessOutput(error: string): ServerHarnessOutput | string {
+    try {
+        return JSON.parse(error)
     }
     catch {
         // Sometimes, the response isn't JSON and that's fine
         return error;
     }
+}
+
+function prettyPrintServerHarnessOutput(error: string, filter: boolean): string {
+    const errorObj = parseServerHarnessOutput(error);
+    if (typeof errorObj === "string") {
+        return errorObj;
+    }
+
+    if (errorObj.message) {
+        return `Req #${errorObj.request_seq} - ${errorObj.command}
+${filter ? filterToTsserverLines(errorObj.message) : errorObj.message}`;
+    }
+
+    // It's not really clear how this could happen, but reporting the whole repsonse should be fine
+    // if there's no message property
+    return JSON.stringify(errorObj, undefined, 2);
 }
 
 function filterToTsserverLines(stackLines: string): string {
