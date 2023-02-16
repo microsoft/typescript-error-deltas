@@ -285,6 +285,8 @@ async function getTsServerRepoResult(
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
 
+            // We don't want to drown PRs with comments.
+            // Override the results to say nothing interesting changed.
             if (isPr && newServerFailed && oldSpawnResult) {
                 const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
                 const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
