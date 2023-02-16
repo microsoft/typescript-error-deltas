@@ -187,7 +187,9 @@ async function getTsServerRepoResult(
     downloadDir: string,
     replayScriptArtifactPath: string,
     rawErrorArtifactPath: string,
-    diagnosticOutput: boolean): Promise<RepoResult> {
+    diagnosticOutput: boolean,
+    isPr: boolean,
+): Promise<RepoResult> {
 
     if (!await cloneRepo(repo, userTestsDir, downloadDir, diagnosticOutput)) {
         return { status: "Git clone failed" };
@@ -276,7 +278,7 @@ async function getTsServerRepoResult(
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
 
-            if (oldSpawnResult) {
+            if (isPr && oldSpawnResult) {
                 const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
                 const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
 
@@ -634,6 +636,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     // An object is easier to de/serialize than a real map
     const statusCounts: { [P in RepoStatus]?: number } = {};
 
+    const isPr = params.testType === "user" && !!params.prNumber
+
     let i = 1;
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
@@ -650,7 +654,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
             const rawErrorFileName = `${repoPrefix}.${rawErrorFileNameSuffix}`;
             const { status, summary, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
                 ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorFileName), diagnosticOutput);
+                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorFileName), diagnosticOutput, isPr);
             console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
             statusCounts[status] = (statusCounts[status] ?? 0) + 1;
             if (summary) {
