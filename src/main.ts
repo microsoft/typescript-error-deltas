@@ -275,6 +275,19 @@ async function getTsServerRepoResult(
                     oldSpawnResult?.stdout
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
+
+            if (oldSpawnResult) {
+                const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
+                const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
+
+                if (
+                    typeof oldOut !== "string" && typeof newOut !== "string"
+                    && oldOut.request_seq === newOut.request_seq
+                    && oldOut.command === newOut.command
+                ) {
+                    return { status: "Detected no interesting changes" };
+                }
+            }
         }
 
         const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
@@ -805,22 +818,37 @@ ${spawnResult.stderr}
 `);
 }
 
-function prettyPrintServerHarnessOutput(error: string, filter: boolean): string {
-    try {
-        const errorObj = JSON.parse(error);
-        if (errorObj.message) {
-            return `Req #${errorObj.request_seq} - ${errorObj.command}
-${filter ? filterToTsserverLines(errorObj.message) : errorObj.message}`;
-        }
 
-        // It's not really clear how this could happen, but reporting the whole repsonse should be fine
-        // if there's no message property
-        return JSON.stringify(errorObj, undefined, 2);
+export interface ServerHarnessOutput {
+    request_seq: number;
+    command: string;
+    message: string
+}
+
+function parseServerHarnessOutput(error: string): ServerHarnessOutput | string {
+    try {
+        return JSON.parse(error)
     }
     catch {
         // Sometimes, the response isn't JSON and that's fine
         return error;
     }
+}
+
+function prettyPrintServerHarnessOutput(error: string, filter: boolean): string {
+    const errorObj = parseServerHarnessOutput(error);
+    if (typeof errorObj === "string") {
+        return errorObj;
+    }
+
+    if (errorObj.message) {
+        return `Req #${errorObj.request_seq} - ${errorObj.command}
+${filter ? filterToTsserverLines(errorObj.message) : errorObj.message}`;
+    }
+
+    // It's not really clear how this could happen, but reporting the whole repsonse should be fine
+    // if there's no message property
+    return JSON.stringify(errorObj, undefined, 2);
 }
 
 function filterToTsserverLines(stackLines: string): string {
