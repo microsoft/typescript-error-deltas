@@ -235,6 +235,7 @@ async function getTsServerRepoResult(
                 }
 
                 console.log("No issues found");
+                break;
             case exercise.EXIT_LANGUAGE_SERVICE_DISABLED:
                 console.log("Skipping since language service was disabled");
                 return { status: "Language service disabled in new TS" };
