@@ -255,7 +255,7 @@ async function getTsServerRepoResult(
                 return { status: "Unknown failure" };
         }
 
-        const newServerFailed = !newSpawnResult.code;
+        const newServerFailed = !!newSpawnResult.code;
 
         if (newServerFailed) {
             console.log(`Issue found in ${newTsServerPath} (new):`);
