@@ -320,7 +320,15 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                             const completionEntries = invokedResponse.body.entries;
                             for (let entry of completionEntries) {
                                 if (entry.hasAction && entry.source !== undefined && "data" in entry) {
-                                    const { name, source, data } = entry;
+                                    let { name, source, data } = entry;
+                                    // `source` may or may not be relative.
+                                    if (path.isAbsolute(source)) {
+                                        source = path.join(testDirPlaceholder, path.relative(testDir, source)).replace(/\\/g, "/");
+                                    }
+                                    // Technically data is supposed to be opaque... but what can you do?
+                                    if (typeof data.fileName === "string" && path.isAbsolute(data.fileName)) {
+                                       data.fileName = path.join(testDirPlaceholder, path.relative(testDir, data.fileName)).replace(/\\/g, "/");
+                                    }
                                     
                                     // 'completionEntryDetails' can take multiple entries; however, it's not useful for diagnostics
                                     // to report that "this command failed when asking for details on any of these 100 completions."
