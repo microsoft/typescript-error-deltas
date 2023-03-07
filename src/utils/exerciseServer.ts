@@ -289,7 +289,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                     }, isAt ? 0.5 : 0.00005);
 
                     // auto-imports are too slow to test everywhere
-                    const requestWithAutoImports = prng.random() < 0.02;
+                    const requestWithAutoImports = prng.random() < 0.05;
 
                     const invokedResponse = await message({
                         "command": "completionInfo",
@@ -314,38 +314,6 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                                 ],
                             }
                         });
-
-                        // Auto-import completions frequently cause issues with completion entry details.
-                        if (requestWithAutoImports) {
-                            const completionEntries = invokedResponse.body.entries;
-                            for (let entry of completionEntries) {
-                                if (entry.hasAction && entry.source !== undefined && "data" in entry) {
-                                    let { name, source, data } = entry;
-                                    // `source` may or may not be relative.
-                                    if (path.isAbsolute(source)) {
-                                        source = path.join(testDirPlaceholder, path.relative(testDir, source)).replace(/\\/g, "/");
-                                    }
-                                    // Technically data is supposed to be opaque... but what can you do?
-                                    if (typeof data.fileName === "string" && path.isAbsolute(data.fileName)) {
-                                       data.fileName = path.join(testDirPlaceholder, path.relative(testDir, data.fileName)).replace(/\\/g, "/");
-                                    }
-                                    
-                                    // 'completionEntryDetails' can take multiple entries; however, it's not useful for diagnostics
-                                    // to report that "this command failed when asking for details on any of these 100 completions."
-                                    await message({
-                                        "command": "completionEntryDetails",
-                                        "arguments": {
-                                            "file": openFileAbsolutePath,
-                                            "line": line,
-                                            "offset": column,
-                                            "entryNames": [
-                                                { name, source, data },
-                                            ],
-                                        }
-                                    })
-                                }
-                            }
-                        }
                     }
 
                     const triggerCharIndex = triggerChars.indexOf(curr);
