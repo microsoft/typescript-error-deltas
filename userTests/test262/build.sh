@@ -6,5 +6,5 @@ npm link
 cd $START/test262
 npm i
 npm link typescript
-cp $START/tsconfig .
+cp $START/tsconfig.json .
 npx tsc
