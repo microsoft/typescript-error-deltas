@@ -6,6 +6,7 @@
 
         "strict": true,
         "types": [],
+        "lib": ["ESNext"],
 
         "noEmit": true,
         "allowJs": true
