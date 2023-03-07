@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+
+        "strict": true,
+        "types": [],
+
+        "noEmit": true,
+        "allowJs": true
+    },
+    "include": ["test/**/*.js"]
+}
