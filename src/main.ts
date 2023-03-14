@@ -100,7 +100,6 @@ interface Summary {
     oldTsEntrypointPath: string;
     rawErrorArtifactPath: string;
     replayScriptPath: string;
-    isUserTestRepo: boolean;
     repoDir: string;
     downloadDir: string;
     replayScriptArtifactPath: string;
@@ -110,6 +109,7 @@ interface Summary {
 
 interface RepoResult {
     readonly status: RepoStatus;
+    readonly summary?: string;
     readonly tsServerResult?: TSServerResult;
     readonly replayScriptPath?: string;
     readonly rawErrorPath?: string;
@@ -227,8 +227,6 @@ async function getTsServerRepoResult(
         ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
-    const isUserTestRepo = !repo.url;
-
     const replayScriptName = path.basename(replayScriptArtifactPath);
     const replayScriptPath = path.join(downloadDir, replayScriptName);
 
@@ -338,7 +336,7 @@ async function getTsServerRepoResult(
         if (oldServerFailed && !newServerFailed) {
             return { status: "Detected interesting changes", tsServerResult }
         }
-        if (!newServerFailed) { 
+        if (!newServerFailed) {
             return { status: "Detected no interesting changes" };
         }
 
@@ -354,15 +352,33 @@ async function getTsServerRepoResult(
     }
 }
 
-function groupSummaries(summaries: Summary[]): Map<string, Summary[]> {
+function groupOldErrors(summaries: Summary[]): Map<string, Summary[]> {
     const group = new Map<string, Summary[]>();
     for (const summary of summaries) {
-        const error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
+        if (summary.tsServerResult.oldServerFailed && !summary.tsServerResult.newServerFailed) {
+            const error = parseServerHarnessOutput(summary.tsServerResult.oldSpawnResult!.stdout);
 
-        const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
-        const value = group.get(key) ?? [];
-        value.push(summary);
-        group.set(key, value);
+            const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
+            const value = group.get(key) ?? [];
+            value.push(summary);
+            group.set(key, value);
+        }
+    }
+
+    return group;
+}
+
+function groupNewErrors(summaries: Summary[]): Map<string, Summary[]> {
+    const group = new Map<string, Summary[]>();
+    for (const summary of summaries) {
+        if (summary.tsServerResult.newServerFailed) {
+            const error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
+
+            const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
+            const value = group.get(key) ?? [];
+            value.push(summary);
+            group.set(key, value);
+        }
     }
 
     return group;
@@ -374,43 +390,39 @@ function getErrorMessage(output: string): string {
     return typeof error === "string" ? error : getErrorMessageFromStack(error.message);
 }
 
-async function createSummary(summaries: Summary[]): Promise<string | undefined> {
-    const { oldServerFailed, newServerFailed, newSpawnResult } = summaries[0].tsServerResult;
-
-    if (!oldServerFailed && !newServerFailed) {
-        return undefined;
-    }
-
-    let text = `<h2>${summaries[0].errorMessage}</h2>`;
-
-    // TODO: This prints if the old server also has the same error, or used to have an error.
-    //     if (oldServerFailed) {
-    //         const oldServerError = oldSpawnResult?.stdout
-    //             ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
-    //             : `Timed out after ${executionTimeout} ms`;
-    //         summary += `
-    // <details>
-    // <summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} had errors :warning:</summary>
-
-    // \`\`\`
-    // ${oldServerError}
-    // \`\`\`
-
-    // </details>
-
-    // `;
-    //         if (!newServerFailed) {
-    //             summary += `
-    // :tada: New server no longer has errors :tada:
-    // `;
-    //             return summary;
-    //         }
-    //     }
-
-    text += `
+function createOldErrorSummary(summaries: Summary[]): string {
+    let text = `
+<details>
+<summary>${summaries[0].errorMessage}</summary>
 
 \`\`\`
-${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
+${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.oldSpawnResult!.stdout, /*filter*/ true)}
+\`\`\`
+
+<h4>Repos no longer reporting the error</h4>
+<ul>
+`;
+
+    for (const summary of summaries) {
+        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
+        const url = summary.repo.url ?? "";
+
+        text += `<li><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></li>\n`
+    }
+
+    text += `
+</ul>
+</details>
+`;
+
+    return text;
+}
+
+async function createNewErrorSummaryAsync(summaries: Summary[]): Promise<string> {
+    let text = `<h2>${summaries[0].errorMessage}</h2>
+
+\`\`\`
+${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.newSpawnResult.stdout, /*filter*/ true)}
 \`\`\`
 
 <h4>Affected repos</h4>`;
@@ -432,11 +444,12 @@ ${fs.readFileSync(summary.replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/
 <h4>Repro steps</h4>
 <ol>
 `;
-        if (summary.isUserTestRepo) {
+        // No url means is user test repo
+        if (!summary.repo.url) {
             text += `<li>Download user test <code>${summary.repo.name}</code></li>\n`;
         }
         else {
-            text += `<li><code>git clone ${summary.repo.url!} --recurse-submodules</code></li>\n`;
+            text += `<li><code>git clone ${summary.repo.url} --recurse-submodules</code></li>\n`;
 
             try {
                 console.log("Extracting commit SHA for repro steps");
@@ -642,9 +655,7 @@ export async function getTscRepoResult(
         summary += "\n</details>\n\n";
 
         if (sawDifferentErrors) {
-            // TODO: Fix the summary
-            // return { status: "Detected interesting changes", summary };
-            return { status: "Detected interesting changes" };
+            return { status: "Detected interesting changes", summary };
         }
     }
     catch (err) {
@@ -743,11 +754,16 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
             const rawErrorArtifactPath = path.join(params.resultDirName, rawErrorFileName);
             const replayScriptArtifactPath = path.join(params.resultDirName, replayScriptFileName);
 
-            const { status, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
+            const { status, summary, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
                 ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
                 : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
             console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
             statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+
+            if (summary) {
+                const resultFileName = `${repoPrefix}.${resultFileNameSuffix}`;
+                await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
+            }
 
             if (tsServerResult) {
                 summaries.push({
@@ -756,14 +772,15 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                     oldTsEntrypointPath,
                     rawErrorArtifactPath,
                     replayScriptPath: path.join(downloadDir, path.basename(replayScriptArtifactPath)),
-                    isUserTestRepo: !repo.url,
                     repoDir: path.join(downloadDir, repo.name),
                     downloadDir,
                     replayScriptArtifactPath,
                     replayScriptName: path.basename(replayScriptArtifactPath),
                     errorMessage: tsServerResult.newServerFailed ? getErrorMessage(tsServerResult.newSpawnResult.stdout) : undefined
                 });
+            }
 
+            if (summary || tsServerResult) {
                 // In practice, there will only be a replay script when the entrypoint is tsserver
                 // There can be replay steps without a summary, but then they're not interesting
                 if (replayScriptPath) {
@@ -807,12 +824,22 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         }
     }
 
+    // Group errors and create summary files.
     if (summaries.length > 0) {
-        // Group errors and create summary files.
-        const groupedSummary = groupSummaries(summaries);
+        const groupedOldErrors = groupOldErrors(summaries);
+        for (let [key, value] of groupedOldErrors) {
+
+            const summary = createOldErrorSummary(value);
+            if (summary) {
+                const resultFileName = `!${key}.${resultFileNameSuffix}`; // Exclamation point makes the file to be put first when ordering.
+                await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
+            }
+        }
+
+        const groupedSummary = groupNewErrors(summaries);
         for (let [key, value] of groupedSummary) {
 
-            const summary = await createSummary(value);
+            const summary = await createNewErrorSummaryAsync(value);
             if (summary) {
                 const resultFileName = `${key}.${resultFileNameSuffix}`;
                 await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
