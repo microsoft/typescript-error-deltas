@@ -104,7 +104,6 @@ interface Summary {
     downloadDir: string;
     replayScriptArtifactPath: string;
     replayScriptName: string;
-    errorMessage: string | undefined;
 }
 
 interface RepoResult {
@@ -352,36 +351,37 @@ async function getTsServerRepoResult(
     }
 }
 
-function groupOldErrors(summaries: Summary[]): Map<string, Summary[]> {
-    const group = new Map<string, Summary[]>();
+function groupErrors(summaries: Summary[]) {
+    const groupedOldErrors = new Map<string, Summary[]>();
+    const groupedNewErrors = new Map<string, Summary[]>();
+    let group: Map<string, Summary[]>;
+    let error: ServerHarnessOutput | string;
     for (const summary of summaries) {
-        if (summary.tsServerResult.oldServerFailed && !summary.tsServerResult.newServerFailed) {
-            const error = parseServerHarnessOutput(summary.tsServerResult.oldSpawnResult!.stdout);
-
-            const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
-            const value = group.get(key) ?? [];
-            value.push(summary);
-            group.set(key, value);
-        }
-    }
-
-    return group;
-}
-
-function groupNewErrors(summaries: Summary[]): Map<string, Summary[]> {
-    const group = new Map<string, Summary[]>();
-    for (const summary of summaries) {
+        // Group new errors
         if (summary.tsServerResult.newServerFailed) {
-            const error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
-
-            const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
-            const value = group.get(key) ?? [];
-            value.push(summary);
-            group.set(key, value);
+            error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
+            group = groupedNewErrors;
         }
+        // Group old errors
+        else if (summary.tsServerResult.oldServerFailed) {
+            const { oldSpawnResult } = summary.tsServerResult;
+            error = oldSpawnResult?.stdout
+                ? parseServerHarnessOutput(oldSpawnResult.stdout)
+                : `Timed out after ${executionTimeout} ms`;
+
+            group = groupedOldErrors;
+        }
+        else {
+            continue;
+        }
+
+        const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
+        const value = group.get(key) ?? [];
+        value.push(summary);
+        group.set(key, value);
     }
 
-    return group;
+    return { groupedOldErrors, groupedNewErrors }
 }
 
 function getErrorMessage(output: string): string {
@@ -391,12 +391,20 @@ function getErrorMessage(output: string): string {
 }
 
 function createOldErrorSummary(summaries: Summary[]): string {
+    const { oldSpawnResult } = summaries[0].tsServerResult;
+
+    const oldServerError = oldSpawnResult?.stdout
+        ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
+        : `Timed out after ${executionTimeout} ms`;
+
+    const errorMessage = oldSpawnResult?.stdout ? getErrorMessage(oldSpawnResult.stdout) : oldServerError;
+
     let text = `
 <details>
-<summary>${summaries[0].errorMessage}</summary>
+<summary>${errorMessage}</summary>
 
 \`\`\`
-${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.oldSpawnResult!.stdout, /*filter*/ true)}
+${oldServerError}
 \`\`\`
 
 <h4>Repos no longer reporting the error</h4>
@@ -419,7 +427,7 @@ ${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.oldSpawnResult!.std
 }
 
 async function createNewErrorSummaryAsync(summaries: Summary[]): Promise<string> {
-    let text = `<h2>${summaries[0].errorMessage}</h2>
+    let text = `<h2>${getErrorMessage(summaries[0].tsServerResult.newSpawnResult.stdout)}</h2>
 
 \`\`\`
 ${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.newSpawnResult.stdout, /*filter*/ true)}
@@ -776,7 +784,6 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                     downloadDir,
                     replayScriptArtifactPath,
                     replayScriptName: path.basename(replayScriptArtifactPath),
-                    errorMessage: tsServerResult.newServerFailed ? getErrorMessage(tsServerResult.newSpawnResult.stdout) : undefined
                 });
             }
 
@@ -826,24 +833,20 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
     // Group errors and create summary files.
     if (summaries.length > 0) {
-        const groupedOldErrors = groupOldErrors(summaries);
-        for (let [key, value] of groupedOldErrors) {
+        const { groupedOldErrors, groupedNewErrors } = groupErrors(summaries);
 
+        for (let [key, value] of groupedOldErrors) {
             const summary = createOldErrorSummary(value);
-            if (summary) {
-                const resultFileName = `!${key}.${resultFileNameSuffix}`; // Exclamation point makes the file to be put first when ordering.
-                await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
-            }
+            const resultFileName = `!${key}.${resultFileNameSuffix}`; // Exclamation point makes the file to be put first when ordering.
+
+            await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
         }
 
-        const groupedSummary = groupNewErrors(summaries);
-        for (let [key, value] of groupedSummary) {
-
+        for (let [key, value] of groupedNewErrors) {
             const summary = await createNewErrorSummaryAsync(value);
-            if (summary) {
-                const resultFileName = `${key}.${resultFileNameSuffix}`;
-                await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
-            }
+            const resultFileName = `${key}.${resultFileNameSuffix}`;
+
+            await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
         }
     }
 
