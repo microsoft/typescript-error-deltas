@@ -10,11 +10,11 @@ export function getHash(methods: string[]): string {
 
 export function getHashForStack(stack: string): string {
     const stackLines = stack.split(/\r?\n|\r/);
-    
+
     const errorMessage = stackLines[1];
-    
+
     // We will only match methods that contains tsserver. Everything else is ignored.
-    return getHash([errorMessage, ...stackLines.filter(l => serverLinePattern.exec(l));
+    return getHash([errorMessage, ...stackLines.filter(l => serverLinePattern.exec(l))]);
 }
 
 export function getErrorMessageFromStack(stack: string): string {
