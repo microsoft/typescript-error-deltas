@@ -13,16 +13,8 @@ export function getHashForStack(stack: string): string {
     
     const errorMessage = stackLines[1];
     
-    const lines: string[] = [];
-    lines.push(errorMessage);
-    for (const stackLine of stackLines) {
-        // We will only match methods that contains tsserver. Everything else is ignored.
-        if (serverLinePattern.exec(stackLine)) {
-            lines.push(stackLine);
-        }
-    }
-
-    return getHash(lines);
+    // We will only match methods that contains tsserver. Everything else is ignored.
+    return getHash([errorMessage, ...stackLines.filter(l => serverLinePattern.exec(l));
 }
 
 export function getErrorMessageFromStack(stack: string): string {
