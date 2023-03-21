@@ -55,6 +55,9 @@ else {
     summary = `Everything looks good!`;
 }
 
+// Files starting with an exclamation point are old server errors.
+const hasOldErrors = pu.glob(resultDirPath, `**/!*.${resultFileNameSuffix}`).length !== 0;
+
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri));
 
@@ -67,9 +70,10 @@ if (!outputs.length) {
     git.createComment(+prNumber, +commentNumber, postResult, [header]);
 }
 else {
+    const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
     const openDetails = `\n\n<details>\n<summary>Details</summary>\n\n`;
     const closeDetails = `\n</details>`;
-    const initialHeader = header + openDetails;
+    const initialHeader = header + openDetails + (hasOldErrors ? oldErrorHeader : '');
     const continuationHeader = `@${userToTag} Here are some more interesting changes from running the ${suiteDescription} suite${openDetails}`;
     const trunctationSuffix = `\n:error: Truncated - see log for full output :error:`;
 
