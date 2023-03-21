@@ -1,7 +1,4 @@
-import { createHash } from "crypto";
-
-/** Matches any line containing 'tsserver.js' followed by line numbers. */
-const serverLinePattern = /tsserver\.js:(\d+)(?::(\d+))?/i;
+    import { createHash } from "crypto";
 
 export function getHash(methods: string[]): string {
     const lines = methods.join("\n");
@@ -9,16 +6,13 @@ export function getHash(methods: string[]): string {
 }
 
 export function getHashForStack(stack: string): string {
-    const stackLines = stack.split(/\r?\n|\r/);
+    const stackLines = stack.split(/\r?\n/);
 
-    const errorMessage = stackLines[1];
-
-    // We will only match methods that contains tsserver. Everything else is ignored.
-    return getHash([errorMessage, ...stackLines.filter(l => serverLinePattern.exec(l))]);
+    return getHash(stackLines);
 }
 
 export function getErrorMessageFromStack(stack: string): string {
-    const stackLines = stack.split(/\r?\n|\r/, 2);
+    const stackLines = stack.split(/\r?\n/, 2);
 
     return stackLines[1];
 }
