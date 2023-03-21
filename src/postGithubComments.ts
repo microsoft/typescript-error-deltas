@@ -55,7 +55,7 @@ else {
     summary = `Everything looks good!`;
 }
 
-// File starting with an exclamation point are old server errors.
+// Files starting with an exclamation point are old server errors.
 const hasOldErrors = pu.glob(resultDirPath, `**/!*.${resultFileNameSuffix}`).length !== 0;
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
