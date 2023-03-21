@@ -362,8 +362,8 @@ function groupErrors(summaries: Summary[]) {
             error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
             group = groupedNewErrors;
         }
-        // Group old errors
         else if (summary.tsServerResult.oldServerFailed) {
+            // Group old errors
             const { oldSpawnResult } = summary.tsServerResult;
             error = oldSpawnResult?.stdout
                 ? parseServerHarnessOutput(oldSpawnResult.stdout)
