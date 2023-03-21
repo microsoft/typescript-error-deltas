@@ -357,8 +357,8 @@ function groupErrors(summaries: Summary[]) {
     let group: Map<string, Summary[]>;
     let error: ServerHarnessOutput | string;
     for (const summary of summaries) {
-        // Group new errors
         if (summary.tsServerResult.newServerFailed) {
+            // Group new errors
             error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
             group = groupedNewErrors;
         }
