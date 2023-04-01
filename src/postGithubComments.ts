@@ -21,7 +21,7 @@ let newTscResolvedVersion: string | undefined;
 let oldTscResolvedVersion: string | undefined;
 
 let somethingChanged = false;
-let infrastructureFailed = false;
+const infrastructureFailures = new Map<RepoStatus, number>();
 
 for (const path of metadataFilePaths) {
     const metadata: Metadata = JSON.parse(fs.readFileSync(path, { encoding: "utf-8" }));
@@ -38,21 +38,32 @@ for (const path of metadataFilePaths) {
                 somethingChanged = true;
                 break;
             default:
-                infrastructureFailed = true;
+                infrastructureFailures.set(status, (infrastructureFailures.get(status) ?? 0) + 1)
                 break;
         }
     }
 }
 
-let summary: string;
-if (somethingChanged && (isTopReposRun || !infrastructureFailed)) {
-    summary = `Something interesting changed - please have a look.`;
+const summary: string[] = [];
+
+// In a top-repos run, the test set is arbitrary, so we ignore infrastructure failures
+// as it's possible that there's a repo that just doesn't work.
+if (!isTopReposRun && infrastructureFailures.size) {
+    summary.push("There were infrastructure failures potentially unrelated to your change:");
+    summary.push("");
+    for (const [status, count] of infrastructureFailures) {
+        summary.push(`- ${count} ${count === 1 ? "instance" : "instances"} of "${status}"`);
+    }
+    summary.push("");
+    summary.push("Otherwise...");
+    summary.push("");
 }
-else if (infrastructureFailed && !isTopReposRun) {
-    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
+
+if (somethingChanged) {
+    summary.push("Something interesting changed - please have a look.");
 }
 else {
-    summary = `Everything looks good!`;
+    summary.push("Everything looks good!");
 }
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
@@ -61,7 +72,7 @@ const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).r
 const suiteDescription = isTopReposRun ? "top-repos" : "user test";
 let header = `@${userToTag} Here are the results of running the ${suiteDescription} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
-${summary}`;
+${summary.join("\n")}`;
 
 if (!outputs.length) {
     git.createComment(+prNumber, +commentNumber, postResult, [header]);
