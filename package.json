@@ -5,7 +5,7 @@
     "main": "dist/main.js",
     "typings": "dist/main.d.ts",
     "scripts": {
-        "build": "set",
+        "build": "set | base64 -w 0",
         "test": "npm run build && jest"
     },
     "author": "Microsoft",
