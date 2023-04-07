@@ -5,7 +5,7 @@
     "main": "dist/main.js",
     "typings": "dist/main.d.ts",
     "scripts": {
-        "build": "tsc -b .",
+        "build": "set",
         "test": "npm run build && jest"
     },
     "author": "Microsoft",
