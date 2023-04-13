@@ -1,5 +1,6 @@
 ts_downloads/
 testDownloads/
+artifacts/
 *.tsbuildinfo
 *.d.ts
 *.js.map
