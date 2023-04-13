@@ -65,7 +65,7 @@
                 "False",
                 "testSeed"
             ],
-            // "preLaunchTask": "Clean ts_downloads and artifacts folders"
+            "preLaunchTask": "Clean ts_downloads and artifacts folders"
         },
         {
             "type": "node",
