@@ -99,11 +99,11 @@ interface Summary {
     repo: git.Repo;
     oldTsEntrypointPath: string;
     rawErrorArtifactPath: string;
-    replayScriptPath: string;
-    repoDir: string;
+    replayScript: string;
     downloadDir: string;
     replayScriptArtifactPath: string;
     replayScriptName: string;
+    commit: string;
 }
 
 interface RepoResult {
@@ -446,7 +446,7 @@ Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${a
 <h4>Last few requests</h4>
 
 \`\`\`json
-${fs.readFileSync(summary.replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n")}
+${summary.replayScript}
 \`\`\`
 
 <h4>Repro steps</h4>
@@ -461,8 +461,7 @@ ${fs.readFileSync(summary.replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/
 
             try {
                 console.log("Extracting commit SHA for repro steps");
-                const commit = (await execAsync(summary.repoDir, `git rev-parse @`)).trim();
-                text += `<li>In dir <code>${summary.repo.name}</code>, run <code>git reset --hard ${commit}</code></li>\n`;
+                text += `<li>In dir <code>${summary.repo.name}</code>, run <code>git reset --hard ${summary.commit}</code></li>\n`;
             }
             catch {
             }
@@ -774,16 +773,19 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
             }
 
             if (tsServerResult) {
+                const replayScriptPath = path.join(downloadDir, path.basename(replayScriptArtifactPath));
+                const repoDir = path.join(downloadDir, repo.name);
+
                 summaries.push({
                     tsServerResult,
                     repo,
                     oldTsEntrypointPath,
                     rawErrorArtifactPath,
-                    replayScriptPath: path.join(downloadDir, path.basename(replayScriptArtifactPath)),
-                    repoDir: path.join(downloadDir, repo.name),
+                    replayScript: fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"),
                     downloadDir,
                     replayScriptArtifactPath,
                     replayScriptName: path.basename(replayScriptArtifactPath),
+                    commit: (await execAsync(repoDir, `git rev-parse @`)).trim()
                 });
             }
 
