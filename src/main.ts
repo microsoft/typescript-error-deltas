@@ -103,7 +103,7 @@ interface Summary {
     downloadDir: string;
     replayScriptArtifactPath: string;
     replayScriptName: string;
-    commit: string;
+    commit?: string;
 }
 
 interface RepoResult {
@@ -459,11 +459,8 @@ ${summary.replayScript}
         else {
             text += `<li><code>git clone ${summary.repo.url} --recurse-submodules</code></li>\n`;
 
-            try {
-                console.log("Extracting commit SHA for repro steps");
+            if (summary.commit) {
                 text += `<li>In dir <code>${summary.repo.name}</code>, run <code>git reset --hard ${summary.commit}</code></li>\n`;
-            }
-            catch {
             }
         }
 
@@ -776,6 +773,15 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 const replayScriptPath = path.join(downloadDir, path.basename(replayScriptArtifactPath));
                 const repoDir = path.join(downloadDir, repo.name);
 
+                let commit: string | undefined;
+                try {
+                    console.log("Extracting commit SHA for repro steps");
+                    commit = (await execAsync(repoDir, `git rev-parse @`)).trim()
+                }
+                catch {
+                    //noop
+                }
+
                 summaries.push({
                     tsServerResult,
                     repo,
@@ -785,7 +791,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                     downloadDir,
                     replayScriptArtifactPath,
                     replayScriptName: path.basename(replayScriptArtifactPath),
-                    commit: (await execAsync(repoDir, `git rev-parse @`)).trim()
+                    commit
                 });
             }
 
