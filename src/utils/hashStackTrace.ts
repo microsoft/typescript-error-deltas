@@ -1,4 +1,4 @@
-    import { createHash } from "crypto";
+import { createHash } from "crypto";
 
 export function getHash(methods: string[]): string {
     const lines = methods.join("\n");
