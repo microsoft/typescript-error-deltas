@@ -1,0 +1,120 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch listTopRepos",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/listTopRepos.js",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "sourceMaps": true,
+            "args": [
+                "TypeScript",
+                "100",
+                "0",
+                "./artifacts/repos.json"
+            ],
+            "preLaunchTask": "Create artifacts folder"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch listUserTestRepos",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/listUserTestRepos.js",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "sourceMaps": true,
+            "args": [
+                "./userTests",
+                "./artifacts/repos.json"
+            ],
+            "preLaunchTask": "Create artifacts folder"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch checkGithubRepos",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/checkGithubRepos.js",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "args": [
+                "tsserver",
+                "latest",
+                "next",
+                "./artifacts/repos.json",
+                "1",
+                "1",
+                "./artifacts",
+                "False",
+                "testSeed"
+            ],
+            "preLaunchTask": "Clean ts_downloads and artifacts folders"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch checkUserTestRepos",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/checkUserTestRepos.js",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "args": [
+                "tsserver",
+                "https://github.com/armanio123/TypeScript.git",
+                "main",
+                "2",
+                "false",
+                "./artifacts/repos.json",
+                "1",
+                "1",
+                "./artifacts",
+                "true",
+                "testSeed"
+            ],
+            "preLaunchTask": "Clean ts_downloads and artifacts folders"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch postGitHubComments",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/postGitHubComments.js",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "args": [
+                "armanio123",
+                "2",
+                "1",
+                "false",
+                "artifacts",
+                "artifacts",
+                "false"
+            ]
+        }
+    ]
+}
