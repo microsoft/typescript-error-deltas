@@ -9,6 +9,7 @@ import fs = require("fs");
 import path = require("path");
 import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
+import { getErrorMessageFromStack, getHash, getHashForStack } from "./utils/hashStackTrace";
 
 interface Params {
     /**
@@ -84,9 +85,31 @@ export type RepoStatus =
     | "Detected no interesting changes"
     ;
 
+interface TSServerResult {
+    oldServerFailed: boolean;
+    oldSpawnResult?: SpawnResult;
+    newServerFailed: boolean;
+    newSpawnResult: SpawnResult;
+    replayScriptPath: string;
+    installCommands: ip.InstallCommand[];
+}
+
+interface Summary {
+    tsServerResult: TSServerResult;
+    repo: git.Repo;
+    oldTsEntrypointPath: string;
+    rawErrorArtifactPath: string;
+    replayScript: string;
+    downloadDir: string;
+    replayScriptArtifactPath: string;
+    replayScriptName: string;
+    commit?: string;
+}
+
 interface RepoResult {
     readonly status: RepoStatus;
     readonly summary?: string;
+    readonly tsServerResult?: TSServerResult;
     readonly replayScriptPath?: string;
     readonly rawErrorPath?: string;
 }
@@ -203,8 +226,6 @@ async function getTsServerRepoResult(
         ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
-    const isUserTestRepo = !repo.url;
-
     const replayScriptName = path.basename(replayScriptArtifactPath);
     const replayScriptPath = path.join(downloadDir, replayScriptName);
 
@@ -302,101 +323,23 @@ async function getTsServerRepoResult(
             }
         }
 
-        const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
-        const url = repo.url ? `(${repo.url})` : "";
+        const tsServerResult = {
+            oldServerFailed,
+            oldSpawnResult,
+            newServerFailed,
+            newSpawnResult,
+            replayScriptPath,
+            installCommands,
+        };
 
-        let summary = `## [${owner}${mdEscape(repo.name)}]${url}\n`;
-
-        if (oldServerFailed) {
-            const oldServerError = oldSpawnResult?.stdout
-                ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
-                : `Timed out after ${executionTimeout} ms`;
-            summary += `
-<details>
-<summary>:warning: Note that ${path.basename(path.dirname(path.dirname(oldTsServerPath)))} had errors :warning:</summary>
-
-\`\`\`
-${oldServerError}
-\`\`\`
-
-</details>
-
-`;
-            if (!newServerFailed) {
-                summary += `
-:tada: New server no longer has errors :tada:
-`;
-                return { status: "Detected interesting changes", summary }
-            }
+        if (oldServerFailed && !newServerFailed) {
+            return { status: "Detected interesting changes", tsServerResult }
         }
-        
         if (!newServerFailed) {
             return { status: "Detected no interesting changes" };
         }
 
-        summary += `
-
-\`\`\`
-${prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ true)}
-\`\`\`
-That is a filtered view of the text. To see the raw error text, go to ${rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n
-`;
-
-        summary += `
-<details>
-<summary><h3>Last few requests</h3></summary>
-
-\`\`\`json
-${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n")}
-\`\`\`
-
-</details>
-
-`;
-
-        // Markdown doesn't seem to support a <details> list item, so this chunk is in HTML
-
-        summary += `<details>
-<summary><h3>Repro Steps</h3></summary>
-<ol>
-`;
-        if (isUserTestRepo) {
-            summary += `<li>Download user test <code>${repo.name}</code></li>\n`;
-        }
-        else {
-            summary += `<li><code>git clone ${repo.url!} --recurse-submodules</code></li>\n`;
-
-            try {
-                console.log("Extracting commit SHA for repro steps");
-                const commit = (await execAsync(repoDir, `git rev-parse @`)).trim();
-                summary += `<li>In dir <code>${repo.name}</code>, run <code>git reset --hard ${commit}</code></li>\n`;
-            }
-            catch {
-            }
-        }
-
-        if (installCommands.length > 1) {
-            summary += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
-        }
-        for (const command of installCommands) {
-            summary += `  <li>In dir <code>${path.relative(downloadDir, command.directory)}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
-        }
-        if (installCommands.length > 1) {
-            summary += "</ol></details>\n";
-        }
-
-        // The URL of the artifact can be determined via AzDO REST APIs, but not until after the artifact is published
-        summary += `<li>Back in the initial folder, download <code>${replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
-        summary += `<li><code>npm install --no-save @typescript/server-replay</code></li>\n`;
-        summary += `<li><code>npx tsreplay ./${repo.name} ./${replayScriptName} path/to/tsserver.js</code></li>\n`;
-        summary += `<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>\n`;
-
-        summary += `</ol>
-</details>
-
-`;
-
-        return { status: "Detected interesting changes", summary, replayScriptPath, rawErrorPath };
+        return { status: "Detected interesting changes", tsServerResult, replayScriptPath, rawErrorPath };
     }
     catch (err) {
         reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
@@ -406,6 +349,143 @@ ${fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(
         console.log(`Done ${repo.url ?? repo.name}`);
         logStepTime(diagnosticOutput, repo, "language service", lsStart);
     }
+}
+
+function groupErrors(summaries: Summary[]) {
+    const groupedOldErrors = new Map<string, Summary[]>();
+    const groupedNewErrors = new Map<string, Summary[]>();
+    let group: Map<string, Summary[]>;
+    let error: ServerHarnessOutput | string;
+    for (const summary of summaries) {
+        if (summary.tsServerResult.newServerFailed) {
+            // Group new errors
+            error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
+            group = groupedNewErrors;
+        }
+        else if (summary.tsServerResult.oldServerFailed) {
+            // Group old errors
+            const { oldSpawnResult } = summary.tsServerResult;
+            error = oldSpawnResult?.stdout
+                ? parseServerHarnessOutput(oldSpawnResult.stdout)
+                : `Timed out after ${executionTimeout} ms`;
+
+            group = groupedOldErrors;
+        }
+        else {
+            continue;
+        }
+
+        const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
+        const value = group.get(key) ?? [];
+        value.push(summary);
+        group.set(key, value);
+    }
+
+    return { groupedOldErrors, groupedNewErrors }
+}
+
+function getErrorMessage(output: string): string {
+    const error = parseServerHarnessOutput(output);
+
+    return typeof error === "string" ? error : getErrorMessageFromStack(error.message);
+}
+
+function createOldErrorSummary(summaries: Summary[]): string {
+    const { oldSpawnResult } = summaries[0].tsServerResult;
+
+    const oldServerError = oldSpawnResult?.stdout
+        ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
+        : `Timed out after ${executionTimeout} ms`;
+
+    const errorMessage = oldSpawnResult?.stdout ? getErrorMessage(oldSpawnResult.stdout) : oldServerError;
+
+    let text = `
+<details>
+<summary>${errorMessage}</summary>
+
+\`\`\`
+${oldServerError}
+\`\`\`
+
+<h4>Repos no longer reporting the error</h4>
+<ul>
+`;
+
+    for (const summary of summaries) {
+        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
+        const url = summary.repo.url ?? "";
+
+        text += `<li><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></li>\n`
+    }
+
+    text += `
+</ul>
+</details>
+`;
+
+    return text;
+}
+
+async function createNewErrorSummaryAsync(summaries: Summary[]): Promise<string> {
+    let text = `<h2>${getErrorMessage(summaries[0].tsServerResult.newSpawnResult.stdout)}</h2>
+
+\`\`\`
+${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.newSpawnResult.stdout, /*filter*/ true)}
+\`\`\`
+
+<h4>Affected repos</h4>`;
+
+    for (const summary of summaries) {
+        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
+        const url = summary.repo.url ?? "";
+
+        text += `
+<details>
+<summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
+Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
+<h4>Last few requests</h4>
+
+\`\`\`json
+${summary.replayScript}
+\`\`\`
+
+<h4>Repro steps</h4>
+<ol>
+`;
+        // No url means is user test repo
+        if (!summary.repo.url) {
+            text += `<li>Download user test <code>${summary.repo.name}</code></li>\n`;
+        }
+        else {
+            text += `<li><code>git clone ${summary.repo.url} --recurse-submodules</code></li>\n`;
+
+            if (summary.commit) {
+                text += `<li>In dir <code>${summary.repo.name}</code>, run <code>git reset --hard ${summary.commit}</code></li>\n`;
+            }
+        }
+
+        if (summary.tsServerResult.installCommands.length > 1) {
+            text += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
+        }
+        for (const command of summary.tsServerResult.installCommands) {
+            text += `  <li>In dir <code>${path.relative(summary.downloadDir, command.directory)}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
+        }
+        if (summary.tsServerResult.installCommands.length > 1) {
+            text += "</ol></details>\n";
+        }
+
+        // The URL of the artifact can be determined via AzDO REST APIs, but not until after the artifact is published
+        text += `<li>Back in the initial folder, download <code>${summary.replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
+        text += `<li><code>npm install --no-save @typescript/server-replay</code></li>\n`;
+        text += `<li><code>npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} path/to/tsserver.js</code></li>\n`;
+        text += `<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>\n`;
+
+        text += `</ol>
+</details>
+`;
+    }
+
+    return text;
 }
 
 // Exported for testing
@@ -658,6 +738,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
     const isPr = params.testType === "user" && !!params.prNumber
 
+    var summaries: Summary[] = [];
+
     let i = 1;
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
@@ -672,16 +754,48 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 : repo.name;
             const replayScriptFileName = `${repoPrefix}.${replayScriptFileNameSuffix}`;
             const rawErrorFileName = `${repoPrefix}.${rawErrorFileNameSuffix}`;
-            const { status, summary, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
+
+            const rawErrorArtifactPath = path.join(params.resultDirName, rawErrorFileName);
+            const replayScriptArtifactPath = path.join(params.resultDirName, replayScriptFileName);
+
+            const { status, summary, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
                 ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, path.join(params.resultDirName, replayScriptFileName), path.join(params.resultDirName, rawErrorFileName), diagnosticOutput, isPr);
+                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
             console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
             statusCounts[status] = (statusCounts[status] ?? 0) + 1;
-            if (summary) {
 
+            if (summary) {
                 const resultFileName = `${repoPrefix}.${resultFileNameSuffix}`;
                 await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
+            }
 
+            if (tsServerResult) {
+                const replayScriptPath = path.join(downloadDir, path.basename(replayScriptArtifactPath));
+                const repoDir = path.join(downloadDir, repo.name);
+
+                let commit: string | undefined;
+                try {
+                    console.log("Extracting commit SHA for repro steps");
+                    commit = (await execAsync(repoDir, `git rev-parse @`)).trim()
+                }
+                catch {
+                    //noop
+                }
+
+                summaries.push({
+                    tsServerResult,
+                    repo,
+                    oldTsEntrypointPath,
+                    rawErrorArtifactPath,
+                    replayScript: fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"),
+                    downloadDir,
+                    replayScriptArtifactPath,
+                    replayScriptName: path.basename(replayScriptArtifactPath),
+                    commit
+                });
+            }
+
+            if (summary || tsServerResult) {
                 // In practice, there will only be a replay script when the entrypoint is tsserver
                 // There can be replay steps without a summary, but then they're not interesting
                 if (replayScriptPath) {
@@ -690,9 +804,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 if (rawErrorPath) {
                     await fs.promises.copyFile(rawErrorPath, path.join(resultDirPath, rawErrorFileName));
                 }
-
             }
-
         }
         finally {
             // Throw away the repo so we don't run out of space
@@ -724,6 +836,25 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                     }
                 }
             }
+        }
+    }
+
+    // Group errors and create summary files.
+    if (summaries.length > 0) {
+        const { groupedOldErrors, groupedNewErrors } = groupErrors(summaries);
+
+        for (let [key, value] of groupedOldErrors) {
+            const summary = createOldErrorSummary(value);
+            const resultFileName = `!${key}.${resultFileNameSuffix}`; // Exclamation point makes the file to be put first when ordering.
+
+            await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
+        }
+
+        for (let [key, value] of groupedNewErrors) {
+            const summary = await createNewErrorSummaryAsync(value);
+            const resultFileName = `${key}.${resultFileNameSuffix}`;
+
+            await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
         }
     }
 
