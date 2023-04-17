@@ -1,0 +1,42 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Create artifacts folder",
+            "type": "shell",
+            "command": "rm -rf artifacts; mkdir artifacts",
+            "windows": {
+                "command": "if (Test-Path artifacts) { Remove-Item -Force -Recurse artifacts }; New-Item -Force -ItemType directory artifacts"
+            }
+        },
+        {
+            "label": "Clean ts_downloads and artifacts folders",
+            "type": "shell",
+            "command": "rm -d -rf ts_downloads; ls ./artifacts | grep -xv repos.json | xargs -r rm",
+            "windows": {
+                "command": "if (Test-Path ts_downloads) { Remove-Item -Force -Recurse ts_downloads }; Remove-Item artifacts/* -Exclude repos.json"
+            }
+        },
+        {
+            "type": "npm",
+            "script": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "label": "npm: build",
+            "detail": "tsc -b ."
+        },
+        {
+            "label": "Clean all",
+            "type": "shell",
+            "command": "rm -d -rf artifacts ts_downloads typescript-*",
+            "windows": {
+                "command": "Remove-Item -Force -Recurse artifacts, ts_downloads, typescript-*"
+            }
+        },
+    ]
+}
