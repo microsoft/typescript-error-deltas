@@ -31,6 +31,6 @@
         "@types/random-seed": "^0.3.3",
         "jest": "^27.4.4",
         "ts-jest": "^27.1.5",
-        "typescript": "^4.8.3"
+        "typescript": "^5.0.4"
     }
 }
