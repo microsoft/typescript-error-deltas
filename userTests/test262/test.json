@@ -1,4 +1,5 @@
 {
     "cloneUrl": "https://github.com/tc39/test262.git",
-    "branch": "main"
+    "branch": "main",
+    "types": []
 }
