@@ -11,8 +11,6 @@ interface UserConfig {
 }
 
 export function getUserTestsRepos(testDir: string): Repo[] {
-    // TODO: Figure out why chrome-devtools-frontend is failing.
-
     const repoDirectories = fs.readdirSync(`${testDir}`, { withFileTypes: true })
         .filter(value => value.isDirectory())
         .map(value => value.name);
@@ -29,7 +27,7 @@ export function getUserTestsRepos(testDir: string): Repo[] {
                 branch: config.branch,
             });
         }
-        else if (fs.existsSync(path.join(testDir, directory, "package.json"))) {
+        else if (fs.existsSync(path.join(testDir, directory, "package.json")) || fs.existsSync(path.join(testDir, directory, "build.sh"))) {
             repos.push({
                 name: directory,
             });
