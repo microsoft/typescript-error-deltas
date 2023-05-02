@@ -1,5 +1,4 @@
 {
-    "cloneUrl": "https://github.com/npm/cli.git",
-    "branch": "latest",
-    "types": ["node"]
+    "cloneUrl": "https://github.com/tc39/test262.git",
+    "branch": "main"
 }
