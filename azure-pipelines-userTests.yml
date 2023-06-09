@@ -8,9 +8,13 @@ parameters:
     type: boolean
     default: false
   - name: TOP_REPOS
-    displayName: Query Github for top TS repos by stars
+    displayName: Whether to query Github for top TS repos by stars. If false, uses the user test suite.
     type: boolean
     default: false
+  - name: REPO_COUNT
+    displayName: Number of repositories to run on for when TOP_REPOS is set to true.
+    type: number
+    default: 100
   - name: OLD_TS_REPO_URL
     displayName: Old Typscript Repo Url
     type: string
@@ -66,7 +70,7 @@ jobs:
       npm ci
       npm run build
       mkdir artifacts
-  - script: node dist/listTopRepos TypeScript 100 0 artifacts/repos.json
+  - script: node dist/listTopRepos TypeScript ${{ parameters.REPO_COUNT }} 0 artifacts/repos.json
     condition: eq('${{ parameters.TOP_REPOS }}', 'true')
     env:
       GITHUB_PAT: $(GITHUB_PAT)
