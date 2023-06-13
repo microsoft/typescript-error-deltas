@@ -1,0 +1,12 @@
+{
+  "name": "typescript-eslint-parser-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@typescript-eslint/parser": "latest",
+    "typescript": "latest"
+  }
+}
