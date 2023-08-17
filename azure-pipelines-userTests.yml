@@ -35,7 +35,7 @@ parameters:
   - name: MACHINE_COUNT
     displayName: Machine Count
     type: number
-    default: 4
+    default: 8
     values:
     - 1
     - 2
