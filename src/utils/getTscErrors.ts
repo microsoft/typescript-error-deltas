@@ -66,13 +66,13 @@ export function errorEquals(error1: Error, error2: Error) {
  */
 export async function buildAndGetErrors(repoDir: string, monorepoPackages: readonly string[], isUserTestRepo: boolean, tscPath: string, timeoutMs: number, skipLibCheck: boolean = true): Promise<RepoErrors> {
     const projectErrors: ProjectErrors[] = [];
+    const tsRepoPath = path.resolve(path.dirname(path.dirname(path.dirname(tscPath))));
 
     // If it's a user test repo and there's a build.sh in the root, don't bother searching for projects
     // Obviously, we don't want to execute scripts we find in GH repos
     if (isUserTestRepo) {
         const buildScriptPath = path.join(repoDir, "build.sh");
         if (fs.existsSync(buildScriptPath)) {
-            const tsRepoPath = path.dirname(path.dirname(path.dirname(tscPath)))
 
             const spawnResult = await spawnWithTimeoutAsync(repoDir, path.resolve(buildScriptPath), [], timeoutMs, { ...process.env, TS: tsRepoPath });
             if (!spawnResult) {
@@ -82,7 +82,7 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
             const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(spawnResult);
 
             if (!isEmpty) {
-                projectErrors.push(await getProjectErrors(buildScriptPath, stdout, hasBuildFailure, /*isComposite*/ false, /*reportGithubLinks*/ false));
+                projectErrors.push(await getProjectErrors(buildScriptPath, tsRepoPath, stdout, hasBuildFailure, /*isComposite*/ false, /*reportGithubLinks*/ false));
             }
 
             return {
@@ -118,7 +118,7 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
         const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(spawnResult);
         if (isEmpty) continue;
 
-        projectErrors.push(await getProjectErrors(projectPath, stdout, hasBuildFailure, isComposite, /*reportGithubLinks*/ !isUserTestRepo));
+        projectErrors.push(await getProjectErrors(projectPath, tsRepoPath, stdout, hasBuildFailure, isComposite, /*reportGithubLinks*/ !isUserTestRepo));
     }
 
     return {
@@ -127,7 +127,7 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
     };
 }
 
-async function getProjectErrors(projectPath: string, stdout: string, hasBuildFailure: boolean, isComposite: boolean, reportGithubLinks: boolean): Promise<ProjectErrors> {
+async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout: string, hasBuildFailure: boolean, isComposite: boolean, reportGithubLinks: boolean): Promise<ProjectErrors> {
     const projectDir = path.dirname(projectPath);
     const projectUrl = reportGithubLinks ? await ghLink.getGithubLink(projectPath) : projectPath; // Use project path for user tests as they don't contain a git project.
 
@@ -159,6 +159,14 @@ async function getProjectErrors(projectPath: string, stdout: string, hasBuildFai
             text: localError.text,
             fileUrl: fileUrls[i],
         });
+    }
+
+    for (const error of errors) {
+        // Drop paths to the repo (e.g., elaborations mentioning lib.d.ts files) so the messages still compare equal.
+        if (error.text) {
+            // TODO: use replaceAll once that's available.
+            error.text = error.text.split(tsRepoPath).join("<ts>");
+        }
     }
 
     return {
