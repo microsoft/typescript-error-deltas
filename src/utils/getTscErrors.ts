@@ -66,7 +66,7 @@ export function errorEquals(error1: Error, error2: Error) {
  */
 export async function buildAndGetErrors(repoDir: string, monorepoPackages: readonly string[], isUserTestRepo: boolean, tscPath: string, timeoutMs: number, skipLibCheck: boolean = true): Promise<RepoErrors> {
     const projectErrors: ProjectErrors[] = [];
-    const tsRepoPath = path.dirname(path.dirname(path.dirname(tscPath)))
+    const tsRepoPath = path.resolve(path.dirname(path.dirname(path.dirname(tscPath))));
 
     // If it's a user test repo and there's a build.sh in the root, don't bother searching for projects
     // Obviously, we don't want to execute scripts we find in GH repos
