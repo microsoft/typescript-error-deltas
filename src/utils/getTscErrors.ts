@@ -163,10 +163,9 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
 
     for (const error of errors) {
         // Drop paths to the repo (e.g., elaborations mentioning lib.d.ts files) so the messages still compare equal.
-        if (error.text) {
-            // TODO: use replaceAll once that's available.
-            error.text = error.text.split(tsRepoPath).join("<ts>");
-        }
+        // TODO: use replaceAll once that's available.
+        error.text = error.text?.split(tsRepoPath).join("<ts>");
+        error.fileUrl = error.fileUrl?.split(tsRepoPath).join("<ts>");
     }
 
     return {
