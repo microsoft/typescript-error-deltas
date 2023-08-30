@@ -166,6 +166,7 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
         if (error.text) {
             // TODO: use replaceAll once that's available.
             error.text = error.text.split(tsRepoPath).join("<ts>");
+            error.fileUrl = error.fileUrl?.split(tsRepoPath).join("<ts>");
         }
     }
 
