@@ -62,9 +62,9 @@ pool:
 jobs:
 - job: ListRepos
   steps:
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: '16.x'
+      version: '20.x'
     displayName: 'Install Node.js'
   - script: |
       npm ci
@@ -88,9 +88,9 @@ jobs:
   steps:
   - download: current
     artifact: RepoList
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: '16.x'
+      version: '20.x'
     displayName: 'Install Node.js'
   - script: |
       npm ci
@@ -107,9 +107,9 @@ jobs:
   dependsOn: DetectNewErrors
   steps:
   - download: current
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: '16.x'
+      version: '20.x'
     displayName: 'Install Node.js'
   - script: |
       npm ci
