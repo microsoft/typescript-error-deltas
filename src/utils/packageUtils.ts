@@ -33,12 +33,12 @@ export async function exists(path: string): Promise<boolean> {
  * NB: Does not actually consume lerna.json.
  */
 export async function getMonorepoOrder(repoDir: string): Promise<readonly string[]> {
-    const yarnLockFiles = glob(repoDir, "**/yarn.lock");
-    if (yarnLockFiles.length) {
-        const yarnWorkspaceOrder: string[] = [];
-        for (const yarnLockFile of yarnLockFiles) {
-            const yarnDir = path.dirname(yarnLockFile);
-            const pkgPath = path.join(yarnDir, "package.json");
+    const yarnOrNpmLockFiles = glob(repoDir, "**/{yarn.lock,package-lock.json}");
+    if (yarnOrNpmLockFiles.length) {
+        const workspaceOrder: string[] = [];
+        for (const lockFile of yarnOrNpmLockFiles) {
+            const dir = path.dirname(lockFile);
+            const pkgPath = path.join(dir, "package.json");
             if (await exists(pkgPath)) {
                 const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
                 const pkg: Package = json5.parse(contents);
@@ -47,14 +47,14 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
                     const workspaceDirs = "packages" in workspaces ? workspaces.packages : workspaces;
                     for (const workspaceDir of workspaceDirs) {
                         // workspaceDir might end with `/*` - glob will do the right thing
-                        const pkgPaths = glob(yarnDir, path.join(workspaceDir, "package.json"));
-                        await appendOrderedMonorepoPackages(pkgPaths, yarnWorkspaceOrder);
+                        const pkgPaths = glob(dir, path.join(workspaceDir, "package.json"));
+                        await appendOrderedMonorepoPackages(pkgPaths, workspaceOrder);
                     }
                 }
             }
         }
-        if (yarnWorkspaceOrder.length) {
-            return yarnWorkspaceOrder;
+        if (workspaceOrder.length) {
+            return workspaceOrder;
         }
     }
 
@@ -93,31 +93,6 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
         }
         if (lernaOrder.length) {
             return lernaOrder;
-        }
-    }
-
-    const npmLockFiles = glob(repoDir, "**/package-lock.json");
-    if (npmLockFiles.length) {
-        const npmWorkspaceOrder: string[] = [];
-        for (const npmLockFile of npmLockFiles) {
-            const npmDir = path.dirname(npmLockFile);
-            const pkgPath = path.join(npmDir, "package.json");
-            if (await exists(pkgPath)) {
-                const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
-                const pkg: Package = json5.parse(contents);
-                const workspaces = pkg.workspaces;
-                if (workspaces) {
-                    const workspaceDirs = "packages" in workspaces ? workspaces.packages : workspaces;
-                    for (const workspaceDir of workspaceDirs) {
-                        // workspaceDir might end with `/*` - glob will do the right thing
-                        const pkgPaths = glob(npmDir, path.join(workspaceDir, "package.json"));
-                        await appendOrderedMonorepoPackages(pkgPaths, npmWorkspaceOrder);
-                    }
-                }
-            }
-        }
-        if (npmWorkspaceOrder.length) {
-            return npmWorkspaceOrder;
         }
     }
 
