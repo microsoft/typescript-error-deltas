@@ -96,6 +96,31 @@ export async function getMonorepoOrder(repoDir: string): Promise<readonly string
         }
     }
 
+    const npmLockFiles = glob(repoDir, "**/package-lock.json");
+    if (npmLockFiles.length) {
+        const npmWorkspaceOrder: string[] = [];
+        for (const npmLockFile of npmLockFiles) {
+            const npmDir = path.dirname(npmLockFile);
+            const pkgPath = path.join(npmDir, "package.json");
+            if (await exists(pkgPath)) {
+                const contents = await fs.promises.readFile(pkgPath, { encoding: "utf-8" });
+                const pkg: Package = json5.parse(contents);
+                const workspaces = pkg.workspaces;
+                if (workspaces) {
+                    const workspaceDirs = "packages" in workspaces ? workspaces.packages : workspaces;
+                    for (const workspaceDir of workspaceDirs) {
+                        // workspaceDir might end with `/*` - glob will do the right thing
+                        const pkgPaths = glob(npmDir, path.join(workspaceDir, "package.json"));
+                        await appendOrderedMonorepoPackages(pkgPaths, npmWorkspaceOrder);
+                    }
+                }
+            }
+        }
+        if (npmWorkspaceOrder.length) {
+            return npmWorkspaceOrder;
+        }
+    }
+
     return [];
 }
 
