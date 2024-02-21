@@ -165,9 +165,7 @@ async function installPackagesAndGetCommands(
     repoDir: string,
     monorepoPackages: readonly string[],
     cleanOnFailure: boolean,
-    diagnosticOutput: boolean,
-    gitAddInstalled: boolean,
-): Promise<ip.InstallCommand[] | undefined> {
+    diagnosticOutput: boolean): Promise<ip.InstallCommand[] | undefined> {
     const packageInstallStart = performance.now();
     try {
         console.log("Installing packages if absent");
@@ -180,11 +178,6 @@ async function installPackagesAndGetCommands(
                 /*monorepoPackages*/ monorepoPackages,
             repo.types);
         await installPackages(repoDir, commands, packageTimeout);
-        if (gitAddInstalled) {
-            // Force add all of the ignored files we just installed so we can git clean to go back to this state later.
-            console.log("Staging all installed files");
-            await execAsync(repoDir, "git add --force .");
-        }
         return commands;
     }
     catch (err) {
@@ -230,7 +223,7 @@ async function getTsServerRepoResult(
 
     // Presumably, people occasionally browse repos without installing the packages first
     const installCommands = (prng.random() > 0.2) && monorepoPackages
-        ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput, /*gitAddInstalled*/ false))!
+        ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
     const replayScriptName = path.basename(replayScriptArtifactPath);
@@ -517,9 +510,13 @@ export async function getTscRepoResult(
     const repoDir = path.join(downloadDir, repo.name);
     const monorepoPackages = await getMonorepoPackages(repoDir);
 
-    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput, /*gitAddInstalled*/ true)) {
+    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
         return { status: "Package install failed" };
     }
+
+    // Force add all of the ignored files we just installed so we can git clean to go back to this state later.
+    console.log("Staging all installed files");
+    await execAsync(repoDir, "git add --force .");
 
     const isUserTestRepo = !repo.url;
 
