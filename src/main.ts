@@ -677,6 +677,7 @@ export async function getTscRepoResult(
     finally {
         console.log("Unstaging installed files");
         await execAsync(repoDir, "git restore .");
+        await execAsync(repoDir, "git clean -xdff");
         await execAsync(repoDir, "git restore --staged .");
 
         logStepTime(diagnosticOutput, repo, "build", buildStart);
