@@ -518,6 +518,10 @@ export async function getTscRepoResult(
 
     const buildStart = performance.now();
     try {
+        // Force add all of the ignored files we just installed so we can git clean to go back to this state later.
+        console.log("Staging installed files");
+        await execAsync(repoDir, "git add --force .");
+            
         console.log(`Building with ${oldTscPath} (old)`);
         const oldErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
 
@@ -557,6 +561,10 @@ export async function getTscRepoResult(
             console.log(oldFailuresMessage);
             summary += `**${oldFailuresMessage}**\n`;
         }
+
+        console.log("Restoring repo to post-install state");
+        await execAsync(repoDir, "git restore .");
+        await execAsync(repoDir, "git clean -xdff");
 
         console.log(`Building with ${newTscPath} (new)`);
         const newErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
@@ -667,6 +675,11 @@ export async function getTscRepoResult(
         return { status: "Unknown failure" };
     }
     finally {
+        console.log("Unstaging installed files");
+        await execAsync(repoDir, "git restore .");
+        await execAsync(repoDir, "git clean -xdff");
+        await execAsync(repoDir, "git restore --staged .");
+
         logStepTime(diagnosticOutput, repo, "build", buildStart);
     }
 
