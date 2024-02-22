@@ -7,11 +7,11 @@ import pu = require("./utils/packageUtils");
 const { argv } = process;
 
 if (argv.length !== 9) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, isTop, resultDirPath, artifactsUri, post] = argv;
+const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
@@ -78,7 +78,7 @@ let header = `@${userToTag} Here are the results of running the ${suiteDescripti
 ${summary.join("\n")}`;
 
 if (!outputs.length) {
-    git.createComment(+prNumber, +commentNumber, postResult, [header]);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, [header], true);
 }
 else {
     const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
@@ -117,5 +117,5 @@ else {
         console.log(`Chunk of size ${chunk.length}`);
     }
 
-    git.createComment(+prNumber, +commentNumber, postResult, bodyChunks);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
 }
