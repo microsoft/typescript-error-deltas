@@ -12,7 +12,7 @@ const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFai
 
 mainAsync({
     testType: "user",
-    tmpfs: true,
+    tmpfs: false,
     entrypoint: entrypoint as TsEntrypoint,
     oldTsRepoUrl,
     oldHeadRef,
