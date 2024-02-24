@@ -12,7 +12,7 @@ const [,, entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCoun
 
 mainAsync({
     testType: "github",
-    tmpfs: false,
+    tmpfs: true,
     entrypoint: entrypoint as TsEntrypoint,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
     buildWithNewWhenOldFails: false,
