@@ -26,12 +26,13 @@ parameters:
   - name: MACHINE_COUNT
     displayName: Machine Count
     type: number
-    default: 8
+    default: 16
     values:
     - 1
     - 2
     - 4
     - 8
+    - 16
   - name: ENTRYPOINT
     displayName: TypeScript entrypoint
     type: string
