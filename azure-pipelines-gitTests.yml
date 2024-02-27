@@ -66,6 +66,10 @@ trigger: none
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  Codeql.Enabled: false
+  skipComponentGovernanceDetection: true
+
 extends:
   template: azure-pipelines-gitTests-template.yml
   parameters:
