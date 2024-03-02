@@ -6,7 +6,7 @@ import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 9) {
+if (argv.length !== 10) {
     console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
     process.exit(-1);
 }
