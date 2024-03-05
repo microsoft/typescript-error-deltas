@@ -89,29 +89,45 @@ else {
     const trunctationSuffix = `\n:error: Truncated - see log for full output :error:`;
 
     // GH caps the maximum body length, so paginate if necessary
+    const maxCommentLength = 65535;
+
     const bodyChunks: string[] = [];
     let chunk = initialHeader;
-    for (const output of outputs) {
-        if (chunk.length + output.length + closeDetails.length > 65535) {
-            if (chunk === initialHeader || chunk === continuationHeader) {
-                // output is too long and bumping it to the next comment won't help
-                console.log("Truncating output to fit in GH comment");
-                chunk += output.substring(0, 65535 - chunk.length - closeDetails.length - trunctationSuffix.length);
-                chunk += trunctationSuffix;
-                chunk += closeDetails;
-                bodyChunks.push(chunk);
-                chunk = continuationHeader;
-                continue; // Specifically, don't append output below
-            }
 
+    for (let i = 0; i < outputs.length;) {
+        const output = outputs[i];
+        if ((chunk.length + output.length + closeDetails.length) < maxCommentLength) {
+            // Output still fits within chunk; add and continue.
+            chunk += output;
+            i++;
+            continue;
+        }
+
+        // The output is too long to fit in the current chunk.
+
+        if (chunk === initialHeader || chunk === continuationHeader) {
+            // We only have a header, but the output still doesn't fit. Truncate and continue.
+            console.log("Truncating output to fit in GH comment");
+            chunk += output.slice(0, maxCommentLength - chunk.length - closeDetails.length - trunctationSuffix.length);
+            chunk += trunctationSuffix;
             chunk += closeDetails;
             bodyChunks.push(chunk);
             chunk = continuationHeader;
+            i++;
+            continue;
         }
-        chunk += output;
+
+        // Close the chunk and try the same output again.
+        chunk += closeDetails;
+        bodyChunks.push(chunk);
+        chunk = continuationHeader;
     }
-    chunk += closeDetails;
-    bodyChunks.push(chunk);
+
+    if (chunk !== initialHeader && chunk !== continuationHeader) {
+        chunk += closeDetails;
+        bodyChunks.push(chunk);
+    }
+    
 
     for (const chunk of bodyChunks) {
         console.log(`Chunk of size ${chunk.length}`);
