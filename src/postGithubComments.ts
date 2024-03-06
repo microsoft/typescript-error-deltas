@@ -78,7 +78,7 @@ let header = `@${userToTag} Here are the results of running the ${suiteDescripti
 ${summary.join("\n")}`;
 
 if (!outputs.length) {
-    git.createComment(+prNumber, +commentNumber, distinctId, postResult, [header], true);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
 }
 else {
     const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
