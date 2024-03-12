@@ -13,4 +13,4 @@ git diff
 yarn
 yarn tsc --version
 
-yarn typecheck
+yarn build
