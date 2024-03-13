@@ -59,7 +59,7 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
 }
 
 async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
-    const files = await glob.glob("**/node_modules", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**"], nodir: true, follow: false });
+    const files = await glob.glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
 
     const serverArgs = [
         "--disableAutomaticTypingAcquisition",
