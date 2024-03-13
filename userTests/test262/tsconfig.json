@@ -11,5 +11,5 @@
         "noEmit": true,
         "allowJs": true
     },
-    "include": ["test/**/*.js"]
+    "include": ["test262/test/**/*.js"]
 }

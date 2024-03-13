@@ -8,9 +8,13 @@ parameters:
     type: boolean
     default: false
   - name: TOP_REPOS
-    displayName: Query Github for top TS repos by stars
+    displayName: Whether to query Github for top TS repos by stars. If false, uses the user test suite.
     type: boolean
     default: false
+  - name: REPO_COUNT
+    displayName: Number of repositories to run on for when TOP_REPOS is set to true.
+    type: number
+    default: 100
   - name: OLD_TS_REPO_URL
     displayName: Old Typscript Repo Url
     type: string
@@ -19,6 +23,9 @@ parameters:
     displayName: Old head reference
     type: string
     default: main
+  - name: DISTINCT_ID
+    displayName: Distinct ID
+    type: string
   - name: REQUESTING_USER
     displayName: User to tag when the results are ready
     type: string
@@ -31,12 +38,13 @@ parameters:
   - name: MACHINE_COUNT
     displayName: Machine Count
     type: number
-    default: 4
+    default: 16
     values:
     - 1
     - 2
     - 4
     - 8
+    - 16
   - name: ENTRYPOINT
     displayName: TypeScript entrypoint
     type: string
@@ -53,20 +61,25 @@ pr: none
 trigger: none
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: TypeScript-1ES-Large
+  vmImage: ubuntu-22.04
+
+variables:
+  Codeql.Enabled: false
+  skipComponentGovernanceDetection: true
 
 jobs:
 - job: ListRepos
   steps:
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: '16.x'
+      version: '20.x'
     displayName: 'Install Node.js'
   - script: |
       npm ci
       npm run build
       mkdir artifacts
-  - script: node dist/listTopRepos TypeScript 100 0 artifacts/repos.json
+  - script: node dist/listTopRepos TypeScript ${{ parameters.REPO_COUNT }} 0 artifacts/repos.json
     condition: eq('${{ parameters.TOP_REPOS }}', 'true')
     env:
       GITHUB_PAT: $(GITHUB_PAT)
@@ -84,9 +97,9 @@ jobs:
   steps:
   - download: current
     artifact: RepoList
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: '16.x'
+      version: '20.x'
     displayName: 'Install Node.js'
   - script: |
       npm ci
@@ -103,14 +116,14 @@ jobs:
   dependsOn: DetectNewErrors
   steps:
   - download: current
-  - task: NodeTool@0
+  - task: UseNode@1
     inputs:
-      versionSpec: '16.x'
+      version: '20.x'
     displayName: 'Install Node.js'
   - script: |
       npm ci
       npm run build
-      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }}
+      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }}
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

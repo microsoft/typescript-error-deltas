@@ -6,12 +6,12 @@ import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 9) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
+if (argv.length !== 10) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, isTop, resultDirPath, artifactsUri, post] = argv;
+const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
@@ -21,7 +21,7 @@ let newTscResolvedVersion: string | undefined;
 let oldTscResolvedVersion: string | undefined;
 
 let somethingChanged = false;
-let infrastructureFailed = false;
+const infrastructureFailures = new Map<RepoStatus, number>();
 
 for (const path of metadataFilePaths) {
     const metadata: Metadata = JSON.parse(fs.readFileSync(path, { encoding: "utf-8" }));
@@ -38,22 +38,36 @@ for (const path of metadataFilePaths) {
                 somethingChanged = true;
                 break;
             default:
-                infrastructureFailed = true;
+                infrastructureFailures.set(status, (infrastructureFailures.get(status) ?? 0) + 1)
                 break;
         }
     }
 }
 
-let summary: string;
-if (somethingChanged && (isTopReposRun || !infrastructureFailed)) {
-    summary = `Something interesting changed - please have a look.`;
+const summary: string[] = [];
+
+// In a top-repos run, the test set is arbitrary, so we ignore infrastructure failures
+// as it's possible that there's a repo that just doesn't work.
+if (!isTopReposRun && infrastructureFailures.size) {
+    summary.push("There were infrastructure failures potentially unrelated to your change:");
+    summary.push("");
+    for (const [status, count] of infrastructureFailures) {
+        summary.push(`- ${count} ${count === 1 ? "instance" : "instances"} of "${status}"`);
+    }
+    summary.push("");
+    summary.push("Otherwise...");
+    summary.push("");
 }
-else if (infrastructureFailed && !isTopReposRun) {
-    summary = `Unfortunately, something went wrong, but it probably wasn't caused by your change.`;
+
+if (somethingChanged) {
+    summary.push("Something interesting changed - please have a look.");
 }
 else {
-    summary = `Everything looks good!`;
+    summary.push("Everything looks good!");
 }
+
+// Files starting with an exclamation point are old server errors.
+const hasOldErrors = pu.glob(resultDirPath, `**/!*.${resultFileNameSuffix}`).length !== 0;
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri));
@@ -61,46 +75,63 @@ const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).r
 const suiteDescription = isTopReposRun ? "top-repos" : "user test";
 let header = `@${userToTag} Here are the results of running the ${suiteDescription} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
-${summary}`;
+${summary.join("\n")}`;
 
 if (!outputs.length) {
-    git.createComment(+prNumber, +commentNumber, postResult, [header]);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
 }
 else {
+    const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
     const openDetails = `\n\n<details>\n<summary>Details</summary>\n\n`;
     const closeDetails = `\n</details>`;
-    const initialHeader = header + openDetails;
+    const initialHeader = header + openDetails + (hasOldErrors ? oldErrorHeader : '');
     const continuationHeader = `@${userToTag} Here are some more interesting changes from running the ${suiteDescription} suite${openDetails}`;
     const trunctationSuffix = `\n:error: Truncated - see log for full output :error:`;
 
     // GH caps the maximum body length, so paginate if necessary
+    const maxCommentLength = 65535;
+
     const bodyChunks: string[] = [];
     let chunk = initialHeader;
-    for (const output of outputs) {
-        if (chunk.length + output.length + closeDetails.length > 65535) {
-            if (chunk === initialHeader || chunk === continuationHeader) {
-                // output is too long and bumping it to the next comment won't help
-                console.log("Truncating output to fit in GH comment");
-                chunk += output.substring(0, 65535 - chunk.length - closeDetails.length - trunctationSuffix.length);
-                chunk += trunctationSuffix;
-                chunk += closeDetails;
-                bodyChunks.push(chunk);
-                chunk = continuationHeader;
-                continue; // Specifically, don't append output below
-            }
 
+    for (let i = 0; i < outputs.length;) {
+        const output = outputs[i];
+        if ((chunk.length + output.length + closeDetails.length) < maxCommentLength) {
+            // Output still fits within chunk; add and continue.
+            chunk += output;
+            i++;
+            continue;
+        }
+
+        // The output is too long to fit in the current chunk.
+
+        if (chunk === initialHeader || chunk === continuationHeader) {
+            // We only have a header, but the output still doesn't fit. Truncate and continue.
+            console.log("Truncating output to fit in GH comment");
+            chunk += output.slice(0, maxCommentLength - chunk.length - closeDetails.length - trunctationSuffix.length);
+            chunk += trunctationSuffix;
             chunk += closeDetails;
             bodyChunks.push(chunk);
             chunk = continuationHeader;
+            i++;
+            continue;
         }
-        chunk += output;
+
+        // Close the chunk and try the same output again.
+        chunk += closeDetails;
+        bodyChunks.push(chunk);
+        chunk = continuationHeader;
     }
-    chunk += closeDetails;
-    bodyChunks.push(chunk);
+
+    if (chunk !== initialHeader && chunk !== continuationHeader) {
+        chunk += closeDetails;
+        bodyChunks.push(chunk);
+    }
+    
 
     for (const chunk of bodyChunks) {
         console.log(`Chunk of size ${chunk.length}`);
     }
 
-    git.createComment(+prNumber, +commentNumber, postResult, bodyChunks);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
 }

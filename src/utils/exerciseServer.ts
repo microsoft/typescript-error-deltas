@@ -64,16 +64,7 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
 }
 
 async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
-    const files = await (new Promise<string[]>((resolve, reject) => {
-        glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false }, (err, results) => {
-            if (err) {
-                reject(err);
-            }
-            else {
-                resolve(results);
-            }
-        });
-    }));
+    const files = await glob.glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
 
     const serverArgs = [
         "--disableAutomaticTypingAcquisition",
@@ -309,7 +300,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                     }, isAt ? 0.5 : 0.00005);
 
                     // auto-imports are too slow to test everywhere
-                    const requestWithAutoImports = prng.random() < 0.02;
+                    const requestWithAutoImports = prng.random() < 0.05;
 
                     const invokedResponse = await message({
                         "command": "completionInfo",
@@ -334,38 +325,6 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                                 ],
                             }
                         });
-
-                        // Auto-import completions frequently cause issues with completion entry details.
-                        if (requestWithAutoImports) {
-                            const completionEntries = invokedResponse.body.entries;
-                            for (let entry of completionEntries) {
-                                if (entry.hasAction && entry.source !== undefined && "data" in entry) {
-                                    let { name, source, data } = entry;
-                                    // `source` may or may not be relative.
-                                    if (path.isAbsolute(source)) {
-                                        source = path.join(testDirPlaceholder, path.relative(testDir, source)).replace(/\\/g, "/");
-                                    }
-                                    // Technically data is supposed to be opaque... but what can you do?
-                                    if (typeof data.fileName === "string" && path.isAbsolute(data.fileName)) {
-                                       data.fileName = path.join(testDirPlaceholder, path.relative(testDir, data.fileName)).replace(/\\/g, "/");
-                                    }
-                                    
-                                    // 'completionEntryDetails' can take multiple entries; however, it's not useful for diagnostics
-                                    // to report that "this command failed when asking for details on any of these 100 completions."
-                                    await message({
-                                        "command": "completionEntryDetails",
-                                        "arguments": {
-                                            "file": openFileAbsolutePath,
-                                            "line": line,
-                                            "offset": column,
-                                            "entryNames": [
-                                                { name, source, data },
-                                            ],
-                                        }
-                                    })
-                                }
-                            }
-                        }
                     }
 
                     const triggerCharIndex = triggerChars.indexOf(curr);

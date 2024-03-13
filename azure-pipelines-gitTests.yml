@@ -26,12 +26,13 @@ parameters:
   - name: MACHINE_COUNT
     displayName: Machine Count
     type: number
-    default: 4
+    default: 16
     values:
     - 1
     - 2
     - 4
     - 8
+    - 16
   - name: ENTRYPOINT
     displayName: TypeScript entrypoint
     type: string
@@ -63,7 +64,12 @@ pr: none
 trigger: none
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: TypeScript-1ES-Large
+  vmImage: ubuntu-22.04
+
+variables:
+  Codeql.Enabled: false
+  skipComponentGovernanceDetection: true
 
 extends:
   template: azure-pipelines-gitTests-template.yml

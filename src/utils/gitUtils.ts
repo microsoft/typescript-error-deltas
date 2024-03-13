@@ -62,7 +62,7 @@ export async function getPopularRepos(language = "TypeScript", count = 100, repo
 
         for (const repo of items) {
             if (!skipRepos?.includes(repo.html_url)) {
-                repos.push({ url: repo.html_url, name: repo.name, owner: repo.owner.login });
+                repos.push({ url: repo.html_url, name: repo.name, owner: repo.owner?.login });
                 if (repos.length >= count) {
                     break;
                 }
@@ -149,7 +149,7 @@ export async function createIssue(postResult: boolean, title: string, bodyChunks
     }
 }
 
-export async function createComment(prNumber: number, statusComment: number, postResult: boolean, bodyChunks: readonly string[]): Promise<void> {
+export async function createComment(prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
     const newComments = bodyChunks.map(body => ({
         ...repoProperties,
         issue_number: prNumber,
@@ -181,26 +181,41 @@ export async function createComment(prNumber: number, statusComment: number, pos
         newCommentUrls.push(newCommentUrl);
     }
 
-    // Update typescript-bot comment
-    const comment = await kit.issues.getComment({
-        ...repoProperties,
-        comment_id: statusComment
-    });
 
-    let newBody = `${comment.data.body}\n\n`;
-    if (newCommentUrls.length === 1) {
-        newBody += `Update: [The results are in!](${newCommentUrls[0]})`;
-    }
-    else {
-        newBody += `Update: The results are in! `;
-        newBody += newCommentUrls.map((url, i) => `[Part ${i + 1}](${url})`).join(", ");
-    }
+    const emoji = !somethingChanged ? "✅" : "👀";
 
-    await kit.issues.updateComment({
-        ...repoProperties,
-        comment_id: statusComment,
-        body: newBody
-    });
+    const toReplace = `<!--result-${distinctId}-->`;
+    let posted = false;
+    for (let i = 0; i < 5; i++) {
+        // Get status comment contents
+        const statusCommentResp = await kit.issues.getComment({
+            comment_id: statusComment,
+            owner: "Microsoft",
+            repo: "TypeScript",
+        });
+
+        const oldComment = statusCommentResp.data.body;
+        if (!oldComment?.includes(toReplace)) {
+            posted = true;
+            break;
+        }
+
+        const newComment = oldComment.replace(
+            toReplace,
+            `[${emoji} Results](${newCommentUrls[0]})`,
+        );
+
+        // Update status comment
+        await kit.issues.updateComment({
+            comment_id: statusComment,
+            owner: "Microsoft",
+            repo: "TypeScript",
+            body: newComment,
+        });
+
+        // Repeat; someone may have edited the comment at the same time.
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
 }
 
 export async function checkout(cwd: string, branch: string) {
