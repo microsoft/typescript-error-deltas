@@ -62,7 +62,7 @@ export async function getPopularRepos(language = "TypeScript", count = 100, repo
 
         for (const repo of items) {
             if (!skipRepos?.includes(repo.html_url)) {
-                repos.push({ url: repo.html_url, name: repo.name, owner: repo.owner.login });
+                repos.push({ url: repo.html_url, name: repo.name, owner: repo.owner?.login });
                 if (repos.length >= count) {
                     break;
                 }

@@ -85,7 +85,7 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
                 return;
             }
 
-            const childProcessPid = childProcess.pid;
+            const childProcessPid = childProcess.pid!;
             let sawChildProcessPid = false;
 
             const childMap: Record<number, number[]> = {};
