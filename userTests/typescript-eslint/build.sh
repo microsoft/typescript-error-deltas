@@ -7,10 +7,13 @@ cd typescript-eslint
 
 export NX_NO_CLOUD=true
 
-npx json -I -f package.json -e "this.resolutions.typescript = 'file:$TS'"
-git diff
+time yarn
 
-yarn
+export SKIP_POSTINSTALL=true
+npx json -I -f package.json -e "this.resolutions.typescript = 'file:$TS'"
+
+time yarn
+
 yarn tsc --version
 
-yarn build
+yarn typecheck
