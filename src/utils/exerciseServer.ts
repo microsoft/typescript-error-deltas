@@ -2,7 +2,7 @@
 
 import sh = require("@typescript/server-harness");
 import fs = require("fs");
-import type typescript = require("typescript/lib/tsserverlibrary");
+import type typescript = require("typescript");
 import process = require("process");
 import path = require("path");
 import glob = require("glob");
