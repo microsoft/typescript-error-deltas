@@ -2,12 +2,17 @@
 
 import sh = require("@typescript/server-harness");
 import fs = require("fs");
+import type typescript = require("typescript");
 import process = require("process");
 import path = require("path");
 import glob = require("glob");
 import { performance } from "perf_hooks";
 import randomSeed = require("random-seed");
 import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED, EXIT_SERVER_COMMUNICATION_ERROR } from "./exerciseServerConstants";
+
+type RequestBase<T extends typescript.server.protocol.Request> = Omit<T, "command" | "seq" | "type"> & {
+    command: `${T["command"]}`
+}
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
 
@@ -227,6 +232,21 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                         "file": openFileAbsolutePath
                     }
                 }, 0.9);
+
+                await message({
+                    command: "navtree",
+                    arguments: {
+                        file: openFileAbsolutePath,
+                    }
+                } satisfies RequestBase<typescript.server.protocol.NavTreeRequest>, 0.9);
+    
+                await message({
+                    command: "navbar",
+                    arguments: {
+                        file: openFileAbsolutePath,
+                    }
+                } satisfies RequestBase<typescript.server.protocol.NavBarRequest>, 0.9);
+    
             }
 
             if (loadedNewProject) {
