@@ -21,7 +21,7 @@ const processCwd = process.cwd();
  * 
  * This requires root access.
  */
-export async function createTempOverlayFS(root: string): Promise<DisposableOverlayBaseFS> {
+export async function createTempOverlayFS(root: string, diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
     await tryUnmount(root);
     await retryRmRoot(root);
     await mkdirAllRoot(root);
@@ -50,6 +50,9 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
             path: merged,
             [Symbol.asyncDispose]: async () => {
                 overlay = undefined;
+                if (diagnosticOutput) {
+                    await execAsync(processCwd, `ls -l ${upperDir}`);
+                }
                 await tryKillProcessesUsingDir(merged);
                 await tryUnmount(merged);
                 await retryRm(overlayRoot);
@@ -63,6 +66,9 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
         path: basePath,
         createOverlay,
         [Symbol.asyncDispose]: async () => {
+            if (diagnosticOutput) {
+                await execAsync(processCwd, `ls -l ${root}`);
+            }
             if (overlay) {
                 await overlay[Symbol.asyncDispose]();
                 overlay = undefined;
@@ -122,7 +128,7 @@ function tryKillProcessesUsingDir(p: string) {
  * Creates a fake overlay FS, which is just a directory on the local filesystem.
  * Overlays are created by copying the contents of the `base` directory.
  */
-export async function createCopyingOverlayFS(root: string): Promise<DisposableOverlayBaseFS> {
+export async function createCopyingOverlayFS(root: string, _diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
     await retryRm(root);
     await mkdirAll(root);
 

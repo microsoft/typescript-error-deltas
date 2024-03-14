@@ -751,9 +751,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
 
-        await using downloadDir = await createFs(downloadDirPath);
-
         const diagnosticOutput = !!params.diagnosticOutput;
+
+        await using downloadDir = await createFs(downloadDirPath, diagnosticOutput);
+
         const repoPrefix = repo.owner
             ? `${repo.owner}.${repo.name}`
             : repo.name;

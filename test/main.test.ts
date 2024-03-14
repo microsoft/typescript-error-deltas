@@ -16,7 +16,7 @@ describe("main", () => {
             path.resolve("./typescript-main/built/local/tsc.js"),
             path.resolve("./typescript-44585/built/local/tsc.js"),
             /*ignoreOldTscFailures*/ true, // as in a user test
-            await createCopyingOverlayFS("./ts_downloads"),
+            await createCopyingOverlayFS("./ts_downloads", false),
             /*diagnosticOutput*/ false)
         expect(status).toEqual("NewBuildHadErrors")
         expect(summary).toBeDefined()
