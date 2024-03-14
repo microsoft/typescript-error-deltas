@@ -49,6 +49,7 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
             path: merged,
             [Symbol.asyncDispose]: async () => {
                 overlays[overlayId] = undefined;
+                await tryKillProcessesUsingDir(merged);
                 await tryUnmount(merged);
                 await retryRm(overlayRoot);
             }
@@ -67,13 +68,14 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
                     await overlay[Symbol.asyncDispose]();
                 }
             }
+            await tryKillProcessesUsingDir(root);
             await tryUnmount(root);
             await retryRm(root);
         },  
     }
 }
 
-async function retry(fn: () => void | Promise<void>, retries: number, delayMs: number): Promise<void> {
+async function retry(fn: (() => void) | (() => Promise<void>), retries: number, delayMs: number): Promise<void> {
     for (let i = 0; i < retries; i++) {
         try {
             await fn();
@@ -103,6 +105,10 @@ async function mkdirAll(...args: string[]) {
     for (const p of args) {
         await fs.promises.mkdir(p, { recursive: true });
     }
+}
+
+function tryKillProcessesUsingDir(p: string) {
+    return retry(() => execAsync(processCwd, `lsof -K i | grep ${p} || true`), 3, 1000);
 }
 
 /**

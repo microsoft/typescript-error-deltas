@@ -14,6 +14,7 @@ export enum InstallTool {
 
 export interface InstallCommand {
     directory: string;
+    prettyDirectory: string;
     tool: InstallTool;
     arguments: readonly string[];
 }
@@ -24,6 +25,8 @@ export interface InstallCommand {
  */
 export async function installPackages(repoDir: string, ignoreScripts: boolean, quietOutput: boolean, recursiveSearch: boolean, monorepoPackages?: readonly string[], types?: string[]): Promise<InstallCommand[]> {
     monorepoPackages = monorepoPackages ?? await utils.getMonorepoOrder(repoDir);
+
+    const repoName = path.basename(repoDir);
 
     const isRepoYarn = await utils.exists(path.join(repoDir, "yarn.lock"));
     // The existence of .yarnrc.yml indicates that this repo uses yarn 2
@@ -119,8 +122,11 @@ export async function installPackages(repoDir: string, ignoreScripts: boolean, q
             continue;
         }
 
+        const prettyDirectory = path.join(repoName, path.relative(repoDir, packageRoot));
+
         commands.push({
             directory: packageRoot,
+            prettyDirectory,
             tool,
             arguments: args,
         });
@@ -133,6 +139,7 @@ export async function installPackages(repoDir: string, ignoreScripts: boolean, q
 
             commands.push({
                 directory: packageRoot,
+                prettyDirectory,
                 tool: InstallTool.Npm,
                 arguments: args
             });
