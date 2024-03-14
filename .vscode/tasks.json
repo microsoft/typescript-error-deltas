@@ -23,12 +23,22 @@
             "type": "npm",
             "script": "build",
             "group": {
-                "kind": "build",
-                "isDefault": true
+                "kind": "build"
             },
             "problemMatcher": [],
             "label": "npm: build",
             "detail": "tsc -b ."
+        },
+        {
+            "label": "tsc: watch ./src",
+            "type": "shell",
+            "command": "node",
+            "args": ["${workspaceFolder}/node_modules/typescript/lib/tsc.js", "--build", ".", "--watch"],
+            "group": "build",
+            "isBackground": true,
+            "problemMatcher": [
+                "$tsc-watch"
+            ]
         },
         {
             "label": "Clean all",
