@@ -23,8 +23,8 @@ const processCwd = process.cwd();
  */
 export async function createTempOverlayFS(root: string): Promise<DisposableOverlayBaseFS> {
     await tryUnmount(root);
-    await retryRm(root);
-    await mkdirAll(root);
+    await retryRmRoot(root);
+    await mkdirAllRoot(root);
     await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
 
     const basePath = path.join(root, "base");
@@ -100,10 +100,18 @@ function retryRm(p: string) {
     return retry(() => fs.promises.rm(p, { recursive: true, force: true }), 3, 1000);
 }
 
+function retryRmRoot(p: string) {
+    return retry(() => execAsync(processCwd, `sudo rm -rf ${p}`), 3, 1000);
+}
+
 async function mkdirAll(...args: string[]) {
     for (const p of args) {
         await fs.promises.mkdir(p, { recursive: true });
     }
+}
+
+function mkdirAllRoot(...args: string[]) {
+    return execAsync(processCwd, `sudo mkdir -p ${args.join(" ")}`);
 }
 
 function tryKillProcessesUsingDir(p: string) {
