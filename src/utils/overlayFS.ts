@@ -42,10 +42,12 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         }
 
         const overlayRoot = path.join(root, "overlay");
+        await retryRm(overlayRoot);
+
         const upperDir = path.join(overlayRoot, "upper");
         const workDir = path.join(overlayRoot, "work");
         const merged = path.join(overlayRoot, "merged");
-
+        
         await mkdirAll(upperDir, workDir, merged);
 
         await execAsync(processCwd, `sudo mount -t overlay overlay -o lowerdir=${basePath},upperdir=${upperDir},workdir=${workDir} ${merged}`);
