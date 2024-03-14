@@ -14,7 +14,6 @@
     "engines": {
         "node": ">=18"
     },
-    "packageManager": "npm@8.19.4",
     "dependencies": {
         "@octokit/rest": "^20.0.2",
         "@typescript/github-link": "^0.2.2",
