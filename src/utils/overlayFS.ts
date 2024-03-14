@@ -37,6 +37,10 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             throw new Error("Overlay has already been created");
         }
 
+        if (diagnosticOutput) {
+            await execAsync(processCwd, `du -sh ${basePath}`);
+        }
+
         const overlayRoot = path.join(root, "overlay");
         const upperDir = path.join(overlayRoot, "upper");
         const workDir = path.join(overlayRoot, "work");
@@ -51,7 +55,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             [Symbol.asyncDispose]: async () => {
                 overlay = undefined;
                 if (diagnosticOutput) {
-                    await execAsync(processCwd, `ls -l ${upperDir}`);
+                    await execAsync(processCwd, `du -h ${upperDir}`);
                 }
                 await tryKillProcessesUsingDir(merged);
                 await tryUnmount(merged);
@@ -67,7 +71,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         createOverlay,
         [Symbol.asyncDispose]: async () => {
             if (diagnosticOutput) {
-                await execAsync(processCwd, `ls -l ${root}`);
+                await execAsync(processCwd, `du -sh ${root}`);
             }
             if (overlay) {
                 await overlay[Symbol.asyncDispose]();
