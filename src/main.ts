@@ -218,12 +218,12 @@ async function getTsServerRepoResult(
         return { status: "Git clone failed" };
     }
 
-    const baseRepoDir = path.join(downloadDir.path, repo.name);
-    const monorepoPackages = await getMonorepoPackages(baseRepoDir);
+    const repoDir = path.join(downloadDir.path, repo.name);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
 
     // Presumably, people occasionally browse repos without installing the packages first
     const installCommands = (prng.random() > 0.2) && monorepoPackages
-        ? (await installPackagesAndGetCommands(repo, downloadDir.path, baseRepoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
+        ? (await installPackagesAndGetCommands(repo, downloadDir.path, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
     const replayScriptName = path.basename(replayScriptArtifactPath);
@@ -235,12 +235,7 @@ async function getTsServerRepoResult(
     const lsStart = performance.now();
     try {
         console.log(`Testing with ${newTsServerPath} (new)`);
-        let newSpawnResult;
-        {
-            await using overlay = await downloadDir.createOverlay();
-            const repoDir = path.join(overlay.path, repo.name);
-            newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
-        }
+        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
 
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
@@ -291,12 +286,7 @@ async function getTsServerRepoResult(
         }
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
-        let oldSpawnResult;
-        {
-            await using overlay = await downloadDir.createOverlay();
-            const repoDir = path.join(overlay.path, repo.name);
-            oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
-        }
+        const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);;
 
         if (diagnosticOutput && oldSpawnResult) {
             console.log("Raw spawn results (old):");
