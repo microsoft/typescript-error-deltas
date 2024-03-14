@@ -30,13 +30,14 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
     const basePath = path.join(root, "base");
     await mkdirAll(basePath);
 
-    let overlayCount = 0;
-    let overlays: (AsyncDisposable | undefined)[] = [];
+    let overlay: OverlayMergedFS | undefined;
 
     async function createOverlay(): Promise<OverlayMergedFS> {
-        const overlayId = overlayCount++;
+        if (overlay) {
+            throw new Error("Overlay has already been created");
+        }
 
-        const overlayRoot = path.join(root, `overlay-${overlayId}`);
+        const overlayRoot = path.join(root, "overlay");
         const upperDir = path.join(overlayRoot, "upper");
         const workDir = path.join(overlayRoot, "work");
         const merged = path.join(overlayRoot, "merged");
@@ -45,17 +46,16 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
 
         await execAsync(processCwd, `sudo mount -t overlay overlay -o lowerdir=${basePath},upperdir=${upperDir},workdir=${workDir} ${merged}`);
 
-        const overlay: OverlayMergedFS = {
+        overlay = {
             path: merged,
             [Symbol.asyncDispose]: async () => {
-                overlays[overlayId] = undefined;
+                overlay = undefined;
                 await tryKillProcessesUsingDir(merged);
                 await tryUnmount(merged);
                 await retryRm(overlayRoot);
             }
         }
 
-        overlays[overlayId] = overlay;
         return overlay;
     }
 
@@ -63,10 +63,9 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
         path: basePath,
         createOverlay,
         [Symbol.asyncDispose]: async () => {
-            for (const overlay of overlays) {
-                if (overlay) {
-                    await overlay[Symbol.asyncDispose]();
-                }
+            if (overlay) {
+                await overlay[Symbol.asyncDispose]();
+                overlay = undefined;
             }
             await tryKillProcessesUsingDir(root);
             await tryUnmount(root);
@@ -122,26 +121,26 @@ export async function createCopyingOverlayFS(root: string): Promise<DisposableOv
     const basePath = path.join(root, "base");
     await mkdirAll(basePath);
 
-    let overlayCount = 0;
-    let overlays: (AsyncDisposable | undefined)[] = [];
+    let overlay: OverlayMergedFS | undefined;
 
     async function createOverlay(): Promise<OverlayMergedFS> {
-        const overlayId = overlayCount++;
+        if (overlay) {
+            throw new Error("Overlay has already been created");
+        }
 
-        const overlayRoot = path.join(root, `overlay-${overlayId}`);
+        const overlayRoot = path.join(root, "overlay");
         await retryRm(overlayRoot);
 
         await execAsync(processCwd, `cp -r --reflink=auto ${basePath} ${overlayRoot}`);
 
-        const overlay: OverlayMergedFS = {
+        overlay = {
             path: overlayRoot,
             [Symbol.asyncDispose]: async () => {
-                overlays[overlayId] = undefined;
+                overlay = undefined;
                 await retryRm(overlayRoot);
             }
         }
 
-        overlays[overlayId] = overlay;
         return overlay;
     }
 
@@ -149,10 +148,9 @@ export async function createCopyingOverlayFS(root: string): Promise<DisposableOv
         path: basePath,
         createOverlay,
         [Symbol.asyncDispose]: async () => {
-            for (const overlay of overlays) {
-                if (overlay) {
-                    await overlay[Symbol.asyncDispose]();
-                }
+            if (overlay) {
+                await overlay[Symbol.asyncDispose]();
+                overlay = undefined;
             }
             await retryRm(root);
         },  
