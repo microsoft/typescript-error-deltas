@@ -69,7 +69,7 @@ export async function createTempOverlayFS(root: string): Promise<DisposableOverl
             }
             await tryKillProcessesUsingDir(root);
             await tryUnmount(root);
-            await retryRm(root);
+            await retryRmRoot(root);
         },  
     }
 }
