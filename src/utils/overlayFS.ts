@@ -125,7 +125,7 @@ export async function createCopyingOverlayFS(root: string): Promise<DisposableOv
         const overlayRoot = path.join(root, `overlay-${overlayId}`);
         await retryRm(overlayRoot);
 
-        await execAsync(processCwd, `cp -r ${basePath} ${overlayRoot}`);
+        await execAsync(processCwd, `cp -r --reflink=auto ${basePath} ${overlayRoot}`);
 
         const overlay: OverlayMergedFS = {
             path: overlayRoot,
