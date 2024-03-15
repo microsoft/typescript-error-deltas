@@ -22,8 +22,8 @@ const processCwd = process.cwd();
  */
 export async function createTempOverlayFS(root: string, diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
     await tryUnmount(root);
-    await retryRmRoot(root);
-    await mkdirAllRoot(root);
+    await rmAsRootWithRetry(root);
+    await mkdirAllAsRoot(root);
     await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
 
     const lowerDir = path.join(root, "lower");
@@ -37,7 +37,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         }
 
         const overlayRoot = path.join(root, "overlay");
-        await retryRmRoot(overlayRoot);
+        await rmAsRootWithRetry(overlayRoot);
 
         const upperDir = path.join(overlayRoot, "upper");
         const workDir = path.join(overlayRoot, "work");
@@ -46,8 +46,8 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         await mkdirAll(upperDir, workDir, merged);
 
         if (diagnosticOutput) {
-            await execAsync(processCwd, `du -sh ${lowerDir}`);
-            await execAsync(processCwd, `du -sh ${overlayRoot}`);
+            await diskUsageRoot(lowerDir);
+            await diskUsageRoot(overlayRoot);
         }
 
         await execAsync(processCwd, `sudo mount -t overlay overlay -o lowerdir=${lowerDir},upperdir=${upperDir},workdir=${workDir} ${merged}`);
@@ -57,10 +57,10 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             [Symbol.asyncDispose]: async () => {
                 overlay = undefined;
                 if (diagnosticOutput) {
-                    await execAsync(processCwd, `du -sh ${upperDir}`);
+                    await diskUsageRoot(upperDir);
                 }
                 await tryUnmount(merged);
-                await retryRmRoot(overlayRoot);
+                await rmAsRootWithRetry(overlayRoot);
             }
         }
 
@@ -72,13 +72,13 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         createOverlay,
         [Symbol.asyncDispose]: async () => {
             if (diagnosticOutput) {
-                await execAsync(processCwd, `du -sh ${root}`);
+                await diskUsageRoot(root);
             }
             if (overlay) {
                 await overlay[Symbol.asyncDispose]();
             }
             await tryUnmount(root);
-            await retryRmRoot(root);
+            await rmAsRootWithRetry(root);
         },  
     }
 }
@@ -105,11 +105,15 @@ async function tryUnmount(p: string) {
     }
 }
 
-function retryRm(p: string) {
+function diskUsageRoot(p: string) {
+    return execAsync(processCwd, `sudo du -sh ${p}`);
+}
+
+function rmWithRetry(p: string) {
     return retry(() => execAsync(processCwd, `rm -rf ${p}`), 3, 1000);
 }
 
-function retryRmRoot(p: string) {
+function rmAsRootWithRetry(p: string) {
     return retry(() => execAsync(processCwd, `sudo rm -rf ${p}`), 3, 1000);
 }
 
@@ -117,7 +121,7 @@ function mkdirAll(...args: string[]) {
     return execAsync(processCwd, `mkdir -p ${args.join(" ")}`);
 }
 
-function mkdirAllRoot(...args: string[]) {
+function mkdirAllAsRoot(...args: string[]) {
     return execAsync(processCwd, `sudo mkdir -p ${args.join(" ")}`);
 }
 
@@ -126,7 +130,7 @@ function mkdirAllRoot(...args: string[]) {
  * Overlays are created by copying the contents of the `base` directory.
  */
 export async function createCopyingOverlayFS(root: string, _diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
-    await retryRm(root);
+    await rmWithRetry(root);
     await mkdirAll(root);
 
     const basePath = path.join(root, "base");
@@ -140,7 +144,7 @@ export async function createCopyingOverlayFS(root: string, _diagnosticOutput: bo
         }
 
         const overlayRoot = path.join(root, "overlay");
-        await retryRm(overlayRoot);
+        await rmWithRetry(overlayRoot);
 
         await execAsync(processCwd, `cp -r --reflink=auto ${basePath} ${overlayRoot}`);
 
@@ -148,7 +152,7 @@ export async function createCopyingOverlayFS(root: string, _diagnosticOutput: bo
             path: overlayRoot,
             [Symbol.asyncDispose]: async () => {
                 overlay = undefined;
-                await retryRm(overlayRoot);
+                await rmWithRetry(overlayRoot);
             }
         }
 
@@ -163,7 +167,7 @@ export async function createCopyingOverlayFS(root: string, _diagnosticOutput: bo
                 await overlay[Symbol.asyncDispose]();
                 overlay = undefined;
             }
-            await retryRm(root);
+            await rmWithRetry(root);
         },  
     }
 }
