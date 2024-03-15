@@ -26,7 +26,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
     await mkdirAllAsRoot(root);
     await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
 
-    const lowerDir = path.join(root, "lower");
+    const lowerDir = path.join(root, "base");
     await mkdirAll(lowerDir);
 
     let overlay: OverlayMergedFS | undefined;
@@ -36,12 +36,13 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             throw new Error("Overlay has already been created");
         }
 
-        const overlayRoot = path.join(root, "overlay");
+        // Using short names here as these paths can appear in the summaries.
+        const overlayRoot = path.join(root, "_");
         await rmWithRetryAsRoot(overlayRoot);
 
-        const upperDir = path.join(overlayRoot, "upper");
-        const workDir = path.join(overlayRoot, "work");
-        const merged = path.join(overlayRoot, "merged");
+        const upperDir = path.join(overlayRoot, ".u");
+        const workDir = path.join(overlayRoot, ".w");
+        const merged = path.join(overlayRoot, "m");
         
         await mkdirAll(upperDir, workDir, merged);
 
