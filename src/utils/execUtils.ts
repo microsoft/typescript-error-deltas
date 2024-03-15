@@ -29,6 +29,7 @@ export interface SpawnResult {
 
 /** Returns undefined if and only if executions times out. */
 export function spawnWithTimeoutAsync(cwd: string, command: string, args: readonly string[], timeoutMs: number, env?: {}): Promise<SpawnResult | undefined> {
+    console.log(`${cwd}> ${command} ${args.join(" ")}`);
     return new Promise<SpawnResult | undefined>((resolve, reject) => {
         if (timeoutMs <= 0) {
             resolve(undefined);
