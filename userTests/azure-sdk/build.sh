@@ -1,5 +1,5 @@
 set -x
-command -v rush &> /dev/null || npm install -g @microsoft/rush
+command -v rush || npm install -g @microsoft/rush
 rm -rf azure-sdk
 git clone --depth 1 https://github.com/Azure/azure-sdk-for-js.git azure-sdk
 cd azure-sdk
