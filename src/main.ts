@@ -831,14 +831,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         }
     }
 
-    if (params.tmpfs) {
-        await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
-        await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
-    }
-    else {
-        await execAsync(processCwd, "rm -rf " + oldTscDirPath);
-        await execAsync(processCwd, "rm -rf " + newTscDirPath);
-    }
+    await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+    await execAsync(processCwd, "rm -rf " + newTscDirPath);
 
     console.log("Statuses");
     for (const status of Object.keys(statusCounts).sort()) {
