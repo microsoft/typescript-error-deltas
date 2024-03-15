@@ -26,8 +26,8 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
     await mkdirAllRoot(root);
     await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
 
-    const basePath = path.join(root, "base");
-    await mkdirAll(basePath);
+    const lowerDir = path.join(root, "lower");
+    await mkdirAll(lowerDir);
 
     let overlay: OverlayMergedFS | undefined;
 
@@ -36,12 +36,8 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             throw new Error("Overlay has already been created");
         }
 
-        if (diagnosticOutput) {
-            await execAsync(processCwd, `du -sh ${basePath}`);
-        }
-
         const overlayRoot = path.join(root, "overlay");
-        await retryRm(overlayRoot);
+        await retryRmRoot(overlayRoot);
 
         const upperDir = path.join(overlayRoot, "upper");
         const workDir = path.join(overlayRoot, "work");
@@ -49,18 +45,22 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         
         await mkdirAll(upperDir, workDir, merged);
 
-        await execAsync(processCwd, `sudo mount -t overlay overlay -o lowerdir=${basePath},upperdir=${upperDir},workdir=${workDir} ${merged}`);
+        if (diagnosticOutput) {
+            await execAsync(processCwd, `du -sh ${lowerDir}`);
+            await execAsync(processCwd, `du -sh ${overlayRoot}`);
+        }
+
+        await execAsync(processCwd, `sudo mount -t overlay overlay -o lowerdir=${lowerDir},upperdir=${upperDir},workdir=${workDir} ${merged}`);
 
         overlay = {
             path: merged,
             [Symbol.asyncDispose]: async () => {
                 overlay = undefined;
                 if (diagnosticOutput) {
-                    await execAsync(processCwd, `du -h ${upperDir}`);
+                    await execAsync(processCwd, `du -sh ${upperDir}`);
                 }
-                await tryKillProcessesUsingDir(merged);
                 await tryUnmount(merged);
-                await retryRm(overlayRoot);
+                await retryRmRoot(overlayRoot);
             }
         }
 
@@ -68,7 +68,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
     }
 
     return {
-        path: basePath,
+        path: lowerDir,
         createOverlay,
         [Symbol.asyncDispose]: async () => {
             if (diagnosticOutput) {
@@ -76,9 +76,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             }
             if (overlay) {
                 await overlay[Symbol.asyncDispose]();
-                overlay = undefined;
             }
-            await tryKillProcessesUsingDir(root);
             await tryUnmount(root);
             await retryRmRoot(root);
         },  
@@ -121,10 +119,6 @@ function mkdirAll(...args: string[]) {
 
 function mkdirAllRoot(...args: string[]) {
     return execAsync(processCwd, `sudo mkdir -p ${args.join(" ")}`);
-}
-
-function tryKillProcessesUsingDir(p: string) {
-    return retry(() => execAsync(processCwd, `lsof -K i | grep ${p} || true`), 3, 1000);
 }
 
 /**
