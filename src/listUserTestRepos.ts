@@ -14,7 +14,18 @@ const userTestsDir = argv[2];
 const outputPath = argv[3];
 
 try {
-    const repos = getUserTestsRepos(userTestsDir);
+    const repos = getUserTestsRepos(userTestsDir).filter(r => {
+        // TODO(jakebailey): revert me
+        switch (r.name) {
+            case "azure-sdk":
+            case "follow-redirects":
+            case "puppeteer":
+            case "pyright":
+                return true;
+            default:
+                return false;
+        }
+    });
     fs.writeFileSync(outputPath, JSON.stringify(repos), { encoding: "utf-8" });
 }
 catch (err) {
