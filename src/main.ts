@@ -516,6 +516,8 @@ export async function getTscRepoResult(
         return { status: "Package install failed" };
     }
 
+    const relativeMonorepoPackages = monorepoPackages.map(p => path.relative(baseRepoDir, p));
+
     const isUserTestRepo = !repo.url;
 
     const buildStart = performance.now();
@@ -525,7 +527,8 @@ export async function getTscRepoResult(
         {
             await using overlay = await downloadDir.createOverlay();
             const repoDir = path.join(overlay.path, repo.name);
-            oldErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
+            const overlayMonorepoPackages = relativeMonorepoPackages.map(p => path.join(overlay.path, p));
+            oldErrors = await ge.buildAndGetErrors(repoDir, overlayMonorepoPackages, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
         }
 
         if (oldErrors.hasConfigFailure) {
@@ -570,7 +573,8 @@ export async function getTscRepoResult(
         {
             await using overlay = await downloadDir.createOverlay();
             const repoDir = path.join(overlay.path, repo.name);
-            newErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
+            const overlayMonorepoPackages = relativeMonorepoPackages.map(p => path.join(overlay.path, p));
+            newErrors = await ge.buildAndGetErrors(repoDir, overlayMonorepoPackages, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
         }
 
         if (newErrors.hasConfigFailure) {
