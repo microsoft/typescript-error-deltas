@@ -79,7 +79,8 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
             if (!spawnResult) {
                 throw new Error(`build.sh timed out after ${timeoutMs} ms`);
             }
-            console.log(`${buildScriptPath} took ${Math.round(performance.now() - before)} ms`)
+            console.log(`${buildScriptPath} took ${Math.round(performance.now() - before)} ms`);
+            console.log(spawnResult.stderr);
 
             const { isEmpty, stdout, hasBuildFailure } = getBuildSummary(spawnResult, /*mergeOutputs*/ true);
 
