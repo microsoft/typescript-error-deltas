@@ -84,8 +84,9 @@ export async function cloneRepoIfNecessary(parentDir: string, repo: Repo): Promi
         throw new Error("Repo url cannot be `undefined`");
     }
 
-    if (!await utils.exists(path.join(parentDir, repo.name))) {
-        console.log(`Cloning ${repo.url} into ${repo.name}`);
+    const repoDir = path.join(parentDir, repo.name);
+    if (!await utils.exists(repoDir)) {
+        console.log(`Cloning ${repo.url} into ${repoDir}`);
 
         let options = ["--recurse-submodules", "--depth=1"];
         if (repo.branch) {

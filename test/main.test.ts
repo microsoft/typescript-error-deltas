@@ -3,6 +3,7 @@ import { getTscRepoResult, downloadTsRepoAsync } from '../src/main'
 import { execSync } from "child_process"
 import { existsSync, mkdirSync } from "fs"
 import path = require("path")
+import { createCopyingOverlayFS } from '../src/utils/overlayFS'
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000)
     xit("build-only correctly caches", async () => {
@@ -15,7 +16,7 @@ describe("main", () => {
             path.resolve("./typescript-main/built/local/tsc.js"),
             path.resolve("./typescript-44585/built/local/tsc.js"),
             /*ignoreOldTscFailures*/ true, // as in a user test
-            "./ts_downloads",
+            await createCopyingOverlayFS("./ts_downloads", false),
             /*diagnosticOutput*/ false)
         expect(status).toEqual("NewBuildHadErrors")
         expect(summary).toBeDefined()

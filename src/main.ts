@@ -10,6 +10,7 @@ import path = require("path");
 import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 import { getErrorMessageFromStack, getHash, getHashForStack } from "./utils/hashStackTrace";
+import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
 
 interface Params {
     /**
@@ -100,7 +101,6 @@ interface Summary {
     oldTsEntrypointPath: string;
     rawErrorArtifactPath: string;
     replayScript: string;
-    downloadDir: string;
     replayScriptArtifactPath: string;
     replayScriptName: string;
     commit?: string;
@@ -207,35 +207,36 @@ async function getTsServerRepoResult(
     userTestsDir: string,
     oldTsServerPath: string,
     newTsServerPath: string,
-    downloadDir: string,
+    downloadDir: OverlayBaseFS,
     replayScriptArtifactPath: string,
     rawErrorArtifactPath: string,
     diagnosticOutput: boolean,
     isPr: boolean,
 ): Promise<RepoResult> {
 
-    if (!await cloneRepo(repo, userTestsDir, downloadDir, diagnosticOutput)) {
+    if (!await cloneRepo(repo, userTestsDir, downloadDir.path, diagnosticOutput)) {
         return { status: "Git clone failed" };
     }
 
-    const repoDir = path.join(downloadDir, repo.name);
+    const repoDir = path.join(downloadDir.path, repo.name);
     const monorepoPackages = await getMonorepoPackages(repoDir);
 
     // Presumably, people occasionally browse repos without installing the packages first
     const installCommands = (prng.random() > 0.2) && monorepoPackages
-        ? (await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
+        ? (await installPackagesAndGetCommands(repo, downloadDir.path, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
         : [];
 
     const replayScriptName = path.basename(replayScriptArtifactPath);
-    const replayScriptPath = path.join(downloadDir, replayScriptName);
+    const replayScriptPath = path.join(downloadDir.path, replayScriptName);
 
     const rawErrorName = path.basename(rawErrorArtifactPath);
-    const rawErrorPath = path.join(downloadDir, rawErrorName);
+    const rawErrorPath = path.join(downloadDir.path, rawErrorName);
 
     const lsStart = performance.now();
     try {
         console.log(`Testing with ${newTsServerPath} (new)`);
         const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
             console.log(`New server timed out after ${executionTimeout} ms`);
@@ -285,7 +286,7 @@ async function getTsServerRepoResult(
         }
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
-        const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
+        const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);;
 
         if (diagnosticOutput && oldSpawnResult) {
             console.log("Raw spawn results (old):");
@@ -468,7 +469,7 @@ ${summary.replayScript}
             text += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
         }
         for (const command of summary.tsServerResult.installCommands) {
-            text += `  <li>In dir <code>${path.relative(summary.downloadDir, command.directory)}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
+            text += `  <li>In dir <code>${command.prettyDirectory}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
         }
         if (summary.tsServerResult.installCommands.length > 1) {
             text += "</ol></details>\n";
@@ -500,26 +501,35 @@ export async function getTscRepoResult(
      *   2) Errors are expected when building with the old tsc and we're specifically interested in changes (user tests)
      */
     buildWithNewWhenOldFails: boolean,
-    downloadDir: string,
-    diagnosticOutput: boolean): Promise<RepoResult> {
+    downloadDir: OverlayBaseFS,
+    diagnosticOutput: boolean,
+): Promise<RepoResult> {
 
-    if (!await cloneRepo(repo, userTestsDir, downloadDir, diagnosticOutput)) {
+    if (!await cloneRepo(repo, userTestsDir, downloadDir.path, diagnosticOutput)) {
         return { status: "Git clone failed" };
     }
 
-    const repoDir = path.join(downloadDir, repo.name);
-    const monorepoPackages = await getMonorepoPackages(repoDir);
+    const baseRepoDir = path.join(downloadDir.path, repo.name);
+    const monorepoPackages = await getMonorepoPackages(baseRepoDir);
 
-    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir, repoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
+    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir.path, baseRepoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
         return { status: "Package install failed" };
     }
+
+    const relativeMonorepoPackages = monorepoPackages.map(p => path.relative(baseRepoDir, path.resolve(baseRepoDir, p)));
 
     const isUserTestRepo = !repo.url;
 
     const buildStart = performance.now();
     try {
         console.log(`Building with ${oldTscPath} (old)`);
-        const oldErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
+        let oldErrors;
+        {
+            await using overlay = await downloadDir.createOverlay();
+            const repoDir = path.join(overlay.path, repo.name);
+            const overlayMonorepoPackages = relativeMonorepoPackages.map(p => path.join(overlay.path, p));
+            oldErrors = await ge.buildAndGetErrors(repoDir, overlayMonorepoPackages, isUserTestRepo, oldTscPath, executionTimeout, /*skipLibCheck*/ true);
+        }
 
         if (oldErrors.hasConfigFailure) {
             console.log("Unable to build project graph");
@@ -559,7 +569,13 @@ export async function getTscRepoResult(
         }
 
         console.log(`Building with ${newTscPath} (new)`);
-        const newErrors = await ge.buildAndGetErrors(repoDir, monorepoPackages, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
+        let newErrors;
+        {
+            await using overlay = await downloadDir.createOverlay();
+            const repoDir = path.join(overlay.path, repo.name);
+            const overlayMonorepoPackages = relativeMonorepoPackages.map(p => path.join(overlay.path, p));
+            newErrors = await ge.buildAndGetErrors(repoDir, overlayMonorepoPackages, isUserTestRepo, newTscPath, executionTimeout, /*skipLibCheck*/ true);
+        }
 
         if (newErrors.hasConfigFailure) {
             console.log("Unable to build project graph");
@@ -704,13 +720,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         prng.seed(params.prngSeed);
     }
 
-    const downloadDir = params.tmpfs ? "/mnt/ts_downloads" : path.join(processCwd, "ts_downloads");
-    // TODO: check first whether the directory exists and skip downloading if possible
-    // TODO: Seems like this should come after the typescript download
-    if (params.tmpfs)
-        await execAsync(processCwd, "sudo mkdir " + downloadDir);
-    else
-        await execAsync(processCwd, "mkdir " + downloadDir);
+    const downloadDirPath = params.tmpfs ? "/mnt/ts_downloads" : path.join(processCwd, "ts_downloads");
+    const createFs = params.tmpfs ? createTempOverlayFS : createCopyingOverlayFS;
 
     const resultDirPath = path.join(processCwd, params.resultDirName);
 
@@ -743,98 +754,64 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     let i = 1;
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
-        if (params.tmpfs) {
-            await execAsync(processCwd, "sudo mount -t tmpfs -o size=4g tmpfs " + downloadDir);
-        }
 
         const diagnosticOutput = !!params.diagnosticOutput;
-        try {
-            const repoPrefix = repo.owner
-                ? `${repo.owner}.${repo.name}`
-                : repo.name;
-            const replayScriptFileName = `${repoPrefix}.${replayScriptFileNameSuffix}`;
-            const rawErrorFileName = `${repoPrefix}.${rawErrorFileNameSuffix}`;
 
-            const rawErrorArtifactPath = path.join(params.resultDirName, rawErrorFileName);
-            const replayScriptArtifactPath = path.join(params.resultDirName, replayScriptFileName);
+        await using downloadDir = await createFs(downloadDirPath, diagnosticOutput);
 
-            const { status, summary, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
-                ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-                : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
-            console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
-            statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+        const repoPrefix = repo.owner
+            ? `${repo.owner}.${repo.name}`
+            : repo.name;
+        const replayScriptFileName = `${repoPrefix}.${replayScriptFileNameSuffix}`;
+        const rawErrorFileName = `${repoPrefix}.${rawErrorFileNameSuffix}`;
 
-            if (summary) {
-                const resultFileName = `${repoPrefix}.${resultFileNameSuffix}`;
-                await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
-            }
+        const rawErrorArtifactPath = path.join(params.resultDirName, rawErrorFileName);
+        const replayScriptArtifactPath = path.join(params.resultDirName, replayScriptFileName);
 
-            if (tsServerResult) {
-                const replayScriptPath = path.join(downloadDir, path.basename(replayScriptArtifactPath));
-                const repoDir = path.join(downloadDir, repo.name);
+        const { status, summary, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
+            ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
+            : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
+        console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
+        statusCounts[status] = (statusCounts[status] ?? 0) + 1;
 
-                let commit: string | undefined;
-                try {
-                    console.log("Extracting commit SHA for repro steps");
-                    commit = (await execAsync(repoDir, `git rev-parse @`)).trim()
-                }
-                catch {
-                    //noop
-                }
-
-                summaries.push({
-                    tsServerResult,
-                    repo,
-                    oldTsEntrypointPath,
-                    rawErrorArtifactPath,
-                    replayScript: fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"),
-                    downloadDir,
-                    replayScriptArtifactPath,
-                    replayScriptName: path.basename(replayScriptArtifactPath),
-                    commit
-                });
-            }
-
-            if (summary || tsServerResult) {
-                // In practice, there will only be a replay script when the entrypoint is tsserver
-                // There can be replay steps without a summary, but then they're not interesting
-                if (replayScriptPath) {
-                    await fs.promises.copyFile(replayScriptPath, path.join(resultDirPath, replayScriptFileName));
-                }
-                if (rawErrorPath) {
-                    await fs.promises.copyFile(rawErrorPath, path.join(resultDirPath, rawErrorFileName));
-                }
-            }
+        if (summary) {
+            const resultFileName = `${repoPrefix}.${resultFileNameSuffix}`;
+            await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
         }
-        finally {
-            // Throw away the repo so we don't run out of space
-            // Note that we specifically don't recover and attempt another repo if this fails
-            console.log("Cleaning up repo");
-            if (params.tmpfs) {
-                if (diagnosticOutput) {
-                    // Dump any processes holding onto the download directory in case umount fails
-                    await execAsync(processCwd, `lsof -K i | grep ${downloadDir} || true`);
-                }
-                try {
-                    await execAsync(processCwd, "sudo umount " + downloadDir);
-                }
-                catch (e) {
-                    // HACK: Sometimes the server lingers for a brief period, so retry.
-                    // Obviously, it would be better to have a way to know when it is gone-gone,
-                    // but Linux doesn't provide such a mechanism for non-child processes.
-                    // (You can poll for a process with the given PID after sending a kill signal,
-                    // but best practice is to guard against the possibility of a new process
-                    // being given the same PID.)
-                    try {
-                        console.log("umount failed - trying again after delay");
-                        await new Promise(resolve => setTimeout(resolve, 5000));
-                        await execAsync(processCwd, "sudo umount " + downloadDir);
-                    }
-                    catch {
-                        await execAsync(processCwd, `pstree -palT`);
-                        throw e;
-                    }
-                }
+
+        if (tsServerResult) {
+            const replayScriptPath = path.join(downloadDir.path, path.basename(replayScriptArtifactPath));
+            const repoDir = path.join(downloadDir.path, repo.name);
+
+            let commit: string | undefined;
+            try {
+                console.log("Extracting commit SHA for repro steps");
+                commit = (await execAsync(repoDir, `git rev-parse @`)).trim()
+            }
+            catch {
+                //noop
+            }
+
+            summaries.push({
+                tsServerResult,
+                repo,
+                oldTsEntrypointPath,
+                rawErrorArtifactPath,
+                replayScript: fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"),
+                replayScriptArtifactPath,
+                replayScriptName: path.basename(replayScriptArtifactPath),
+                commit
+            });
+        }
+
+        if (summary || tsServerResult) {
+            // In practice, there will only be a replay script when the entrypoint is tsserver
+            // There can be replay steps without a summary, but then they're not interesting
+            if (replayScriptPath) {
+                await fs.promises.copyFile(replayScriptPath, path.join(resultDirPath, replayScriptFileName));
+            }
+            if (rawErrorPath) {
+                await fs.promises.copyFile(rawErrorPath, path.join(resultDirPath, rawErrorFileName));
             }
         }
     }
@@ -858,16 +835,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         }
     }
 
-    if (params.tmpfs) {
-        await execAsync(processCwd, "sudo rm -rf " + downloadDir);
-        await execAsync(processCwd, "sudo rm -rf " + oldTscDirPath);
-        await execAsync(processCwd, "sudo rm -rf " + newTscDirPath);
-    }
-    else {
-        await execAsync(processCwd, "rm -rf " + downloadDir);
-        await execAsync(processCwd, "rm -rf " + oldTscDirPath);
-        await execAsync(processCwd, "rm -rf " + newTscDirPath);
-    }
+    await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+    await execAsync(processCwd, "rm -rf " + newTscDirPath);
 
     console.log("Statuses");
     for (const status of Object.keys(statusCounts).sort()) {
