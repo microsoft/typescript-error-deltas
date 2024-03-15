@@ -1,6 +1,6 @@
 set -x
 
-command -v yarn &> /dev/null || npm i -g yarn
+npm i -g yarn
 rm -rf typescript-eslint
 git clone --depth 1 https://github.com/typescript-eslint/typescript-eslint.git typescript-eslint
 cd typescript-eslint

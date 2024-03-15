@@ -71,7 +71,7 @@ export type TsEntrypoint = "tsc" | "tsserver";
 
 const processCwd = process.cwd();
 const packageTimeout = 10 * 60 * 1000;
-const executionTimeout = 10 * 60 * 1000;
+const executionTimeout = 20 * 60 * 1000;
 
 const prng = randomSeed.create();
 
