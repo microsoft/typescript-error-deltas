@@ -516,7 +516,7 @@ export async function getTscRepoResult(
         return { status: "Package install failed" };
     }
 
-    const relativeMonorepoPackages = monorepoPackages.map(p => path.relative(baseRepoDir, p));
+    const relativeMonorepoPackages = monorepoPackages.map(p => path.relative(baseRepoDir, path.resolve(baseRepoDir, p)));
 
     const isUserTestRepo = !repo.url;
 
