@@ -22,7 +22,7 @@ const processCwd = process.cwd();
  */
 export async function createTempOverlayFS(root: string, diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
     await tryUnmount(root);
-    await rmAsRootWithRetry(root);
+    await rmWithRetryAsRoot(root);
     await mkdirAllAsRoot(root);
     await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
 
@@ -37,7 +37,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
         }
 
         const overlayRoot = path.join(root, "overlay");
-        await rmAsRootWithRetry(overlayRoot);
+        await rmWithRetryAsRoot(overlayRoot);
 
         const upperDir = path.join(overlayRoot, "upper");
         const workDir = path.join(overlayRoot, "work");
@@ -60,7 +60,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
                     await diskUsageRoot(upperDir);
                 }
                 await tryUnmount(merged);
-                await rmAsRootWithRetry(overlayRoot);
+                await rmWithRetryAsRoot(overlayRoot);
             }
         }
 
@@ -78,7 +78,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
                 await overlay[Symbol.asyncDispose]();
             }
             await tryUnmount(root);
-            await rmAsRootWithRetry(root);
+            await rmWithRetryAsRoot(root);
         },  
     }
 }
@@ -113,7 +113,7 @@ function rmWithRetry(p: string) {
     return retry(() => execAsync(processCwd, `rm -rf ${p}`), 3, 1000);
 }
 
-function rmAsRootWithRetry(p: string) {
+function rmWithRetryAsRoot(p: string) {
     return retry(() => execAsync(processCwd, `sudo rm -rf ${p}`), 3, 1000);
 }
 
