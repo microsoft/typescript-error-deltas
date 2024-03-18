@@ -84,6 +84,7 @@ export type RepoStatus =
     | "Language service disabled in new TS"
     | "Detected interesting changes"
     | "Detected no interesting changes"
+    | "Timeout"
     ;
 
 interface TSServerResult {
@@ -680,6 +681,9 @@ export async function getTscRepoResult(
     }
     catch (err) {
         reportError(err, `Error building ${repo.url ?? repo.name}`);
+        if (err instanceof ge.TimeoutError) {
+            return { status: "Timeout" };
+        }
         return { status: "Unknown failure" };
     }
     finally {
