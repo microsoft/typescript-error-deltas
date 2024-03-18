@@ -15,4 +15,10 @@ cd $START/common/temp/node_modules/.pnpm/typescript@$LOCAL_TS/node_modules
 rm -rf typescript
 ln -s $TS ./typescript
 cd $START
-rush rebuild
+
+# Limit the build to just those packages that are "client" libraries consumed by downstream users.
+# The monorepo contains loads of other packages which make the build too slow for the tester.
+ARGS=$(node -e 'for (const x of JSON.parse(fs.readFileSync(process.argv[1], "utf8")).projects) { if (x.versionPolicyName === "client") console.log(`--to ${x.packageName}`)}' <(npx json5 rush.json))
+ARGS=( $ARGS )
+
+rush rebuild "${ARGS[@]}"
