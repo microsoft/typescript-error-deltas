@@ -20,6 +20,10 @@ cd $START
 # The monorepo contains loads of other packages which make the build too slow for the tester.
 RUSH_JSON=$(mktemp)
 npx json5 rush.json > $RUSH_JSON
-node -e 'for (const x of JSON.parse(fs.readFileSync(process.argv[1], "utf8")).projects) { if (x.versionPolicyName === "client") console.log("--to", x.packageName)}' $RUSH_JSON \
-    | xargs -x rush rebuild
+node -e '
+for (const x of JSON.parse(fs.readFileSync(process.argv[1], "utf8")).projects) {
+    if (x.packageName.startsWith("@azure/") && x.versionPolicyName === "client") {
+        console.log("--to", x.packageName);
+    }
+}' $RUSH_JSON | xargs -x rush rebuild
 rm $RUSH_JSON
