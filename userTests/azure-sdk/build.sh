@@ -16,14 +16,25 @@ rm -rf typescript
 ln -s $TS ./typescript
 cd $START
 
-# Limit the build to just those packages that are "client" libraries consumed by downstream users.
-# The monorepo contains loads of other packages which make the build too slow for the tester.
-RUSH_JSON=$(mktemp)
-npx json5 rush.json > $RUSH_JSON
-node -e '
-for (const x of JSON.parse(fs.readFileSync(process.argv[1], "utf8")).projects) {
-    if (x.packageName.startsWith("@azure/") && x.versionPolicyName === "client") {
-        console.log("--to", x.packageName);
-    }
-}' $RUSH_JSON | xargs -x rush rebuild
-rm $RUSH_JSON
+# Running everything takes a long time; just build the top 20 client packages by downloads.
+rush rebuild \
+    --to @azure/identity \
+    --to @azure/storage-blob \
+    --to @azure/keyvault-keys \
+    --to @azure/opentelemetry-instrumentation-azure-sdk \
+    --to @azure/cosmos \
+    --to @azure/keyvault-secrets \
+    --to @azure/service-bus \
+    --to @azure/openai \
+    --to @azure/app-configuration \
+    --to @azure/storage-queue \
+    --to @azure/storage-file-share \
+    --to @azure/event-hubs \
+    --to @azure/communication-common \
+    --to @azure/data-tables \
+    --to @azure/storage-file-datalake \
+    --to @azure/search-documents \
+    --to @azure/web-pubsub-client \
+    --to @azure/maps-common \
+    --to @azure/ai-form-recognizer \
+    --to @azure/communication-email
