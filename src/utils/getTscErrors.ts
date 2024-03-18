@@ -77,7 +77,7 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
             const before = performance.now();
             const spawnResult = await spawnWithTimeoutAsync(repoDir, path.resolve(buildScriptPath), [], timeoutMs, { ...process.env, TS: tsRepoPath });
             if (!spawnResult) {
-                throw new Error(`build.sh timed out after ${timeoutMs} ms`);
+                throw new TimeoutError(`build.sh timed out after ${timeoutMs} ms`);
             }
             console.log(`${buildScriptPath} took ${Math.round(performance.now() - before)} ms`);
 
@@ -221,4 +221,10 @@ function getBuildSummary({ code, signal, stderr, stdout }: SpawnResult, mergeOut
         hasBuildFailure: !!(code || signal || (stderr && stderr.length && !stderr.match(/debugger/i))), // --inspect prints the debug port to stderr
         isEmpty: !!stdout.match(/TS18003/)
     };
+}
+
+export class TimeoutError extends Error {
+    constructor(message: string) {
+        super(message);
+    }
 }
