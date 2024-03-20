@@ -10,7 +10,7 @@ parameters:
   - name: REPO_COUNT
     displayName: Repo Count
     type: number
-    default: 200
+    default: 800
   - name: REPO_START_INDEX
     displayName: Repo Start Index
     type: number
@@ -53,7 +53,7 @@ parameters:
     default: 'n/a'
 
 schedules:
-  - cron: "0 18 * * Sun" # time is in UTC
+  - cron: "0 17 * * Sun" # time is in UTC
     displayName: Sunday overnight run
     always: true
     branches:
