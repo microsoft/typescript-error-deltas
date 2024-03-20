@@ -10,7 +10,7 @@ parameters:
   - name: REPO_COUNT
     displayName: Repo Count
     type: number
-    default: 200
+    default: 300
   - name: REPO_START_INDEX
     displayName: Repo Start Index
     type: number
