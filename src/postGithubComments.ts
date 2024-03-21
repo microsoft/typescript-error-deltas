@@ -6,12 +6,12 @@ import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 10) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result>`);
+if (argv.length !== 11) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post] = argv;
+const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
@@ -72,8 +72,8 @@ const hasOldErrors = pu.glob(resultDirPath, `**/!*.${resultFileNameSuffix}`).len
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri));
 
-const suiteDescription = isTopReposRun ? "top-repos" : "user test";
-let header = `@${userToTag} Here are the results of running the ${suiteDescription} suite comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
+const suiteDescription = isTopReposRun ? `top ${repoCount} repos` : "user tests";
+let header = `@${userToTag} Here are the results of running the ${suiteDescription} comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
 ${summary.join("\n")}`;
 
