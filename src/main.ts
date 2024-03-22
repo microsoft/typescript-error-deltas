@@ -67,7 +67,7 @@ export interface UserParams extends Params {
     prNumber: number;
 }
 
-export type TsEntrypoint = "tsc" | "tsserver";
+export type TsEntrypoint = "tsc" | "tsserver" | "region";
 
 const processCwd = process.cwd();
 const packageTimeout = 10 * 60 * 1000;
@@ -342,6 +342,99 @@ async function getTsServerRepoResult(
         }
 
         return { status: "Detected interesting changes", tsServerResult, replayScriptPath, rawErrorPath };
+    }
+    catch (err) {
+        reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
+        return { status: "Unknown failure" };
+    }
+    finally {
+        console.log(`Done ${repo.url ?? repo.name}`);
+        logStepTime(diagnosticOutput, repo, "language service", lsStart);
+    }
+}
+
+async function getRegionDiagRepoResult(
+    repo: git.Repo,
+    userTestsDir: string,
+    _oldTsServerPath: string,
+    newTsServerPath: string,
+    downloadDir: OverlayBaseFS,
+    replayScriptArtifactPath: string,
+    rawErrorArtifactPath: string,
+    diagnosticOutput: boolean,
+    _isPr: boolean,
+): Promise<RepoResult> {
+    if (!await cloneRepo(repo, userTestsDir, downloadDir.path, diagnosticOutput)) {
+        return { status: "Git clone failed" };
+    }
+
+    const repoDir = path.join(downloadDir.path, repo.name);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
+
+    const installCommands = monorepoPackages ? await installPackagesAndGetCommands(repo, downloadDir.path, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput)! : [];
+    const replayScriptName = path.basename(replayScriptArtifactPath);
+    const replayScriptPath = path.join(downloadDir.path, replayScriptName);
+    const rawErrorName = path.basename(rawErrorArtifactPath);
+    const rawErrorPath = path.join(downloadDir.path, rawErrorName);
+
+    const lsStart = performance.now();
+    try {
+        console.log(`Testing with ${newTsServerPath} (new)`);
+        let args = [path.join(__dirname, "utils", "regionTest.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)];
+        if (process.env.DEBUG?.toLowerCase() === "true") {
+            args = ["--inspect-brk=9229", ...args]
+        }
+        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], args, executionTimeout);
+
+        if (!newSpawnResult) {
+            // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
+            console.log(`New server timed out after ${executionTimeout} ms`);
+            return { status: "Unknown failure" };
+        }
+
+        if (diagnosticOutput) {
+            console.log("Raw spawn results (new):");
+            dumpSpawnResult(newSpawnResult);
+        }
+
+        switch (newSpawnResult.code) {
+            case 0:
+            case null:
+                if (newSpawnResult.signal !== null) {
+                    console.log(`Exited with signal ${newSpawnResult.signal}`);
+                    return { status: "Unknown failure" };
+                }
+
+                console.log("No issues found");
+                break;
+            case exercise.EXIT_LANGUAGE_SERVICE_DISABLED:
+                console.log("Skipping since language service was disabled");
+                return { status: "Language service disabled in new TS" };
+            case exercise.EXIT_SERVER_CRASH:
+            case exercise.EXIT_SERVER_ERROR:
+            case exercise.EXIT_SERVER_EXIT_FAILED:
+                // These deserve to be mentioned in the summary
+                break;
+            case exercise.EXIT_BAD_ARGS:
+            case exercise.EXIT_UNHANDLED_EXCEPTION:
+            default:
+                console.log(`Exited with code ${newSpawnResult.code}`);
+                // Don't duplicate if printed above
+                if (!diagnosticOutput) {
+                    dumpSpawnResult(newSpawnResult);
+                }
+                return { status: "Unknown failure" };
+        }
+
+        const newServerFailed = !!newSpawnResult.code;
+
+        if (newServerFailed) {
+            console.log(`Issue found in ${newTsServerPath} (new):`);
+            console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
+            await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+        }
+
+        return { status: "Detected interesting changes", replayScriptPath, rawErrorPath };
     }
     catch (err) {
         reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
@@ -774,7 +867,9 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
         const { status, summary, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
             ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-            : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
+            : params.entrypoint === "tsserver"
+                ? await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr)
+                : await getRegionDiagRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
         console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
 
@@ -839,8 +934,8 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         }
     }
 
-    await execAsync(processCwd, "rm -rf " + oldTscDirPath);
-    await execAsync(processCwd, "rm -rf " + newTscDirPath);
+    // await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+    // await execAsync(processCwd, "rm -rf " + newTscDirPath);
 
     console.log("Statuses");
     for (const status of Object.keys(statusCounts).sort()) {
@@ -1020,7 +1115,15 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
             newTsResolvedVersion
         };
     }
-    else if (params.testType === "github") {
+    else if (params.testType === "github") {  
+        if (entrypoint === "region") {
+            return {
+                oldTsEntrypointPath: params.oldTsNpmVersion,
+                oldTsResolvedVersion: "5.5",
+                newTsEntrypointPath: params.newTsNpmVersion,
+                newTsResolvedVersion: "5.5",
+            };
+        }
         const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
 

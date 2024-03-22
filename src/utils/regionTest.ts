@@ -1,5 +1,3 @@
-// @ts-check
-
 import sh = require("@typescript/server-harness");
 import fs = require("fs");
 import type typescript = require("typescript");
@@ -13,6 +11,18 @@ import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_
 type RequestBase<T extends typescript.server.protocol.Request> = Omit<T, "command" | "seq" | "type"> & {
     command: `${T["command"]}`
 }
+
+type Body = typescript.server.protocol.DiagnosticEventBody & { duration: number };
+
+type FullPerfResult = {
+    fullDiagnosticsCount: number,
+    fullDuration: number,
+}
+type RegionPerfResult = {
+    regionDiagnosticsCount: number,
+    regionDuration: number,
+}
+type PerfResult = FullPerfResult & Partial<RegionPerfResult>;
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
 
@@ -31,12 +41,12 @@ const [, , testDir, replayScriptPath, tsserverPath, diag, seed] = argv;
 const diagnosticOutput = diag.toLocaleLowerCase() === "true";
 const prng = randomSeed.create(seed);
 
-exerciseServer(testDir, replayScriptPath, tsserverPath).catch(e => {
+testRegion(testDir, replayScriptPath, tsserverPath).catch(e => {
     console.error(e);
     process.exit(EXIT_UNHANDLED_EXCEPTION);
 });
 
-export async function exerciseServer(testDir: string, replayScriptPath: string, tsserverPath: string): Promise<void> {
+export async function testRegion(testDir: string, replayScriptPath: string, tsserverPath: string): Promise<void> {
     const requestTimes: Record<string, number> = {};
     const requestCounts: Record<string, number> = {};
     const start = performance.now();
@@ -46,7 +56,7 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
     try {
         // Needed for excludedDirectories
         process.chdir(testDir);
-        await exerciseServerWorker(testDir, tsserverPath, replayScriptHandle, requestTimes, requestCounts);
+        await testRegionWorker(testDir, tsserverPath, replayScriptHandle, requestTimes, requestCounts);
     }
     finally {
         await replayScriptHandle.close();
@@ -63,8 +73,8 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
     }
 }
 
-async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
-    const files = await glob.glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
+async function testRegionWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
+    const files = await glob.glob("**/*.@(ts|tsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
 
     const serverArgs = [
         "--disableAutomaticTypingAcquisition",
@@ -92,14 +102,16 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         process.kill(process.pid, "SIGTERM");
     });
 
-    type Body = typescript.server.protocol.DiagnosticEventBody & { duration: number };
     const waitingSemantic: ((arg: Body) => void)[] = [];
-    const waitingRegion: ((arg: Body) => void)[] = [];
+    const waitingRegion: ((arg: Body | undefined) => void)[] = [];
     server.on("event", async (e: any) => {
         console.log(e.event);
         if (e.event === "semanticDiag") {
             const waiting = waitingSemantic.pop();
-            waiting?.(e.body);
+            if (waiting) {
+                waiting?.(e.body);
+                waitingRegion.pop()?.(undefined);
+            }
         }
         if (e.event === "regionSemanticDiag") {
             const waiting = waitingRegion.pop();
@@ -168,15 +180,17 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         } satisfies RequestBase<typescript.server.protocol.ConfigureRequest>);
 
         const results: TestFileResult[] = [];
-        // NB: greater than 1 behaves the same as 1
-        // const skipFileProb = 1000 / files.length; // >> TODO: reduced that for testing locally
         const skipFileProb = 0.01;
         for (const openFileRelativePath of files) {
-            if (prng.random() > skipFileProb) continue;
+            if (results.length > 10 && prng.random() > skipFileProb) continue;
 
             const openFileAbsolutePath = path.join(testDirPlaceholder, openFileRelativePath).replace(/\\/g, "/");
-
             const openFileContents = await fs.promises.readFile(openFileRelativePath, { encoding: "utf-8" });
+            const lineCount = openFileContents.split("\n").length;
+            if (lineCount < 400) {
+                continue;
+            }
+
             await message({
                 "command": "updateOpen",
                 "arguments": {
@@ -206,6 +220,8 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
                 }
             } satisfies RequestBase<typescript.server.protocol.UpdateOpenRequest>);
         }
+
+        console.log(`RegionResults:\n${JSON.stringify(results)}\n`);
 
         console.error("Shutting down server");
         // Will throw if the server has crashed and `exitResult` will be considered below
@@ -257,7 +273,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         requestTimes[request.command] = (requestTimes[request.command] ?? 0) + (end - start);
         requestCounts[request.command] = (requestCounts[request.command] ?? 0) + 1;
 
-        if (response && !response.success && response.message !== "No content available.") {
+        if (response && response.type === "response" && !response.success && response.message !== "No content available.") {
             const errorMessage = response.message ?? "Unknown error";
             if (diagnosticOutput) {
                 console.error(`Request failed:
@@ -286,14 +302,13 @@ ${JSON.stringify(response, undefined, 2)}`);
         const lines = fileContents.split("\n");
         let line = prng.intBetween(0, lines.length - 1);
         // look for a non-whitespace character
-        const regex = /\S/;
-        while (!regex.test(lines[line]) && line < lines.length) {
+        while (!/\S/.test(lines[line]) && line < lines.length) {
             line++;
         }
         if (line >= lines.length) {
             return undefined;
         }
-        const matches = Array.from(lines[line].matchAll(regex)!);
+        const matches = Array.from(lines[line].matchAll(/\S/g)!);
         const matchIdx = prng.intBetween(0, matches.length - 1);
         const match = matches[matchIdx];
         const column = match.index;
@@ -312,8 +327,8 @@ ${JSON.stringify(response, undefined, 2)}`);
                         "textChanges": [
                             {
                                 "start": { "line": line + 1, "offset": column + 1 },
-                                "end": { "line": line + 1, "offset": column + 1 },
-                                "newText": oldChar,
+                                "end": { "line": line + 1, "offset": column + 2 },
+                                "newText": ""
                             }
                         ],
                     }
@@ -454,11 +469,11 @@ ${JSON.stringify(response, undefined, 2)}`);
         file: string,
         ranges: FileRange[];
     };
-    async function getRegionDiagnostics(filePath: string, range: FileRange): Promise<[Promise<Body>, Promise<Body>]> {
+    async function getRegionDiagnostics(filePath: string, range: FileRange): Promise<[Promise<Body | undefined>, Promise<Body>]> {
         const semantic: Promise<Body> = new Promise((resolve) => {
             waitingSemantic.push(resolve);
         });
-        const regionSemantic: Promise<Body> = new Promise((resolve) => {
+        const regionSemantic: Promise<Body | undefined> = new Promise((resolve) => {
             waitingRegion.push(resolve);
         });
         await message({
@@ -476,29 +491,25 @@ ${JSON.stringify(response, undefined, 2)}`);
         return [regionSemantic, semantic];
     }
 
-    type FullPerfResult = {
-        fullDiagnosticsCount: number,
-        fullDuration: number,
-    }
-    type RegionPerfResult = {
-        regionDiagnosticsCount: number,
-        regionDuration: number,
-    }
-    type PerfResult = FullPerfResult & RegionPerfResult;
     async function measureRegionDiagnostics(filePath: string, range: FileRange): Promise<PerfResult> {
         console.error(`Checking diagnostics for region: ${JSON.stringify(range)}`);
         const [reg, sem] = await getRegionDiagnostics(filePath, range);
         const regionDiagnosticsBody = await reg;
         const semanticDiagnosticsBody = await sem;
 
-        console.error(`Region time: ${regionDiagnosticsBody.duration}ms`);
-        console.error(`Region diagnostics: ${JSON.stringify(regionDiagnosticsBody)}`);
+        if (regionDiagnosticsBody) {
+            console.error(`Region time: ${regionDiagnosticsBody.duration}ms`);
+            console.error(`Region diagnostics: ${JSON.stringify(regionDiagnosticsBody)}`);
+        }
+        else {
+            console.error(`Region skipped`);
+        }
         console.error(`Semantic time: ${semanticDiagnosticsBody.duration}ms`);
         console.error(`Semantic diagnostics: ${JSON.stringify(semanticDiagnosticsBody)}`);
 
         return {
-            regionDiagnosticsCount: regionDiagnosticsBody.diagnostics.length,
-            regionDuration: regionDiagnosticsBody.duration,
+            regionDiagnosticsCount: regionDiagnosticsBody?.diagnostics.length,
+            regionDuration: regionDiagnosticsBody?.duration,
             fullDiagnosticsCount: semanticDiagnosticsBody.diagnostics.length,
             fullDuration: semanticDiagnosticsBody.duration,
         };

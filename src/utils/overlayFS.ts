@@ -131,7 +131,7 @@ function mkdirAllAsRoot(...args: string[]) {
  * Overlays are created by copying the contents of the `base` directory.
  */
 export async function createCopyingOverlayFS(root: string, _diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
-    await rmWithRetry(root);
+    // await rmWithRetry(root);
     await mkdirAll(root);
 
     const basePath = path.join(root, "base");
@@ -168,7 +168,7 @@ export async function createCopyingOverlayFS(root: string, _diagnosticOutput: bo
                 await overlay[Symbol.asyncDispose]();
                 overlay = undefined;
             }
-            await rmWithRetry(root);
+            // await rmWithRetry(root);
         },  
     }
 }
