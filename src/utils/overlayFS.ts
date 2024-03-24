@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { execAsync } from "./execUtils";
 
@@ -99,10 +100,12 @@ async function retry(fn: (() => void) | (() => Promise<void>), retries: number, 
 }
 
 async function tryUnmount(p: string) {
+    if (!fs.existsSync(p)) return;
     try {
         await execAsync(processCwd, `sudo umount -R ${p}`)
     } catch {
-        // ignore
+        // Print out handles for debugging.
+        await execAsync(processCwd, `sudo lsof ${p}`)
     }
 }
 
