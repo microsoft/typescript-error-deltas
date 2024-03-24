@@ -24,7 +24,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
     await tryUnmount(root);
     await rmWithRetryAsRoot(root);
     await mkdirAllAsRoot(root);
-    await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
+    await execAsync(processCwd, `sudo mount -t tmpfs tmpfs ${root}`);
 
     const lowerDir = path.join(root, "base");
     await mkdirAll(lowerDir);
