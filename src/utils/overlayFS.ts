@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { execAsync } from "./execUtils";
 
@@ -24,7 +25,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
     await tryUnmount(root);
     await rmWithRetryAsRoot(root);
     await mkdirAllAsRoot(root);
-    await execAsync(processCwd, `sudo mount -t tmpfs -o size=4g tmpfs ${root}`);
+    await execAsync(processCwd, `sudo mount -t tmpfs tmpfs ${root}`);
 
     const lowerDir = path.join(root, "base");
     await mkdirAll(lowerDir);
@@ -99,10 +100,12 @@ async function retry(fn: (() => void) | (() => Promise<void>), retries: number, 
 }
 
 async function tryUnmount(p: string) {
+    if (!fs.existsSync(p)) return;
     try {
         await execAsync(processCwd, `sudo umount -R ${p}`)
     } catch {
-        // ignore
+        // Print out handles for debugging.
+        await execAsync(processCwd, `sudo lsof ${p}`)
     }
 }
 
