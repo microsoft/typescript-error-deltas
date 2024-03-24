@@ -980,7 +980,7 @@ ${filter ? filterToTsserverLines(errorObj.message) : errorObj.message}`;
 }
 
 function filterToTsserverLines(stackLines: string): string {
-    const tsserverRegex = /^.*tsserver\.js.*$/mg;
+    const tsserverRegex = /^.*(?:tsserver|typescript)\.js.*$/mg;
     let tsserverLines = "";
     let match;
     while (match = tsserverRegex.exec(stackLines)) {
