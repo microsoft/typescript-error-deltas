@@ -17,10 +17,12 @@ type Body = typescript.server.protocol.DiagnosticEventBody & { duration: number 
 type FullPerfResult = {
     fullDiagnosticsCount: number,
     fullDuration: number,
+    fullDiagnostics: Body["diagnostics"],
 }
 type RegionPerfResult = {
     regionDiagnosticsCount: number,
     regionDuration: number,
+    regionDiagnostics: Body["diagnostics"],
 }
 type PerfResult = FullPerfResult & Partial<RegionPerfResult>;
 
@@ -105,7 +107,6 @@ async function testRegionWorker(testDir: string, tsserverPath: string, replayScr
     const waitingSemantic: ((arg: Body) => void)[] = [];
     const waitingRegion: ((arg: Body | undefined) => void)[] = [];
     server.on("event", async (e: any) => {
-        console.log(e.event);
         if (e.event === "semanticDiag") {
             const waiting = waitingSemantic.pop();
             if (waiting) {
@@ -294,6 +295,7 @@ ${JSON.stringify(response, undefined, 2)}`);
     }
 
     type TestFileResult = {
+        testDir: string,
         filePath: string,
         results: (FullPerfResult | RegionPerfResult)[]
     }
@@ -426,6 +428,7 @@ ${JSON.stringify(response, undefined, 2)}`);
         results.push(r);
 
         return {
+            testDir,
             filePath,
             results,
         };
@@ -455,6 +458,7 @@ ${JSON.stringify(response, undefined, 2)}`);
         return {
             fullDiagnosticsCount: diagnosticsBody.diagnostics.length,
             fullDuration: diagnosticsBody.duration,
+            fullDiagnostics: diagnosticsBody.diagnostics
         };
     }
 
@@ -510,8 +514,10 @@ ${JSON.stringify(response, undefined, 2)}`);
         return {
             regionDiagnosticsCount: regionDiagnosticsBody?.diagnostics.length,
             regionDuration: regionDiagnosticsBody?.duration,
+            regionDiagnostics: regionDiagnosticsBody?.diagnostics,
             fullDiagnosticsCount: semanticDiagnosticsBody.diagnostics.length,
             fullDuration: semanticDiagnosticsBody.duration,
+            fullDiagnostics: semanticDiagnosticsBody.diagnostics,
         };
     }
 }
