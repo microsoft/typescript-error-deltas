@@ -6,6 +6,7 @@ const { argv } = require("process");
 
 /**
  * @typedef TestFileResult
+ * @property testDir {string}
  * @property filePath {string}
  * @property results {[Result, Result, Result, Result]}
  */
@@ -47,14 +48,19 @@ function process(resultsPath) {
     let onlyFullDiagTotal = 0;
     let regionDiagTotal = 0;
     let fullDiagTotal = 0;
+    let lineCountTotal = 0;
 
     let count500 = 0;
     let onlyFullDiagTotal500 = 0;
     let regionDiagTotal500 = 0;
     let fullDiagTotal500 = 0;
+    let lineCountTotal500 = 0;
+    let minLineCount500 = 10000000;
 
     let maxSoFar = 0;
     let maxFile = "";
+
+    const testDirPlaceholder = "@PROJECT_ROOT@";
 
     for (const fileResult of results) {
         if (fileResult.results[2].regionDuration && fileResult.results[3].regionDuration) {
@@ -62,6 +68,12 @@ function process(resultsPath) {
             onlyFullDiagTotal += fileResult.results[0].fullDuration + fileResult.results[1].fullDuration;
             regionDiagTotal += fileResult.results[2].regionDuration + fileResult.results[3].regionDuration;
             fullDiagTotal += fileResult.results[2].fullDuration + fileResult.results[3].fullDuration;
+
+            const tempFilePath = fileResult.filePath;
+            const testDir = fileResult.testDir;
+            const actualFilePath = tempFilePath.replace(new RegExp(testDirPlaceholder, "g"), testDir);
+            const lineCount = getLineCount(actualFilePath);
+            lineCountTotal += lineCount;
 
             // Compute slowest result
             if (fileResult.results[2].regionDuration > maxSoFar) {
@@ -75,6 +87,9 @@ function process(resultsPath) {
                 onlyFullDiagTotal500 += fileResult.results[0].fullDuration + fileResult.results[1].fullDuration;
                 regionDiagTotal500 += fileResult.results[2].regionDuration + fileResult.results[3].regionDuration;
                 fullDiagTotal500 += fileResult.results[2].fullDuration + fileResult.results[3].fullDuration;
+
+                lineCountTotal500 += lineCount;
+                minLineCount500 = Math.min(minLineCount500, lineCount);
             }
 
             // Check consistency of diagnostics
@@ -82,13 +97,22 @@ function process(resultsPath) {
             const insertionCompare = checkFullDiagnostics(fileResult.results[1].fullDiagnostics, fileResult.results[3].fullDiagnostics);
             const regionDeletionCompare = checkRegionDiagnostics(fileResult.results[2].regionDiagnostics, fileResult.results[2].fullDiagnostics);
             const regionInsertionCompare = checkRegionDiagnostics(fileResult.results[3].regionDiagnostics, fileResult.results[3].fullDiagnostics);
+            const regionDeletionDupl = checkForDuplicates(fileResult.results[2].fullDiagnostics);
+            const regionInsertionDupl = checkForDuplicates(fileResult.results[3].fullDiagnostics);
+            
             assert(
                 !deletionCompare,
                 `Deletion mismatch for file ${fileResult.filePath}:\n${deletionCompare}`);
             assert(
+                !regionDeletionDupl,
+                `Deletion duplicate for file ${fileResult.filePath}:\n${regionDeletionDupl}`);
+            assert(
                 !insertionCompare,
                 `Insertion mismatch for file ${fileResult.filePath}:\n${insertionCompare}`);
-            if (deletionCompare || insertionCompare) console.error("\n");
+            assert(
+                    !regionInsertionDupl,
+                    `Insertion duplicate for file ${fileResult.filePath}:\n${regionInsertionDupl}`);
+            if (deletionCompare || insertionCompare || regionDeletionDupl || regionInsertionDupl) console.error("\n");
 
             assert(!regionDeletionCompare,
                 `Deletion disappearance for file ${fileResult.filePath}:\n${regionDeletionCompare}`);
@@ -104,14 +128,18 @@ Total region tested: ${count}
 Initial full average: ${onlyFullDiagTotal / (2 * count)}
 Region average: ${regionDiagTotal / (2 * count)}
 Full average: ${fullDiagTotal / (2 * count)}
+Line count average: ${lineCountTotal / count}
 
 Maximum region duration: ${maxSoFar}
 Maximum file: '${maxFile}'
 
 Above 500
+Total files: ${count500}
 Initial full average: ${onlyFullDiagTotal500 / (2 * count500)}
 Region average: ${regionDiagTotal500 / (2 * count500)}
 Full average: ${fullDiagTotal500 / (2 * count500)}
+Line count average: ${lineCountTotal500 / count500}
+Min line count: ${minLineCount500}
 
 `);
 
@@ -119,6 +147,15 @@ Full average: ${fullDiagTotal500 / (2 * count500)}
         console.log(`Really bad:\n${JSON.stringify(reallyBad)}`);
     }
 
+}
+
+/**
+ * @param {string} filePath
+ * @returns {number}
+ */
+function getLineCount(filePath) {
+    const content = fs.readFileSync(filePath, { encoding: "utf-8" });
+    return content.split("\n").length;
 }
 
 /**
@@ -146,22 +183,27 @@ function checkFullDiagnostics(original, modified) {
         }
     }
 
+
+    /** @type string[] */
+    const report = [];
+    if (original.length !== modified.length) {
+        report.push(`Different lengths. Original: ${original.length}  Modified: ${modified.length}`);
+    }
+    
     if (missing.length || extra.length) {
-        const report = [];
         if (missing.length) {
             report.push(`Missing:\n${JSON.stringify(missing)}.`);
         }
         if (extra.length) {
             report.push(`Extra:\n${JSON.stringify(extra)}.`);
         }
-        return report.join("\n");
     }
 
-    return undefined;
+    return report.length ? report.join("\n") : undefined;
 }
 
 /**
- * 
+ * Check if any region diagnostic is missing from the full diagnostics
  * @param {Diagnostic[]} region 
  * @param {Diagnostic[]} full
  * @returns {string | undefined}
@@ -192,8 +234,38 @@ function checkRegionDiagnostics(region, full) {
 function compareDiagnostic(original, modified) {
     return isSameLocation(original.start, modified.start) &&
         isSameLocation(original.end, modified.end) &&
-        original.text === modified.text &&
-        original.code === modified.code;
+        compareCode(original.code, modified.code) &&
+        compareMessages(original.text, modified.text);
+}
+
+function compareMessages(original, modified) {
+    return original === modified;
+}
+
+function compareCode(original, modified) {
+    return original === modified;
+    // const suggestionCodes = [[2552, 2304], [2740, 2322]];
+    // return original === modified ||
+    //     suggestionCodes.some(codes => codes.includes(original) && codes.includes(modified));
+}
+
+/**
+ * 
+ * @param {Diagnostic[]} diagnostics
+ * @returns {string | undefined}
+ */
+function checkForDuplicates(diagnostics) {
+    const result = [];
+    for (const diag of diagnostics) {
+        const dupl = diagnostics.filter(d => d !== diag && isSameLocation(diag.start, d.start) && isSameLocation(diag.end, d.end));
+        if (dupl.length) {
+            result.push(diag);
+        }
+    }
+    if (result.length) {
+        result.sort((a, b) => a.start.line - b.start.line);
+        return `Duplicate diagnostics found:\n${JSON.stringify(result)}`;
+    }
 }
 
 /**
