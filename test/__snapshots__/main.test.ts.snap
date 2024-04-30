@@ -4,8 +4,8 @@ exports[`main outputs server errors 1`] = `
 [MockFunction] {
   "calls": [
     [
-      "/mnt/q/Repos/typescript-error-deltas/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
-      "Req #123 - completionInfo
+      "<BASE_PATH>/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
+      "Req #123 - cursedCommand
 Some error. Could not do something. 
 Maybe a Debug fail.
     at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)
@@ -15,11 +15,11 @@ Maybe a Debug fail.
     at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)",
     ],
     [
-      "/mnt/q/Repos/typescript-error-deltas/artifacts/718e48b799650d4b66e5d80ad6bac7b9.results.txt",
+      "<BASE_PATH>/artifacts/718e48b799650d4b66e5d80ad6bac7b9.results.txt",
       "<h2>Maybe a Debug fail.</h2>
 
 \`\`\`
-Req #123 - completionInfo
+Req #123 - cursedCommand
     at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)
     at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)
     at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)
@@ -37,7 +37,7 @@ Raw error text: <code>artifacts/MockRepoOwner.MockRepoName.rawError.txt</code> i
 {"rootDirPlaceholder":"@PROJECT_ROOT@","serverArgs":["--disableAutomaticTypingAcquisition"]}
 {"seq":1,"type":"request","command":"configure","arguments":{"preferences":{"disableLineTextInReferences":true,"includePackageJsonAutoImports":"auto","includeCompletionsForImportStatements":true,"includeCompletionsWithSnippetText":true,"includeAutomaticOptionalChainCompletions":true,"includeCompletionsWithInsertText":true,"includeCompletionsWithClassMemberSnippets":true,"allowIncompleteCompletions":true,"includeCompletionsForModuleExports":false},"watchOptions":{"excludeDirectories":["**/node_modules"]}}}
 {"seq":2,"type":"request","command":"updateOpen","arguments":{"changedFiles":[],"closedFiles":[],"openFiles":[{"file":"@PROJECT_ROOT@/sample_repoName.config.js","projectRootPath":"@PROJECT_ROOT@"}]}}
-{"seq":3,"type":"request","command":"completionInfo","arguments":{"file":"@PROJECT_ROOT@/src/sampleTsFile.ts","line":1,"offset":1,"includeExternalModuleExports":false,"triggerKind":1}}
+{"seq":3,"type":"request","command":"cursedCommand","arguments":{"file":"@PROJECT_ROOT@/src/sampleTsFile.ts","line":1,"offset":1,"includeExternalModuleExports":false,"triggerKind":1}}
 \`\`\`
 
 <h4>Repro steps</h4>
@@ -61,7 +61,7 @@ Raw error text: <code>artifacts/MockRepoOwner.MockRepoName.rawError.txt</code> i
       },
     ],
     [
-      "/mnt/q/Repos/typescript-error-deltas/artifacts/metadata.json",
+      "<BASE_PATH>/artifacts/metadata.json",
       "{"newTsResolvedVersion":"1.1.1","oldTsResolvedVersion":"0.0.0","statusCounts":{"Detected interesting changes":1}}",
       {
         "encoding": "utf-8",
