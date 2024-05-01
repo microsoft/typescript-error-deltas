@@ -13,6 +13,9 @@ export interface OverlayMergedFS extends AsyncDisposable {
 
 export interface DisposableOverlayBaseFS extends OverlayBaseFS, AsyncDisposable {}
 
+// @ts-ignore
+Symbol.asyncDispose ??= Symbol("Symbol.asyncDispose");
+
 const processCwd = process.cwd();
 
 /**
