@@ -1,5 +1,5 @@
-import fs from "fs";
-import path from "path";
+import fs = require("fs");
+import path = require("path");
 import { execAsync } from "./execUtils";
 
 export interface OverlayBaseFS {
@@ -12,6 +12,9 @@ export interface OverlayMergedFS extends AsyncDisposable {
 }
 
 export interface DisposableOverlayBaseFS extends OverlayBaseFS, AsyncDisposable {}
+
+// @ts-ignore
+Symbol.asyncDispose ??= Symbol("Symbol.asyncDispose");
 
 const processCwd = process.cwd();
 
