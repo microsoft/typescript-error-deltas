@@ -76,6 +76,7 @@ jest.mock('../src/utils/installPackages', () => {
     const npmCommand = {
         tool: 'npm',
         arguments: [
+            'install',
             '--prefer-offline',
             '--no-audit',
             '--no-progress',
@@ -156,7 +157,7 @@ describe("main", () => {
             workerNumber: 1,
             oldTsNpmVersion: 'latest',
             newTsNpmVersion: 'next',
-            resultDirName: './artifacts',
+            resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
         });
 

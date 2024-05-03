@@ -91,7 +91,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }}
+      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
     displayName: 'Create issue from new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)

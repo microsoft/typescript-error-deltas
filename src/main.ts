@@ -104,6 +104,7 @@ interface Summary {
     replayScript: string;
     replayScriptArtifactPath: string;
     replayScriptName: string;
+    resultDirName: string;
     commit?: string;
 }
 
@@ -452,39 +453,45 @@ ${summary.replayScript}
 \`\`\`
 
 <h4>Repro steps</h4>
-<ol>
+
+\`\`\`bash
 `;
         // No url means is user test repo
         if (!summary.repo.url) {
-            text += `<li>Download user test <code>${summary.repo.name}</code></li>\n`;
+            text += `# Manually download user test \`${summary.repo.name}\`\n`;
         }
         else {
-            text += `<li><code>git clone ${summary.repo.url} --recurse-submodules</code></li>\n`;
+            text += `git clone ${summary.repo.url} --recurse-submodules\n`;
 
             if (summary.commit) {
-                text += `<li>In dir <code>${summary.repo.name}</code>, run <code>git reset --hard ${summary.commit}</code></li>\n`;
+                text += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
             }
         }
 
         if (summary.tsServerResult.installCommands.length > 1) {
-            text += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
+            text += "# Install packages (exact steps are below, but it might be easier to follow the repo readme)\n";
         }
         for (const command of summary.tsServerResult.installCommands) {
-            text += `  <li>In dir <code>${command.prettyDirectory}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
-        }
-        if (summary.tsServerResult.installCommands.length > 1) {
-            text += "</ol></details>\n";
+            const workingDirFlag = command.tool === ip.InstallTool.Npm
+                ? "--prefix"
+                : command.tool === ip.InstallTool.Yarn
+                    ? "--cwd"
+                    : "--dir"; // pnpm
+
+            text += `${command.tool} ${workingDirFlag} "${command.directory}" ${command.arguments.join(" ")}\n`;
         }
 
-        // The URL of the artifact can be determined via AzDO REST APIs, but not until after the artifact is published
-        text += `<li>Back in the initial folder, download <code>${summary.replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>\n`;
-        text += `<li><code>npm install --no-save @typescript/server-replay</code></li>\n`;
-        text += `<li><code>npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} path/to/tsserver.js</code></li>\n`;
-        text += `<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>\n`;
+        text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
+wget -O ${summary.resultDirName}.zip "$downloadUrl"
+unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
+npm install --no-save @typescript/server-replay
+\`\`\`
 
-        text += `</ol>
-</details>
-`;
+To run the repro:
+\`\`\`bash
+# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
+npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsserver.js>
+\`\`\``;
     }
 
     return text;
@@ -698,6 +705,7 @@ export const resultFileNameSuffix = "results.txt";
 export const replayScriptFileNameSuffix = "replay.txt";
 export const rawErrorFileNameSuffix = "rawError.txt";
 export const artifactFolderUrlPlaceholder = "PLACEHOLDER_ARTIFACT_FOLDER";
+export const getArtifactsApiUrlPlaceholder = "PLACEHOLDER_GETARTIFACTS_API";
 
 export type StatusCounts = {
     [P in RepoStatus]?: number
@@ -804,6 +812,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 replayScript: fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"),
                 replayScriptArtifactPath,
                 replayScriptName: path.basename(replayScriptArtifactPath),
+                resultDirName: params.resultDirName,
                 commit
             });
         }
