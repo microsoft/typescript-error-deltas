@@ -74,8 +74,8 @@ ${Object.keys(statusCounts).sort().map(status => `| ${status} | ${statusCounts[s
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p =>
     fs.readFileSync(p, { encoding: "utf-8" })
-        .replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri)
-        .replace(new RegExp(getArtifactsApiUrlPlaceholder, "g"), getArtifactsApi));
+        .replaceAll(artifactFolderUrlPlaceholder, artifactsUri)
+        .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
 
 for (let i = 0; i < outputs.length; i++) {
     const resultPath = resultPaths[i];

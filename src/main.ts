@@ -455,6 +455,8 @@ ${summary.replayScript}
 <h4>Repro steps</h4>
 
 \`\`\`bash
+#!/bin/bash
+
 `;
         // No url means is user test repo
         if (!summary.repo.url) {
@@ -491,7 +493,10 @@ To run the repro:
 \`\`\`bash
 # \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
 npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsserver.js>
-\`\`\``;
+\`\`\`
+
+</details>
+`;
     }
 
     return text;

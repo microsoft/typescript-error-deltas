@@ -43,6 +43,8 @@ Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</co
 <h4>Repro steps</h4>
 
 \`\`\`bash
+#!/bin/bash
+
 git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules
 git -C "./MockRepoName" reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935
 # Install packages (exact steps are below, but it might be easier to follow the repo readme)
@@ -59,7 +61,10 @@ To run the repro:
 \`\`\`bash
 # \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
 npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt <PATH_TO_tsserver.js>
-\`\`\`",
+\`\`\`
+
+</details>
+",
       {
         "encoding": "utf-8",
       },
