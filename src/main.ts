@@ -452,36 +452,55 @@ Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${a
 ${summary.replayScript}
 \`\`\`
 
-<h4>Repro steps</h4>
+<h4>Repro steps</h4>`;
 
-\`\`\`bash
-`;
+        let proseSteps = `<ol>\n`;
+        let bashScript = `<h5>Bash script</h5>
+
+\`\`\`bash\n`;
+
         // No url means is user test repo
         if (!summary.repo.url) {
-            text += `# Manually download user test \`${summary.repo.name}\`\n`;
+            proseSteps += `<li>Download user test <code>${summary.repo.name}</code></li>\n`;
+            bashScript += `# Manually download user test \`${summary.repo.name}\`\n`;
         }
         else {
-            text += `git clone ${summary.repo.url} --recurse-submodules\n`;
+            proseSteps += `<li><code>git clone ${summary.repo.url} --recurse-submodules</code></li>\n`;
+            bashScript += `git clone ${summary.repo.url} --recurse-submodules\n`;
 
             if (summary.commit) {
-                text += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
+                proseSteps += `<li>In dir <code>${summary.repo.name}</code>, run <code>git reset --hard ${summary.commit}</code></li>\n`;
+                bashScript += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
             }
         }
 
         if (summary.tsServerResult.installCommands.length > 1) {
-            text += "# Install packages (exact steps are below, but it might be easier to follow the repo readme)\n";
+            proseSteps += "<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>\n";
+            bashScript += "# Install packages (exact steps are below, but it might be easier to follow the repo readme)\n";
         }
         for (const command of summary.tsServerResult.installCommands) {
+            proseSteps += `  <li>In dir <code>${command.prettyDirectory}</code>, run <code>${command.tool} ${command.arguments.join(" ")}</code></li>\n`;
             const workingDirFlag = command.tool === ip.InstallTool.Npm
                 ? "--prefix"
                 : command.tool === ip.InstallTool.Yarn
                     ? "--cwd"
                     : "--dir"; // pnpm
 
-            text += `${command.tool} ${workingDirFlag} "${command.directory}" ${command.arguments.join(" ")}\n`;
+            bashScript += `${command.tool} ${workingDirFlag} "${command.directory}" ${command.arguments.join(" ")}\n`;
+        }
+        if (summary.tsServerResult.installCommands.length > 1) {
+            proseSteps += "</ol></details>\n";
         }
 
-        text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
+        // The URL of the artifact can be determined via AzDO REST APIs, but not until after the artifact is published
+        proseSteps += `<li>Back in the initial folder, download <code>${summary.replayScriptArtifactPath}</code> from the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a></li>
+<li><code>npm install --no-save @typescript/server-replay</code></li>
+<li><code>npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} path/to/tsserver.js</code></li>
+<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>
+</ol>
+`;
+
+        bashScript += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
 wget -O ${summary.resultDirName}.zip "$downloadUrl"
 unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
 npm install --no-save @typescript/server-replay
@@ -492,6 +511,14 @@ To run the repro:
 # \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
 npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsserver.js>
 \`\`\``;
+
+        text += `
+${proseSteps}
+
+${bashScript}
+</details>
+`;
+
     }
 
     return text;

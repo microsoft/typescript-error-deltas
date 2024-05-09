@@ -41,6 +41,22 @@ Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</co
 \`\`\`
 
 <h4>Repro steps</h4>
+<ol>
+<li><code>git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules</code></li>
+<li>In dir <code>MockRepoName</code>, run <code>git reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935</code></li>
+<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>
+  <li>In dir <code>dirA</code>, run <code>npm install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q</code></li>
+  <li>In dir <code>dirB/dirC</code>, run <code>npm install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q</code></li>
+  <li>In dir <code>dirD/dirE/dirF</code>, run <code>npm install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q</code></li>
+</ol></details>
+<li>Back in the initial folder, download <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> from the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a></li>
+<li><code>npm install --no-save @typescript/server-replay</code></li>
+<li><code>npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt path/to/tsserver.js</code></li>
+<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>
+</ol>
+
+
+<h5>Bash script</h5>
 
 \`\`\`bash
 git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules
@@ -59,7 +75,9 @@ To run the repro:
 \`\`\`bash
 # \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
 npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt <PATH_TO_tsserver.js>
-\`\`\`",
+\`\`\`
+</details>
+",
       {
         "encoding": "utf-8",
       },
