@@ -15,7 +15,7 @@ Maybe a Debug fail.
     at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)",
     ],
     [
-      "<BASE_PATH>/artifacts/718e48b799650d4b66e5d80ad6bac7b9.results.txt",
+      "<BASE_PATH>/RepoResults123/718e48b799650d4b66e5d80ad6bac7b9.results.txt",
       "<h2>Maybe a Debug fail.</h2>
 
 \`\`\`
@@ -30,7 +30,7 @@ Req #123 - cursedCommand
 <h4>Affected repos</h4>
 <details>
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
-Raw error text: <code>artifacts/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
 <h4>Last few requests</h4>
 
 \`\`\`json
@@ -41,19 +41,28 @@ Raw error text: <code>artifacts/MockRepoOwner.MockRepoName.rawError.txt</code> i
 \`\`\`
 
 <h4>Repro steps</h4>
-<ol>
-<li><code>git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules</code></li>
-<li>In dir <code>MockRepoName</code>, run <code>git reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935</code></li>
-<li><details><summary>Install packages (exact steps are below, but it might be easier to follow the repo readme)</summary><ol>
-  <li>In dir <code>dirA</code>, run <code>npm --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q</code></li>
-  <li>In dir <code>dirB/dirC</code>, run <code>npm --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q</code></li>
-  <li>In dir <code>dirD/dirE/dirF</code>, run <code>npm --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q</code></li>
-</ol></details>
-<li>Back in the initial folder, download <code>artifacts/MockRepoOwner.MockRepoName.replay.txt</code> from the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a></li>
-<li><code>npm install --no-save @typescript/server-replay</code></li>
-<li><code>npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt path/to/tsserver.js</code></li>
-<li><code>npx tsreplay --help</code> to learn about helpful switches for debugging, logging, etc</li>
-</ol>
+
+\`\`\`bash
+#!/bin/bash
+
+git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules
+git -C "./MockRepoName" reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935
+# Install packages (exact steps are below, but it might be easier to follow the repo readme)
+npm --prefix "./dirA" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
+npm --prefix "./dirB/dirC" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
+npm --prefix "./dirD/dirE/dirF" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
+downloadUrl=$(curl -s "PLACEHOLDER_GETARTIFACTS_API?artifactName=RepoResults123&api-version=7.0" | jq -r ".resource.downloadUrl")
+wget -O RepoResults123.zip "$downloadUrl"
+unzip -p RepoResults123.zip RepoResults123/MockRepoOwner.MockRepoName.replay.txt > MockRepoOwner.MockRepoName.replay.txt
+npm install --no-save @typescript/server-replay
+\`\`\`
+
+To run the repro:
+\`\`\`bash
+# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
+npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt <PATH_TO_tsserver.js>
+\`\`\`
+
 </details>
 ",
       {
@@ -61,7 +70,7 @@ Raw error text: <code>artifacts/MockRepoOwner.MockRepoName.rawError.txt</code> i
       },
     ],
     [
-      "<BASE_PATH>/artifacts/metadata.json",
+      "<BASE_PATH>/RepoResults123/metadata.json",
       "{"newTsResolvedVersion":"1.1.1","oldTsResolvedVersion":"0.0.0","statusCounts":{"Detected interesting changes":1}}",
       {
         "encoding": "utf-8",
