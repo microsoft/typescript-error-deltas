@@ -105,10 +105,25 @@ async function retry(fn: (() => void) | (() => Promise<void>), retries: number, 
 async function tryUnmount(p: string) {
     if (!fs.existsSync(p)) return;
     try {
-        await execAsync(processCwd, `sudo umount -R ${p}`)
+        await retry(async () => {
+            try {
+                await execAsync(processCwd, `sudo umount -R ${p}`);
+            } catch {
+                // Kill processes using the mount.
+                try {
+                    await execAsync(processCwd, `sudo fuser -vkm ${p}`);
+                } catch {
+                    // This command will exit with a non-zero exit code on no handles; ignore.
+                }
+            }
+        }, 3, 1000)
     } catch {
-        // Print out handles for debugging.
-        await execAsync(processCwd, `sudo lsof ${p}`)
+        // Print out the remaining processes for debugging.
+        try {
+            await execAsync(processCwd, `sudo fuser -vm ${p}`);
+        } catch {
+            // This command will exit with a non-zero exit code on no handles; ignore.
+        }
     }
 }
 
