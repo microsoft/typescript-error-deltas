@@ -110,12 +110,20 @@ async function tryUnmount(p: string) {
                 await execAsync(processCwd, `sudo umount -R ${p}`);
             } catch {
                 // Kill processes using the mount.
-                await execAsync(processCwd, `sudo fuser -vkm ${p}`);
+                try {
+                    await execAsync(processCwd, `sudo fuser -vkm ${p}`);
+                } catch {
+                    // This command will exit with a non-zero exit code on no handles; ignore.
+                }
             }
         }, 3, 1000)
     } catch {
         // Print out the remaining processes for debugging.
-        await execAsync(processCwd, `sudo fuser -vm ${p}`);
+        try {
+            await execAsync(processCwd, `sudo fuser -vm ${p}`);
+        } catch {
+            // This command will exit with a non-zero exit code on no handles; ignore.
+        }
     }
 }
 
