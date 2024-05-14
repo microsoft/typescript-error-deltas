@@ -108,13 +108,15 @@ async function tryUnmount(p: string) {
         await retry(async () => {
             try {
                 await execAsync(processCwd, `sudo umount -R ${p}`);
-            } catch {
+            } catch (e) {
                 // Kill processes using the mount.
                 try {
                     await execAsync(processCwd, `sudo fuser -vkm ${p}`);
                 } catch {
                     // This command will exit with a non-zero exit code on no handles; ignore.
                 }
+                // Ensure we retry.
+                throw e;
             }
         }, 3, 1000)
     } catch {
