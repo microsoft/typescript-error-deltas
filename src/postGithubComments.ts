@@ -1,17 +1,17 @@
 import fs = require("fs");
 import path = require("path");
-import { artifactFolderUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
+import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count>`);
+if (argv.length !== 12) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount] = argv;
+const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
@@ -70,7 +70,10 @@ else {
 const hasOldErrors = pu.glob(resultDirPath, `**/!*.${resultFileNameSuffix}`).length !== 0;
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
-const outputs = resultPaths.map(p => fs.readFileSync(p, { encoding: "utf-8" }).replace(new RegExp(artifactFolderUrlPlaceholder, "g"), artifactsUri));
+const outputs = resultPaths.map(p =>
+    fs.readFileSync(p, { encoding: "utf-8" })
+        .replaceAll(artifactFolderUrlPlaceholder, artifactsUri)
+        .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
 
 const suiteDescription = isTopReposRun ? `top ${repoCount} repos` : "user tests";
 let header = `@${userToTag} Here are the results of running the ${suiteDescription} comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
