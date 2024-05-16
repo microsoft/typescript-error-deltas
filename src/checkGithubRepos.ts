@@ -3,12 +3,12 @@ import { mainAsync, reportError, TsEntrypoint } from "./main";
 
 const { argv } = process;
 
-if (argv.length !== 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_npm_version> <new_ts_npm_version> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed>`);
+if (argv.length !== 14) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_npm_version> <new_ts_npm_version> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <buildId> <teamFoundationCollectionUri> <teamProject>`);
     process.exit(-1);
 }
 
-const [,, entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed] = argv;
+const [, , entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, buildId, teamFoundationCollectionUri, teamProject] = argv;
 
 mainAsync({
     testType: "github",
@@ -23,6 +23,9 @@ mainAsync({
     newTsNpmVersion,
     resultDirName,
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
+    buildId: +buildId,
+    teamFoundationCollectionUri,
+    teamProject,
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);
