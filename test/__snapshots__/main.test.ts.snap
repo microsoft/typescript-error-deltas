@@ -51,9 +51,7 @@ git -C "./MockRepoName" reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935
 npm --prefix "./dirA" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
 npm --prefix "./dirB/dirC" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
 npm --prefix "./dirD/dirE/dirF" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-downloadUrl=$(curl -s "PLACEHOLDER_GETARTIFACTS_API?artifactName=RepoResults123&api-version=7.0" | jq -r ".resource.downloadUrl")
-wget -O RepoResults123.zip "$downloadUrl"
-unzip -p RepoResults123.zip RepoResults123/MockRepoOwner.MockRepoName.replay.txt > MockRepoOwner.MockRepoName.replay.txt
+wget -O MockRepoOwner.MockRepoName.replay.txt "http://anazuredevops.buildpage.com_teamproject_atypescriptproject_buildid_1/?artifactName=RepoResults123&fileId=999&fileName=MockRepoOwner.MockRepoName.replay.txt"
 npm install --no-save @typescript/server-replay
 \`\`\`
 

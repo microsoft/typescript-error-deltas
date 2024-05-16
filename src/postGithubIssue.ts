@@ -1,17 +1,17 @@
 import fs = require("fs");
 import path = require("path");
-import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, StatusCounts, TsEntrypoint } from "./main";
+import { artifactFolderUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, StatusCounts, TsEntrypoint } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result> <get_artifacts_api>`);
+if (argv.length !== 10) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result>`);
     process.exit(-1);
 }
 
-const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi] = argv;
+const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post] = argv;
 const postResult = post.toLowerCase() === "true";
 const entrypoint = ep as TsEntrypoint;
 
@@ -74,8 +74,7 @@ ${Object.keys(statusCounts).sort().map(status => `| ${status} | ${statusCounts[s
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p =>
     fs.readFileSync(p, { encoding: "utf-8" })
-        .replaceAll(artifactFolderUrlPlaceholder, artifactsUri)
-        .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
+        .replaceAll(artifactFolderUrlPlaceholder, artifactsUri));
 
 for (let i = 0; i < outputs.length; i++) {
     const resultPath = resultPaths[i];
