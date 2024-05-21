@@ -11,9 +11,8 @@ import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 import { getErrorMessageFromStack, getHash, getHashForStack } from "./utils/hashStackTrace";
 import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
-import { getReplayScriptDownloadUrl } from "./utils/devOpsUtils";
 
-export interface Params {
+interface Params {
     /**
      * Store test repos on a tmpfs.
      * Basically, the only reason not to do this would be lack of `sudo`.
@@ -55,18 +54,6 @@ export interface Params {
      * Pass undefined to have a seed generated.
      */
     prngSeed: string | undefined;
-    /**
-     * Build number to reference when downloading files.
-     */
-    buildId: number;
-    /**
-     * URL of the DevOps organization.
-     */
-    teamFoundationCollectionUri: string;
-    /**
-     * Name of the project that contains the build.
-     */
-    teamProject: string;
 }
 export interface GitParams extends Params {
     testType: "github";
@@ -109,7 +96,7 @@ interface TSServerResult {
     installCommands: ip.InstallCommand[];
 }
 
-export interface Summary {
+interface Summary {
     tsServerResult: TSServerResult;
     repo: git.Repo;
     oldTsEntrypointPath: string;
@@ -442,7 +429,7 @@ ${oldServerError}
     return text;
 }
 
-async function createNewErrorSummaryAsync(summaries: Summary[], params: Params): Promise<string> {
+async function createNewErrorSummaryAsync(summaries: Summary[]): Promise<string> {
     let text = `<h2>${getErrorMessage(summaries[0].tsServerResult.newSpawnResult.stdout)}</h2>
 
 \`\`\`
@@ -496,9 +483,9 @@ ${summary.replayScript}
             text += `${command.tool} ${workingDirFlag} "${command.directory}" ${command.arguments.join(" ")}\n`;
         }
 
-        const replayScriptUrl = await getReplayScriptDownloadUrl(summary, params);
-
-        text += `wget -O ${summary.replayScriptName} "${replayScriptUrl!.toString()}"
+        text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
+wget -O ${summary.resultDirName}.zip "$downloadUrl"
+unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
 npm install --no-save @typescript/server-replay
 \`\`\`
 
@@ -723,6 +710,7 @@ export const resultFileNameSuffix = "results.txt";
 export const replayScriptFileNameSuffix = "replay.txt";
 export const rawErrorFileNameSuffix = "rawError.txt";
 export const artifactFolderUrlPlaceholder = "PLACEHOLDER_ARTIFACT_FOLDER";
+export const getArtifactsApiUrlPlaceholder = "PLACEHOLDER_GETARTIFACTS_API";
 
 export type StatusCounts = {
     [P in RepoStatus]?: number
@@ -858,7 +846,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         }
 
         for (let [key, value] of groupedNewErrors) {
-            const summary = await createNewErrorSummaryAsync(value, params);
+            const summary = await createNewErrorSummaryAsync(value);
             const resultFileName = `${key}.${resultFileNameSuffix}`;
 
             await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
