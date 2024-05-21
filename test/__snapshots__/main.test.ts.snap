@@ -30,7 +30,8 @@ Req #123 - cursedCommand
 <h4>Affected repos</h4>
 <details>
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
-Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
+Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
 <h4>Last few requests</h4>
 
 \`\`\`json

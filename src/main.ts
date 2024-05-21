@@ -445,7 +445,8 @@ ${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.newSpawnResult.stdo
         text += `
 <details>
 <summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
-Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
+Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
+Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
 <h4>Last few requests</h4>
 
 \`\`\`json
