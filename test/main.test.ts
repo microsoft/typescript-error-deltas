@@ -1,4 +1,4 @@
-import { getTscRepoResult, downloadTsRepoAsync, mainAsync, Params, Summary } from '../src/main'
+import { getTscRepoResult, downloadTsRepoAsync, mainAsync } from '../src/main'
 import { execSync } from "child_process"
 import path = require("path")
 import { createCopyingOverlayFS } from '../src/utils/overlayFS'
@@ -109,14 +109,6 @@ jest.mock('../src/utils/installPackages', () => {
         }
     }
 });
-jest.mock('../src/utils/devOpsUtils', () => ({
-    getReplayScriptDownloadUrl: async (summary: Summary, params: Params) => {
-        var url = new URL(`${params.teamFoundationCollectionUri}_teamProject_${params.teamProject}_buildId_${params.buildId}`);
-        url.search = `artifactName=${summary.resultDirName}&fileId=999&fileName=${summary.replayScriptName}`;
-
-        return url;
-    }
-}));
 
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000);
@@ -167,9 +159,6 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            buildId: 1,
-            teamFoundationCollectionUri: "http://anAzureDevOps.buildPage.com",
-            teamProject: "ATypeScriptProject"
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
@@ -179,4 +168,4 @@ describe("main", () => {
 
         expect(mockedFs.promises.writeFile).toMatchSnapshot();
     });
-});
+})

@@ -106,7 +106,7 @@ jobs:
       npm run build
       npm install -g pnpm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }} $(Build.BuildId) '$(System.TeamFoundationCollectionUri)' '$(System.TeamProject)'
+      node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run user tests'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
@@ -123,7 +123,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }}
+      node dist/postGithubComments ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
