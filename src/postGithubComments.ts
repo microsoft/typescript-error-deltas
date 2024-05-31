@@ -6,12 +6,12 @@ import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 12) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api>`);
+if (argv.length !== 13) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <entrypoint> <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api>`);
     process.exit(-1);
 }
 
-const [, , userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi] = argv;
+const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
 
@@ -76,7 +76,7 @@ const outputs = resultPaths.map(p =>
         .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
 
 const suiteDescription = isTopReposRun ? `top ${repoCount} repos` : "user tests";
-let header = `@${userToTag} Here are the results of running the ${suiteDescription} comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
+let header = `@${userToTag} Here are the results of running the ${suiteDescription} with ${entrypoint} comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
 
 ${summary.join("\n")}`;
 
