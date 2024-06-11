@@ -481,7 +481,7 @@ ${summary.replayScript}
                     ? "--cwd"
                     : "--dir"; // pnpm
 
-            text += `${command.tool} ${workingDirFlag} "${command.directory}" ${command.arguments.join(" ")}\n`;
+            text += `${command.tool} ${workingDirFlag} "./${command.prettyDirectory}" ${command.arguments.join(" ")}\n`;
         }
 
         text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")

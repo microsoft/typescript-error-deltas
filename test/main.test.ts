@@ -92,17 +92,17 @@ jest.mock('../src/utils/installPackages', () => {
             return [
                 {
                     ...npmCommand,
-                    directory: './dirA',
+                    directory: '/mnt/repos/dirA',
                     prettyDirectory: 'dirA',
                 },
                 {
                     ...npmCommand,
-                    directory: './dirB/dirC',
+                    directory: '/mnt/repos/dirB/dirC',
                     prettyDirectory: 'dirB/dirC',
                 },
                 {
                     ...npmCommand,
-                    directory: './dirD/dirE/dirF',
+                    directory: '/mnt/repos/dirD/dirE/dirF',
                     prettyDirectory: 'dirD/dirE/dirF',
                 }
             ]

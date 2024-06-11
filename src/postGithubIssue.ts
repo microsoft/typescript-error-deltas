@@ -77,26 +77,28 @@ const outputs = resultPaths.map(p =>
         .replaceAll(artifactFolderUrlPlaceholder, artifactsUri)
         .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
 
-for (let i = 0; i < outputs.length; i++) {
-    const resultPath = resultPaths[i];
-    const output = outputs[i];
 
-    const fileName = path.basename(resultPath);
-    const repoString = fileName.substring(0, fileName.length - resultFileNameSuffix.length - 1);
-    const repoName = repoString.replace(".", "/"); // The owner *probably* doesn't have a dot in it
+// tsserver groups results by error, causing the summary to not make sense. Remove the list for now.
+// See issue: https://github.com/microsoft/typescript-error-deltas/issues/114
+if (entrypoint !== "tsserver") {
+    // Prints the investigation status list.
+    for (let i = 0; i < outputs.length; i++) {
+        const resultPath = resultPaths[i];
+        const output = outputs[i];
 
-    let errorCount = 0;
-    if (entrypoint === "tsserver") {
-        errorCount = 1;
-    }
-    else {
+        const fileName = path.basename(resultPath);
+        const repoString = fileName.substring(0, fileName.length - resultFileNameSuffix.length - 1);
+        const repoName = repoString.replace(".", "/"); // The owner *probably* doesn't have a dot in it
+
+        let errorCount = 0;
+
         const re = /^\W*error TS\d+/gm;
         while (re.exec(output)) {
             errorCount++;
         }
-    }
 
-    header += `|${repoName}|${errorCount}| |\n`;
+        header += `|${repoName}|${errorCount}| |\n`;
+    }
 }
 
 
