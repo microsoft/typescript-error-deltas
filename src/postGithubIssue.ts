@@ -44,12 +44,11 @@ for (const path of metadataFilePaths) {
     }
 }
 
-const title = entrypoint === "tsserver"
-    ? `[ServerErrors][${language}] ${newTscResolvedVersion}`
-    : `[NewErrors] ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
+
+const title = `${entrypoint === "tsserver" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
 
 const description = entrypoint === "tsserver"
-    ? `The following errors were reported by ${newTscResolvedVersion}`
+    ? `The following errors were reported by ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`
     : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
 let header = `${description}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
