@@ -2,6 +2,7 @@ import { getTscRepoResult, downloadTsRepoAsync, mainAsync } from '../src/main'
 import { execSync } from "child_process"
 import path = require("path")
 import { createCopyingOverlayFS } from '../src/utils/overlayFS'
+import { SpawnResult } from '../src/utils/execUtils';
 
 jest.mock('random-seed', () => ({
     create: () => {
@@ -27,17 +28,7 @@ jest.mock("../src/utils/execUtils", () => ({
             return {};
         }
 
-        return {
-            stdout: JSON.stringify({
-                "request_seq": "123",
-                "command": "cursedCommand",
-                "message": "Some error. Could not do something. \nMaybe a Debug fail.\n    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)\n    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)\n    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)\n    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)\n    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)"
-            }),
-            stderr: '',
-            code: 5,
-            signal: null,
-
-        }
+        return typeScriptSpawnResult(args);
     }),
     execAsync: async (cwd: string, command: string) => {
         if (command.startsWith('npm pack typescript@latest')) {
@@ -110,6 +101,14 @@ jest.mock('../src/utils/installPackages', () => {
     }
 });
 
+let typeScriptSpawnResult: (args: readonly string[]) => SpawnResult;
+
+const errorStdout = JSON.stringify({
+    "request_seq": "123",
+    "command": "cursedCommand",
+    "message": "Some error. Could not do something. \nMaybe a Debug fail.\n    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)\n    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)\n    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)\n    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)\n    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)"
+});
+
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000);
 
@@ -145,6 +144,58 @@ describe("main", () => {
 
     it("outputs server errors", async () => {
         const mockedFs = require('fs');
+
+        typeScriptSpawnResult = () => ({
+            stdout: errorStdout,
+            stderr: '',
+            code: 5,
+            signal: null,
+
+        });
+
+        await mainAsync({
+            testType: "github",
+            tmpfs: false,
+            entrypoint: 'tsserver',
+            diagnosticOutput: false,
+            buildWithNewWhenOldFails: false,
+            repoListPath: "./artifacts/repos.json",
+            workerCount: 1,
+            workerNumber: 1,
+            oldTsNpmVersion: 'latest',
+            newTsNpmVersion: 'next',
+            resultDirName: 'RepoResults123',
+            prngSeed: 'testSeed',
+        });
+
+        // Remove all references to the base path so that snapshot pass successfully.
+        mockedFs.promises.writeFile.mock.calls.forEach((e: [string, string]) => {
+            e[0] = e[0].replace(process.cwd(), "<BASE_PATH>");
+        });
+
+        expect(mockedFs.promises.writeFile).toMatchSnapshot();
+    });
+
+    it("outputs old server errors", async () => {
+        const mockedFs = require('fs');
+
+        typeScriptSpawnResult = args => {
+            let isOldServer = args.some(x => x.includes('0.0.0'));
+
+            // Only "old" reports an error.
+            return isOldServer ? {
+                stdout: errorStdout,
+                stderr: '',
+                code: 5,
+                signal: null,
+            } : {
+                stdout: '',
+                stderr: '',
+                code: 0,
+                signal: null,
+            };
+
+        };
 
         await mainAsync({
             testType: "github",
