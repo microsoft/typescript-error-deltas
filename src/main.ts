@@ -310,6 +310,8 @@ async function getTsServerRepoResult(
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
 
+            await fs.promises.writeFile(rawErrorPath, oldSpawnResult?.stdout ?? `Timed out after ${executionTimeout} ms`);
+
             // We don't want to drown PRs with comments.
             // Override the results to say nothing interesting changed.
             if (isPr && newServerFailed && oldSpawnResult) {
