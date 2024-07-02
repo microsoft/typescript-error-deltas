@@ -768,7 +768,17 @@ export async function getTscRepoResult(
 
         summary += "\n</details>\n\n";
 
-        if (sawDifferentErrors) {
+        const suppressedProjects = oldErrors.projectErrors
+            .filter(projectError => projectError.suppressed > 0)
+            .map(projectError => ({ url: projectError.projectUrl, count: projectError.suppressed}));
+        if (suppressedProjects.length) {
+            summary += "\nSUPPRESSED:";
+            suppressedProjects.forEach(({ url, count }) => {
+                summary += `URL: ${url} COUNT: ${count}`;
+            });
+        }
+
+        if (sawDifferentErrors || suppressedProjects.length) {
             return { status: "Detected interesting changes", summary };
         }
     }
@@ -1124,8 +1134,13 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
                 newTsResolvedVersion: "5.5",
             };
         }
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
+        // const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
+        // const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
+
+        const oldTsEntrypointPath = params.oldTsNpmVersion;
+        const oldTsResolvedVersion = "5.0";
+        const newTsEntrypointPath = params.oldTsNpmVersion;
+        const newTsResolvedVersion = "6.0";
 
         return {
             oldTsEntrypointPath,

@@ -9,6 +9,7 @@ const nodePath = process.argv0;
 const errorCodeRegex = /error TS(\d+).*/;
 const errorPositionRegex = /^([^(]+)(?:\((\d+),(\d+))/;
 const beginProjectRegex = /Building project '([^']+)'/;
+const suppressedRegex = /Suppressed: (\d+)/;
 
 interface LocalError {
     projectUrl: string,
@@ -41,6 +42,8 @@ export interface ProjectErrors {
     errors: readonly Error[],
     /** The verbatim output of tsc, for debugging. */
     raw: string,
+
+    suppressed: number,
 }
 
 export interface RepoErrors {
@@ -136,6 +139,8 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
     let localErrors: LocalError[] = [];
     let currProjectUrl = projectUrl;
 
+    let suppressed = 0;
+
     const lines = stdout.split(/\r\n?|\n/);
     for (const line of lines) {
         const projectMatch = isComposite && line.match(beginProjectRegex);
@@ -146,6 +151,11 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
         const localError = getLocalErrorFromLine(line, currProjectUrl);
         if (localError) {
             localErrors.push(localError);
+        }
+
+        const suppressedMatch = line.match(suppressedRegex);
+        if (suppressedMatch) {
+            suppressed += parseInt(suppressedMatch[1]);
         }
     }
     // Handling the project-level errors separately makes it easier to bulk convert the file-level errors to use GH urls
@@ -176,6 +186,7 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
         hasBuildFailure,
         errors: errors,
         raw: stdout,
+        suppressed,
     };
 }
 
