@@ -310,6 +310,8 @@ async function getTsServerRepoResult(
                         ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
                         : `Timed out after ${executionTimeout} ms`));
 
+            await fs.promises.writeFile(rawErrorPath, oldSpawnResult?.stdout ?? `Timed out after ${executionTimeout} ms`);
+
             // We don't want to drown PRs with comments.
             // Override the results to say nothing interesting changed.
             if (isPr && newServerFailed && oldSpawnResult) {
@@ -335,10 +337,7 @@ async function getTsServerRepoResult(
             installCommands,
         };
 
-        if (oldServerFailed && !newServerFailed) {
-            return { status: "Detected interesting changes", tsServerResult }
-        }
-        if (!newServerFailed) {
+        if (!oldServerFailed && !newServerFailed) {
             return { status: "Detected no interesting changes" };
         }
 
@@ -404,25 +403,77 @@ function createOldErrorSummary(summaries: Summary[]): string {
 
     let text = `
 <details>
-<summary>${errorMessage}</summary>
+<summary>New server no longer reports this error: ${errorMessage}</summary>
 
 \`\`\`
 ${oldServerError}
 \`\`\`
 
-<h4>Repos no longer reporting the error</h4>
-<ul>
-`;
+<h4>Affected repos</h4>`;
 
     for (const summary of summaries) {
         const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
         const url = summary.repo.url ?? "";
 
-        text += `<li><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></li>\n`
+        text += `
+<details>
+<summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
+Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
+Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
+<h4>Last few requests</h4>
+
+\`\`\`json
+${summary.replayScript}
+\`\`\`
+
+<h4>Repro steps</h4>
+
+\`\`\`bash
+#!/bin/bash
+
+`;
+        // No url means is user test repo
+        if (!summary.repo.url) {
+            text += `# Manually download user test \`${summary.repo.name}\`\n`;
+        }
+        else {
+            text += `git clone ${summary.repo.url} --recurse-submodules\n`;
+
+            if (summary.commit) {
+                text += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
+            }
+        }
+
+        if (summary.tsServerResult.installCommands.length > 1) {
+            text += "# Install packages (exact steps are below, but it might be easier to follow the repo readme)\n";
+        }
+        for (const command of summary.tsServerResult.installCommands) {
+            const workingDirFlag = command.tool === ip.InstallTool.Npm
+                ? "--prefix"
+                : command.tool === ip.InstallTool.Yarn
+                    ? "--cwd"
+                    : "--dir"; // pnpm
+
+            text += `${command.tool} ${workingDirFlag} "./${command.prettyDirectory}" ${command.arguments.join(" ")}\n`;
+        }
+
+        text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
+wget -O ${summary.resultDirName}.zip "$downloadUrl"
+unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
+npm install --no-save @typescript/server-replay
+\`\`\`
+
+To run the repro:
+\`\`\`bash
+# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
+npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsserver.js>
+\`\`\`
+
+</details>
+`;
     }
 
     text += `
-</ul>
 </details>
 `;
 
