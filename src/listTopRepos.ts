@@ -36,6 +36,9 @@ const skipRepos = [
 
 async function mainAsync() {
     const repos = await getPopularRepos(language, repoCount, repoStartIndex, skipRepos);
+    if (repos.length === 0) {
+        throw new Error("No repos found");
+    }
     await fs.promises.writeFile(outputPath, JSON.stringify(repos), { encoding: "utf-8" });
 }
 
