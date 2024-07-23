@@ -137,8 +137,16 @@ export async function createIssue(postResult: boolean, title: string, bodyChunks
     const issueNumber = created.data.number;
     console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
 
+    const maxCommentLength = 65535;
+    const tooLongFooter = `\n\nThis comment was too long to display in full; see the build artifact for the full details.`;
+
     for (const comment of additionalComments) {
-        await kit.issues.createComment({ issue_number: issueNumber, ...comment });
+        let body = comment.body;
+        if (body.length > maxCommentLength) {
+            body = body.slice(0, maxCommentLength - tooLongFooter.length) + tooLongFooter;
+        }
+
+        await kit.issues.createComment({ issue_number: issueNumber, ...comment, body });
     }
 
     if (!sawNewErrors) {
