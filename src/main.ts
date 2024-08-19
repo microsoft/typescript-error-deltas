@@ -11,6 +11,7 @@ import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 import { getErrorMessageFromStack, getHash, getHashForStack } from "./utils/hashStackTrace";
 import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
+import { asMarkdownInlineCode } from "./utils/markdownUtils";
 
 interface Params {
     /**
@@ -434,7 +435,7 @@ ${summary.replayScript}
 `;
         // No url means is user test repo
         if (!summary.repo.url) {
-            text += `# Manually download user test \`${summary.repo.name}\`\n`;
+            text += `# Manually download user test ${asMarkdownInlineCode(summary.repo.name)}\n`;
         }
         else {
             text += `git clone ${summary.repo.url} --recurse-submodules\n`;
@@ -512,7 +513,7 @@ ${summary.replayScript}
 `;
         // No url means is user test repo
         if (!summary.repo.url) {
-            text += `# Manually download user test \`${summary.repo.name}\`\n`;
+            text += `# Manually download user test ${asMarkdownInlineCode(summary.repo.name)}\n`;
         }
         else {
             text += `git clone ${summary.repo.url} --recurse-submodules\n`;
@@ -721,7 +722,7 @@ export async function getTscRepoResult(
             summary += `### ${makeMarkdownLink(projectUrl)}\n`;
 
             for (const errorMessage of newlyReportedErrorMessages) {
-                summary += ` - ${buildWithNewWhenOldFails ? "[NEW] " : ""}\`${errorMessage}\`\n`;
+                summary += ` - ${buildWithNewWhenOldFails ? "[NEW] " : ""}${asMarkdownInlineCode(errorMessage)}\n`;
 
                 for (const error of newlyReportedErrorMessageMap.get(errorMessage)!) {
                     summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
@@ -729,7 +730,7 @@ export async function getTscRepoResult(
             }
 
             for (const errorMessage of newlyUnreportedErrorMessages) {
-                summary += ` - ${buildWithNewWhenOldFails ? "[MISSING] " : ""}\`${errorMessage}\`\n`;
+                summary += ` - ${buildWithNewWhenOldFails ? "[MISSING] " : ""}${asMarkdownInlineCode(errorMessage)}\n`;
 
                 for (const error of newlyUnreportedErrorMessageMap.get(errorMessage)!) {
                     summary += `   - ${error.fileUrl ? makeMarkdownLink(error.fileUrl) : "Project Scope"}${isComposite ? ` in ${makeMarkdownLink(error.projectUrl)}` : ``}\n`;
