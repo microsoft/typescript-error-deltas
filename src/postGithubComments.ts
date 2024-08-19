@@ -3,6 +3,7 @@ import path = require("path");
 import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");
+import { asMarkdownInlineCode } from "./utils/markdownUtils";
 
 const { argv } = process;
 
@@ -76,7 +77,7 @@ const outputs = resultPaths.map(p =>
         .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
 
 const suiteDescription = isTopReposRun ? `top ${repoCount} repos` : "user tests";
-let header = `@${userToTag} Here are the results of running the ${suiteDescription} with ${entrypoint} comparing \`${oldTscResolvedVersion}\` and \`${newTscResolvedVersion}\`:
+let header = `@${userToTag} Here are the results of running the ${suiteDescription} with ${entrypoint} comparing ${asMarkdownInlineCode(oldTscResolvedVersion ?? "old")} and ${asMarkdownInlineCode(newTscResolvedVersion ?? "new")}:
 
 ${summary.join("\n")}`;
 
