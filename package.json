@@ -18,7 +18,7 @@
         "@octokit/rest": "^20.0.2",
         "@typescript/github-link": "^0.2.2",
         "@typescript/server-harness": "^0.3.5",
-        "@typescript/server-replay": "^0.2.12",
+        "@typescript/server-replay": "^0.2.13",
         "glob": "^10.3.10",
         "js-yaml": "^4.1.0",
         "json5": "^2.2.3",
