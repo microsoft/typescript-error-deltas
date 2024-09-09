@@ -81,6 +81,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         [
             "--max-old-space-size=4096",
             "--expose-gc",
+            "--stack-size=2048",
         ]);
 
     // You can only wait for kill if the process being killed is the current process's
