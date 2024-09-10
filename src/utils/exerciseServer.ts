@@ -75,12 +75,14 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
         serverArgs,
     }) + "\n");
 
+    // Keep in sync with typescrit-server-replay repo: https://github.com/microsoft/typescript-server-replay/blob/0cf42b98c3592805901c9de025b59315b6fd2a80/replay.js#L234
     const server = sh.launchServer(
         tsserverPath,
         serverArgs,
         [
             "--max-old-space-size=4096",
             "--expose-gc",
+            "--stack-size=2048",
         ]);
 
     // You can only wait for kill if the process being killed is the current process's
