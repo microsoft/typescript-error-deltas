@@ -1,6 +1,6 @@
 npm i -g yarn --force
 rm -rf angular
-git clone --depth 1 https://github.com/angular/angular rxjs
+git clone --depth 1 https://github.com/angular/angular angular
 START=$(pwd)
 cd $TS
 rm ~/.config/yarn/link/typescript
