@@ -62,7 +62,7 @@ trigger: none
 
 pool:
   name: TypeScript-1ES-Large
-  vmImage: ubuntu-22.04
+  vmImage: mariner-2.0
 
 variables:
   Codeql.Enabled: false
