@@ -62,7 +62,8 @@ trigger: none
 
 pool:
   name: TypeScript-1ES-Large
-  vmImage: mariner-2.0
+  demands:
+  - ImageOverride -equals mariner-2.0
 
 variables:
   Codeql.Enabled: false
