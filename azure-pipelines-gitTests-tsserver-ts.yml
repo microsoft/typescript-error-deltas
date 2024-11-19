@@ -12,7 +12,7 @@ trigger: none
 pool:
   name: TypeScript-1ES-Large
   demands:
-  - ImageOverride -equals mariner-2.0
+    - ImageOverride -equals mariner-2.0
 
 extends:
   template: azure-pipelines-gitTests-template.yml
