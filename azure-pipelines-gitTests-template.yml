@@ -69,6 +69,13 @@ jobs:
   strategy:
     parallel: ${{ parameters.MACHINE_COUNT }}
   steps:
+  - task: AzureKeyVault@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      KeyVaultName: 'jststeam-passwords'
+      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
+    displayName: Get secrets
+    retryCountOnTaskFailure: 3
   - download: current
     artifact: RepoList
   - task: UseNode@1
