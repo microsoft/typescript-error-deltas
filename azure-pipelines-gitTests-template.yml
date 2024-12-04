@@ -41,6 +41,13 @@ parameters:
 jobs:
 - job: ListRepos
   steps:
+  - task: AzureKeyVault@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      KeyVaultName: 'jststeam-passwords'
+      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
+    displayName: Get secrets
+    retryCountOnTaskFailure: 3
   - task: UseNode@1
     inputs:
       version: '20.x'
@@ -52,7 +59,7 @@ jobs:
       node dist/listTopRepos ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} artifacts/repos.json
     displayName: 'List top TS repos'
     env:
-      GITHUB_PAT: $(GITHUB_PAT)
+      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
   - publish: artifacts
     artifact: RepoList
 - job: DetectNewErrors
@@ -62,6 +69,13 @@ jobs:
   strategy:
     parallel: ${{ parameters.MACHINE_COUNT }}
   steps:
+  - task: AzureKeyVault@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      KeyVaultName: 'jststeam-passwords'
+      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
+    displayName: Get secrets
+    retryCountOnTaskFailure: 3
   - download: current
     artifact: RepoList
   - task: UseNode@1
@@ -77,12 +91,19 @@ jobs:
     displayName: 'Run TypeScript on repos'
     continueOnError: true
     env:
-      GITHUB_PAT: $(GITHUB_PAT)
+      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
   - publish: 'RepoResults$(System.JobPositionInPhase)'
     artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors
   dependsOn: DetectNewErrors
   steps:
+  - task: AzureKeyVault@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      KeyVaultName: 'jststeam-passwords'
+      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
+    displayName: Get secrets
+    retryCountOnTaskFailure: 3
   - download: current
   - task: UseNode@1
     inputs:
@@ -94,4 +115,4 @@ jobs:
       node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
     displayName: 'Create issue from new errors'
     env:
-      GITHUB_PAT: $(GITHUB_PAT)
+      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
