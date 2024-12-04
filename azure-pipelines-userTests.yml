@@ -119,6 +119,7 @@ jobs:
   - script: |
       npm ci
       npm run build
+      npm install -g yarn
       npm install -g pnpm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
       node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
