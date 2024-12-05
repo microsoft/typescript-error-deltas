@@ -63,7 +63,7 @@ trigger: none
 pool:
   name: TypeScript-1ES-Large
   demands:
-    - ImageOverride -equals mariner-2.0
+    - ImageOverride -equals ubuntu-22.04
 
 variables:
   Codeql.Enabled: false
@@ -117,10 +117,20 @@ jobs:
       version: '20.x'
     displayName: 'Install Node.js'
   - script: |
+      du -h
+      du -h -i
+    displayName: Debugging
+    continueOnError: true
+  - script: |
       npm ci
       npm run build
       npm install -g yarn
       npm install -g pnpm
+      export COREPACK_ENABLE_AUTO_PIN=0
+      export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      export COREPACK_ENABLE_STRICT=0
+      corepack enable
+      corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
       node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run user tests'
