@@ -71,6 +71,10 @@ variables:
 
 jobs:
 - job: ListRepos
+  pool:
+    name: TypeScript-1ES-Deploys
+    demands:
+      - ImageOverride -equals mariner-2.0
   steps:
   - task: AzureKeyVault@2
     inputs:
@@ -103,13 +107,6 @@ jobs:
   strategy:
     parallel: ${{ parameters.MACHINE_COUNT }}
   steps:
-  - task: AzureKeyVault@2
-    inputs:
-      azureSubscription: 'TypeScript Public CI'
-      KeyVaultName: 'jststeam-passwords'
-      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
-    displayName: Get secrets
-    retryCountOnTaskFailure: 3
   - download: current
     artifact: RepoList
   - task: UseNode@1
@@ -134,12 +131,14 @@ jobs:
       mkdir 'RepoResults$(System.JobPositionInPhase)'
       node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run user tests'
-    env:
-      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
   - publish: 'RepoResults$(System.JobPositionInPhase)'
     artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors
   dependsOn: DetectNewErrors
+  pool:
+    name: TypeScript-1ES-Deploys
+    demands:
+      - ImageOverride -equals mariner-2.0
   steps:
   - task: AzureKeyVault@2
     inputs:
