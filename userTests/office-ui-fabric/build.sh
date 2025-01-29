@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 npm i -g yarn
 rm -rf office-ui-fabric
 CI=true

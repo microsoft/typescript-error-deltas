@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -x
 npm install -g @microsoft/rush
 rm -rf azure-sdk

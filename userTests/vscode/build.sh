@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 rm -rf vscode
 git clone --depth 1 https://github.com/microsoft/vscode.git vscode
 START=$(pwd)

@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 rm -rf pyright
 git clone --depth 1 https://github.com/microsoft/pyright.git pyright
 START=$(pwd)
