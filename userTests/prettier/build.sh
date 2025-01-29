@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 npm i -g yarn
 rm -rf prettier
 git clone --depth 1 https://github.com/prettier/prettier.git prettier

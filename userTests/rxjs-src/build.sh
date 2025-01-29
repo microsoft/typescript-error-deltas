@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 rm -rf rxjs
 git clone --depth 1 https://github.com/ReactiveX/rxjs rxjs
 START=$(pwd)

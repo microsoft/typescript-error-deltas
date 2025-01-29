@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -x
 
 npm i -g yarn
