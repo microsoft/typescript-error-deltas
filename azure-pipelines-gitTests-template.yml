@@ -89,6 +89,7 @@ jobs:
       npm run build
       npm install -g yarn
       npm install -g pnpm
+      npm install -g corepack@latest
       export COREPACK_ENABLE_AUTO_PIN=0
       export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
       export COREPACK_ENABLE_STRICT=0
