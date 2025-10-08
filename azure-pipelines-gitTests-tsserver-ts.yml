@@ -1,10 +1,11 @@
-schedules:
-  - cron: "0 19 * * Sun" # time is in UTC
-    displayName: Sunday overnight run
-    always: true
-    branches:
-      include:
-        - main
+# Disabled during Corsa migration
+# schedules:
+#   - cron: "0 19 * * Sun" # time is in UTC
+#     displayName: Sunday overnight run
+#     always: true
+#     branches:
+#       include:
+#         - main
 
 pr: none
 trigger: none
