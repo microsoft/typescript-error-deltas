@@ -52,13 +52,14 @@ parameters:
     type: string
     default: 'n/a'
 
-schedules:
-  - cron: "0 17 * * Sun" # time is in UTC
-    displayName: Sunday overnight run
-    always: true
-    branches:
-      include:
-        - main
+# (ryanca) disabled during 6.0 migration period as this isn't useful
+# schedules:
+#  - cron: "0 17 * * Sun" # time is in UTC
+#    displayName: Sunday overnight run
+#    always: true
+#    branches:
+#      include:
+#        - main
 
 pr: none
 trigger: none
