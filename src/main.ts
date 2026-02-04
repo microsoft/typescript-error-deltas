@@ -68,7 +68,7 @@ export interface UserParams extends Params {
     prNumber: number;
 }
 
-export type TsEntrypoint = "tsc" | "tsserver";
+export type TsEntrypoint = "tsc" | "tsserver" | "lsp";
 
 const processCwd = process.cwd();
 const packageTimeout = 10 * 60 * 1000;
@@ -338,14 +338,107 @@ async function getTsServerRepoResult(
             installCommands,
         };
 
-        if (!oldServerFailed && !newServerFailed) {
-            return { status: "Detected no interesting changes" };
+        return { status: "Detected interesting changes", tsServerResult: tsServerResult, replayScriptPath, rawErrorPath };
+    }
+    catch (err) {
+        reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
+        return { status: "Unknown failure" };
+    }
+    finally {
+        console.log(`Done ${repo.url ?? repo.name}`);
+        logStepTime(diagnosticOutput, repo, "language service", lsStart);
+    }
+}
+
+/**
+ * Tests the LSP server against a single TypeScript native version and reports all crashes found.
+ */
+export async function getLSPResult(
+    repo: git.Repo,
+    userTestsDir: string,
+    lspServerPath: string,
+    downloadDir: OverlayBaseFS,
+    replayScriptArtifactPath: string,
+    rawErrorArtifactPath: string,
+    diagnosticOutput: boolean,
+): Promise<RepoResult> {
+
+    if (!await cloneRepo(repo, userTestsDir, downloadDir.path, diagnosticOutput)) {
+        return { status: "Git clone failed" };
+    }
+
+    const repoDir = path.join(downloadDir.path, repo.name);
+    const monorepoPackages = await getMonorepoPackages(repoDir);
+
+    // Presumably, people occasionally browse repos without installing the packages first
+    const installCommands = (prng.random() > 0.2) && monorepoPackages
+        ? (await installPackagesAndGetCommands(repo, downloadDir.path, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
+        : [];
+
+    const replayScriptName = path.basename(replayScriptArtifactPath);
+    const replayScriptPath = path.join(downloadDir.path, replayScriptName);
+
+    const rawErrorName = path.basename(rawErrorArtifactPath);
+    const rawErrorPath = path.join(downloadDir.path, rawErrorName);
+
+    const lsStart = performance.now();
+    try {
+        console.log(`Testing LSP server with ${lspServerPath}`);
+        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+
+        if (!spawnResult) {
+            console.log(`LSP server timed out after ${executionTimeout} ms`);
+            return { status: "Timeout" };
         }
+
+        if (diagnosticOutput) {
+            console.log("Raw spawn results:");
+            dumpSpawnResult(spawnResult);
+        }
+
+        switch (spawnResult.code) {
+            case 0:
+            case null:
+                if (spawnResult.signal !== null) {
+                    console.log(`Exited with signal ${spawnResult.signal}`);
+                    return { status: "Unknown failure" };
+                }
+
+                console.log("No crashes found");
+                return { status: "Detected no interesting changes" };
+            case exercise.EXIT_SERVER_CRASH:
+            case exercise.EXIT_SERVER_ERROR:
+            case exercise.EXIT_SERVER_EXIT_FAILED:
+                // These are the crashes we want to report
+                break;
+            case exercise.EXIT_BAD_ARGS:
+            case exercise.EXIT_UNHANDLED_EXCEPTION:
+            default:
+                console.log(`Exited with code ${spawnResult.code}`);
+                if (!diagnosticOutput) {
+                    dumpSpawnResult(spawnResult);
+                }
+                return { status: "Unknown failure" };
+        }
+
+        // Server crashed - report the error
+        console.log(`Crash found in ${lspServerPath}:`);
+        console.log(insetLines(prettyPrintServerHarnessOutput(spawnResult.stdout, /*filter*/ false)));
+        await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(spawnResult.stdout, /*filter*/ false));
+
+        const tsServerResult: TSServerResult = {
+            oldServerFailed: false,
+            oldSpawnResult: undefined,
+            newServerFailed: true,
+            newSpawnResult: spawnResult,
+            replayScriptPath,
+            installCommands,
+        };
 
         return { status: "Detected interesting changes", tsServerResult, replayScriptPath, rawErrorPath };
     }
     catch (err) {
-        reportError(err, `Error running tsserver on ${repo.url ?? repo.name}`);
+        reportError(err, `Error running LSP server on ${repo.url ?? repo.name}`);
         return { status: "Unknown failure" };
     }
     finally {
@@ -838,9 +931,21 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         const rawErrorArtifactPath = path.join(params.resultDirName, rawErrorFileName);
         const replayScriptArtifactPath = path.join(params.resultDirName, replayScriptFileName);
 
-        const { status, summary, tsServerResult, replayScriptPath, rawErrorPath } = params.entrypoint === "tsc"
-            ? await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput)
-            : await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
+        let repoResult: RepoResult;
+        switch (params.entrypoint) {
+            case "tsc":
+                repoResult = await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput);
+                break;
+            case "tsserver":
+                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
+                break;
+            case "lsp":
+                repoResult = await getLSPResult(repo, userTestsDir, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput);
+                break;
+            default:
+                throw new Error(`Unknown entrypoint: ${params.entrypoint}`);
+        }
+        const { status, summary, tsServerResult: tsServerResult, replayScriptPath, rawErrorPath } = repoResult;
         console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
 
@@ -1076,6 +1181,10 @@ function makeMarkdownLink(url: string) {
 async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string, oldTsResolvedVersion: string, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
     const entrypoint = params.entrypoint;
     if (params.testType === "user") {
+        // TODO user tests for lsp
+        if (params.entrypoint === "lsp") {
+            throw new Error("Not implemented");
+        }
         const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint);
@@ -1088,8 +1197,12 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
         };
     }
     else if (params.testType === "github") {
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
+        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = params.entrypoint === "lsp" ?
+            { tsEntrypointPath: "", resolvedVersion: "" } :
+            await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = params.entrypoint === "lsp" ?
+            await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
+            await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
 
         return {
             oldTsEntrypointPath,
@@ -1159,6 +1272,29 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
     const tsEntrypointPath = path.join(dirPath, "lib", `${entrypoint}.js`);
+    if (!await pu.exists(tsEntrypointPath)) {
+        throw new Error("Cannot find file " + tsEntrypointPath);
+    }
+
+    return { tsEntrypointPath, resolvedVersion };
+}
+
+async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+    const tarName = (await execAsync(cwd, `npm pack @typescript/native-preview@${version} --quiet`)).trim();
+
+    const tarMatch = /^(typescript-native-preview-(.+))\..+$/.exec(tarName);
+    if (!tarMatch) {
+        throw new Error("Unexpected tarball name format: " + tarName);
+    }
+
+    const resolvedVersion = tarMatch[2];
+    const dirName = tarMatch[1];
+    const dirPath = path.join(processCwd, dirName);
+
+    await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
+    await fs.promises.rename(path.join(processCwd, "package"), dirPath);
+
+    const tsEntrypointPath = path.join(dirPath, "bin", "tsgo.js");
     if (!await pu.exists(tsEntrypointPath)) {
         throw new Error("Cannot find file " + tsEntrypointPath);
     }

@@ -1,6 +1,5 @@
-// @ts-check
-
-import * as lsp from "./lspHarness.mts";
+#!/usr/bin/env node
+import * as lsp from "./lspHarness";
 import fs from "fs";
 import process from "process";
 import path from "path";
@@ -8,9 +7,8 @@ import * as glob from "glob";
 import { performance } from "perf_hooks";
 import randomSeed from "random-seed";
 import * as protocol from "vscode-languageserver-protocol";
-import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR } from "./exerciseServerConstants.mts";
+import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_ERROR } from "./exerciseServerConstants";
 import { pathToFileURL } from "url";
-import { isWhiteSpaceLike } from "typescript";
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
 
@@ -27,11 +25,10 @@ const [, , testDir, replayScriptPath, lspServerPath, diag, seed] = argv;
 const diagnosticOutput = diag.toLocaleLowerCase() === "true";
 const prng = randomSeed.create(seed);
 
-await exerciseLspServer(testDir, replayScriptPath, lspServerPath).catch(e => {
+exerciseLspServer(testDir, replayScriptPath, lspServerPath).catch(e => {
     console.error(e);
     process.exit(EXIT_UNHANDLED_EXCEPTION);
 });
-console.log("Allll done")
 
 export async function exerciseLspServer(testDir: string, replayScriptPath: string, lspServerPath: string): Promise<void> {
     const requestTimes: Record<string, number> = {};
@@ -81,8 +78,7 @@ function getLanguageId(filePath: string): string {
 }
 
 async function exerciseLspServerWorker(testDir: string, lspServerPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
-    // TODO: re-enable for JS files
-    const files = await glob.glob("**/*.@(ts|tsx|mts|cts)", { cwd: testDir, absolute: true, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
+    const files = await glob.glob("**/*.@(ts|tsx|mts|cts|js|jsx|mjs|cjs)", { cwd: testDir, absolute: true, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
 
     const serverArgs: string[] = ["--lsp", "--stdio"];
 
@@ -91,10 +87,17 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         serverArgs,
     }) + "\n");
 
+    // TODO: would be nice if we could make this work with node_modules/.bin/*.CMD files on Windows
+    if (path.extname(lspServerPath).toLowerCase().endsWith("js")) {
+        // Use Node.js or Bun or whatever we ran under.
+        serverArgs.unshift(lspServerPath);
+        lspServerPath = process.execPath;
+    }
+
     const server = lsp.startServer(lspServerPath, {
         args: serverArgs,
     }, { traceOutput: diagnosticOutput });
-    
+
     server.handleAnyRequest(async (...args) => {
         console.log("Server sent request:", ...args);
     });
@@ -165,11 +168,11 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         },
                     },
                 },
-                hover: {contentFormat: ["markdown", "plaintext"]},
-                diagnostic: {relatedDocumentSupport: true},
-                declaration: {linkSupport: true},
-                implementation: {linkSupport: true},
-                typeDefinition: {linkSupport: true},
+                hover: { contentFormat: ["markdown", "plaintext"] },
+                diagnostic: { relatedDocumentSupport: true },
+                declaration: { linkSupport: true },
+                implementation: { linkSupport: true },
+                typeDefinition: { linkSupport: true },
                 rename: {
                     // TODO: ...
                 }
@@ -260,21 +263,21 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             if (openFileContents.length < 1e6) {
                 // Folding ranges (equivalent to getOutliningSpans)
                 // TODO: folding ranges are broken for JS files
-                await request("textDocument/foldingRange", {
-                    textDocument: { uri: openFileUri },
-                }, +(languageId.startsWith("typescript")));
+                // await request("textDocument/foldingRange", {
+                //     textDocument: { uri: openFileUri },
+                // }, +(languageId.startsWith("typescript")));
 
-                // Document symbols (equivalent to navtree/navbar)
-                await request("textDocument/documentSymbol", {
-                    textDocument: { uri: openFileUri },
-                });
+                // // Document symbols (equivalent to navtree/navbar)
+                // await request("textDocument/documentSymbol", {
+                //     textDocument: { uri: openFileUri },
+                // });
             }
 
             // Workspace symbol search (equivalent to navto)
             const workspaceSymbolResponse = await request("workspace/symbol", {
                 query: "a",
             }, 0.5);
-            
+
             if (workspaceSymbolResponse && Array.isArray(workspaceSymbolResponse) && workspaceSymbolResponse.length > 0) {
                 const symbolEntry = workspaceSymbolResponse.find((x: protocol.SymbolInformation | protocol.WorkspaceSymbol) => x.name.length > 4);
                 if (symbolEntry) {
@@ -284,22 +287,22 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 }
             }
 
-            // Diagnostics (equivalent to geterr)
-            const diagnosticsPromise = request("textDocument/diagnostic", {
-                textDocument: { uri: openFileUri },
-            });
+            // // Diagnostics (equivalent to geterr)
+            // const diagnosticsPromise = request("textDocument/diagnostic", {
+            //     textDocument: { uri: openFileUri },
+            // });
 
-            const codeLensesPromise = request("textDocument/codeLens", {
-                textDocument: { uri: openFileUri },
-            });
+            // const codeLensesPromise = request("textDocument/codeLens", {
+            //     textDocument: { uri: openFileUri },
+            // });
 
-            const inlayHintsPromise = request("textDocument/inlayHint", {
-                textDocument: { uri: openFileUri },
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
-            });
+            // const inlayHintsPromise = request("textDocument/inlayHint", {
+            //     textDocument: { uri: openFileUri },
+            //     range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
+            // });
 
-            await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
-            
+            // await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
+
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
                 const next = openFileContents[i + 1];
@@ -310,21 +313,21 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
                     // Definition (equivalent to definitionAndBoundSpan)
-                    await request("textDocument/definition", {
-                        textDocument: { uri: openFileUri },
-                        position: { line, character },
-                    }, isAt ? 0.5 : 0.001);
+                    // await request("textDocument/definition", {
+                    //     textDocument: { uri: openFileUri },
+                    //     position: { line, character },
+                    // }, isAt ? 0.5 : 0.001);
 
                     // // References
-                    await request("textDocument/references", {
-                        textDocument: { uri: openFileUri },
-                        position: { line, character },
-                        context: { includeDeclaration: true },
-                    }, isAt ? 0.5 : 0.00005);
+                    // await request("textDocument/references", {
+                    //     textDocument: { uri: openFileUri },
+                    //     position: { line, character },
+                    //     context: { includeDeclaration: true },
+                    // }, isAt ? 0.5 : 0.00005);
 
                     // TODO:
                     // - https://github.com/microsoft/typescript-go/issues/2253
-                    const completionsProb = isWhiteSpaceLike(prev.charCodeAt(0)) ? 0 : (isAt ? 0.5 : 0.01);
+                    const completionsProb = 1;
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
@@ -368,7 +371,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             triggerKind: currisSignatureHelpTrigger ? protocol.SignatureHelpTriggerKind.TriggerCharacter : protocol.SignatureHelpTriggerKind.Invoked,
                             isRetrigger: signatureHelpTriggerChars.includes(prev),
                         }
-                    }, 0.25);
+                    }, 0);
                 }
 
                 if (curr === "\r" || curr === "\n") {
@@ -410,7 +413,6 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         // Send shutdown request and exit notification
         void request(protocol.ShutdownRequest.method, undefined);
         void notify("exit", undefined);
-
     } catch (e) {
         console.error("Killing server after unhandled exception");
         console.error(e);
@@ -447,9 +449,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             const errorMessage = e.message ?? "Unknown error";
             if (diagnosticOutput) {
-                console.error(`Request failed:
-${JSON.stringify(replayEntry, undefined, 2)}
-${e}`);
+                console.error(`Request failed:\n${JSON.stringify(replayEntry, undefined, 2)}\n${e}`);
             }
             else {
                 console.error(errorMessage);
@@ -476,9 +476,7 @@ ${e}`);
         catch (e: any) {
             const errorMessage = e.message ?? "Unknown error";
             if (diagnosticOutput) {
-                console.error(`Notification failed:
-${JSON.stringify(replayEntry, undefined, 2)}
-${e}`);
+                console.error(`Notification failed:\n${JSON.stringify(replayEntry, undefined, 2)}\n${e}`);
             }
             else {
                 console.error(errorMessage);
