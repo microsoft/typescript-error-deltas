@@ -1282,7 +1282,8 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
 }
 
 async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
-    const tarName = (await execAsync(cwd, `npm pack @typescript/native-preview@${version} --quiet`)).trim();
+    const packageName = `native-preview-${process.platform}-${process.arch}`
+    const tarName = (await execAsync(cwd, `npm pack @typescript/${packageName}@${version} --quiet`)).trim();
 
     const tarMatch = /^(typescript-native-preview-(.+))\..+$/.exec(tarName);
     if (!tarMatch) {
@@ -1296,7 +1297,7 @@ async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Pr
     await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
-    const tsEntrypointPath = path.join(dirPath, "bin", "tsgo.js");
+    const tsEntrypointPath = path.join(dirPath, "lib", "tsgo");
     if (!await pu.exists(tsEntrypointPath)) {
         throw new Error("Cannot find file " + tsEntrypointPath);
     }
