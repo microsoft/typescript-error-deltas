@@ -896,7 +896,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     const { oldTsEntrypointPath, oldTsResolvedVersion, newTsEntrypointPath, newTsResolvedVersion } = await downloadTsAsync(processCwd, params);
 
     // Get the name of the typescript folder.
-    const oldTscDirPath = path.resolve(oldTsEntrypointPath, "../../");
+    const oldTscDirPath = oldTsEntrypointPath && path.resolve(oldTsEntrypointPath, "../../");
     const newTscDirPath = path.resolve(newTsEntrypointPath, "../../");
 
     console.log("Old version = " + oldTsResolvedVersion);
@@ -934,10 +934,10 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         let repoResult: RepoResult;
         switch (params.entrypoint) {
             case "tsc":
-                repoResult = await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput);
+                repoResult = await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput);
                 break;
             case "tsserver":
-                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
+                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
                 break;
             case "lsp":
                 repoResult = await getLSPResult(repo, userTestsDir, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput);
@@ -970,7 +970,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
             summaries.push({
                 tsServerResult,
                 repo,
-                oldTsEntrypointPath,
+                oldTsEntrypointPath: oldTsEntrypointPath || "",
                 rawErrorArtifactPath,
                 replayScript: fs.readFileSync(replayScriptPath, { encoding: "utf-8" }).split(/\r?\n/).slice(-5).join("\n"),
                 replayScriptArtifactPath,
@@ -1011,7 +1011,9 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         }
     }
 
-    await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+    if (oldTscDirPath) {
+        await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+    }
     await execAsync(processCwd, "rm -rf " + newTscDirPath);
 
     console.log("Statuses");
@@ -1021,7 +1023,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
     const metadata: Metadata = {
         newTsResolvedVersion: newTsResolvedVersion,
-        oldTsResolvedVersion: oldTsResolvedVersion,
+        oldTsResolvedVersion: oldTsResolvedVersion || "",
         statusCounts,
     };
     await fs.promises.writeFile(path.join(resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
@@ -1178,7 +1180,7 @@ function makeMarkdownLink(url: string) {
         : `[${mdEscape(match[1])}](${url})`;
 }
 
-async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string, oldTsResolvedVersion: string, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
+async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
     const entrypoint = params.entrypoint;
     if (params.testType === "user") {
         // TODO user tests for lsp
@@ -1198,7 +1200,7 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
     }
     else if (params.testType === "github") {
         const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = params.entrypoint === "lsp" ?
-            { tsEntrypointPath: "", resolvedVersion: "" } :
+            { tsEntrypointPath: undefined, resolvedVersion: undefined } :
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = params.entrypoint === "lsp" ?
             await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
