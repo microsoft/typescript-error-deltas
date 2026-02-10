@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import * as lsp from "./lspHarness";
 import fs from "fs";
 import process from "process";
