@@ -9,7 +9,7 @@ import fs = require("fs");
 import path = require("path");
 import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
-import { getErrorMessageFromStack, getHash, getHashForStack } from "./utils/hashStackTrace";
+import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace";
 import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
 import { asMarkdownInlineCode } from "./utils/markdownUtils";
 
@@ -106,6 +106,7 @@ interface Summary {
     replayScriptArtifactPath: string;
     replayScriptName: string;
     resultDirName: string;
+    entrypoint: TsEntrypoint;
     commit?: string;
 }
 
@@ -423,8 +424,8 @@ export async function getLSPResult(
 
         // Server crashed - report the error
         console.log(`Crash found in ${lspServerPath}:`);
-        console.log(insetLines(prettyPrintServerHarnessOutput(spawnResult.stdout, /*filter*/ false)));
-        await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(spawnResult.stdout, /*filter*/ false));
+        console.log(insetLines(prettyPrintLspHarnessOutput(spawnResult.stdout, /*filter*/ false)));
+        await fs.promises.writeFile(rawErrorPath, prettyPrintLspHarnessOutput(spawnResult.stdout, /*filter*/ false));
 
         const tsServerResult: TSServerResult = {
             oldServerFailed: false,
@@ -451,18 +452,21 @@ function groupErrors(summaries: Summary[]) {
     const groupedOldErrors = new Map<string, Summary[]>();
     const groupedNewErrors = new Map<string, Summary[]>();
     let group: Map<string, Summary[]>;
-    let error: ServerHarnessOutput | string;
+    let error: ServerHarnessOutput | LspHarnessOutput | string;
     for (const summary of summaries) {
+        const isLsp = summary.entrypoint === "lsp";
         if (summary.tsServerResult.newServerFailed) {
             // Group new errors
-            error = parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
+            error = isLsp
+                ? parseLspHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout)
+                : parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
             group = groupedNewErrors;
         }
         else if (summary.tsServerResult.oldServerFailed) {
             // Group old errors
             const { oldSpawnResult } = summary.tsServerResult;
             error = oldSpawnResult?.stdout
-                ? parseServerHarnessOutput(oldSpawnResult.stdout)
+                ? (isLsp ? parseLspHarnessOutput(oldSpawnResult.stdout) : parseServerHarnessOutput(oldSpawnResult.stdout))
                 : `Timed out after ${executionTimeout} ms`;
 
             group = groupedOldErrors;
@@ -471,7 +475,11 @@ function groupErrors(summaries: Summary[]) {
             continue;
         }
 
-        const key = typeof error === "string" ? getHash([error]) : getHashForStack(error.message);
+        const key = typeof error === "string"
+            ? getHash([error])
+            : summary.entrypoint === "lsp"
+                ? getHashForGoStack(error.message)
+                : getHashForStack(error.message);
         const value = group.get(key) ?? [];
         value.push(summary);
         group.set(key, value);
@@ -486,14 +494,23 @@ function getErrorMessage(output: string): string {
     return typeof error === "string" ? error : getErrorMessageFromStack(error.message);
 }
 
+function getErrorMessageForEntrypoint(output: string, entrypoint: TsEntrypoint): string {
+    return entrypoint === "lsp" ? getLspErrorMessage(output) : getErrorMessage(output);
+}
+
+function prettyPrintForEntrypoint(output: string, filter: boolean, entrypoint: TsEntrypoint): string {
+    return entrypoint === "lsp" ? prettyPrintLspHarnessOutput(output, filter) : prettyPrintServerHarnessOutput(output, filter);
+}
+
 function createOldErrorSummary(summaries: Summary[]): string {
     const { oldSpawnResult } = summaries[0].tsServerResult;
+    const entrypoint = summaries[0].entrypoint;
 
     const oldServerError = oldSpawnResult?.stdout
-        ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ true)
+        ? prettyPrintForEntrypoint(oldSpawnResult.stdout, /*filter*/ true, entrypoint)
         : `Timed out after ${executionTimeout} ms`;
 
-    const errorMessage = oldSpawnResult?.stdout ? getErrorMessage(oldSpawnResult.stdout) : oldServerError;
+    const errorMessage = oldSpawnResult?.stdout ? getErrorMessageForEntrypoint(oldSpawnResult.stdout, entrypoint) : oldServerError;
 
     let text = `
 <details>
@@ -575,10 +592,13 @@ npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsser
 }
 
 async function createNewErrorSummaryAsync(summaries: Summary[]): Promise<string> {
-    let text = `<h2>${getErrorMessage(summaries[0].tsServerResult.newSpawnResult.stdout)}</h2>
+    const entrypoint = summaries[0].entrypoint;
+    const stdout = summaries[0].tsServerResult.newSpawnResult.stdout;
+
+    let text = `<h2>${getErrorMessageForEntrypoint(stdout, entrypoint)}</h2>
 
 \`\`\`
-${prettyPrintServerHarnessOutput(summaries[0].tsServerResult.newSpawnResult.stdout, /*filter*/ true)}
+${prettyPrintForEntrypoint(stdout, /*filter*/ true, entrypoint)}
 \`\`\`
 
 <h4>Affected repos</h4>`;
@@ -976,6 +996,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 replayScriptArtifactPath,
                 replayScriptName: path.basename(replayScriptArtifactPath),
                 resultDirName: params.resultDirName,
+                entrypoint: params.entrypoint,
                 commit
             });
         }
@@ -1161,6 +1182,58 @@ function filterToTsserverLines(stackLines: string): string {
         tsserverLines += match[0].replace(processCwd, "") + "\n";
     }
     return tsserverLines.trimEnd();
+}
+
+// LSP harness output helpers
+
+export interface LspHarnessOutput {
+    method: string;
+    message: string;
+}
+
+function parseLspHarnessOutput(output: string): LspHarnessOutput | string {
+    try {
+        const parsed = JSON.parse(output);
+        if (parsed.method !== undefined && parsed.message !== undefined) {
+            return parsed as LspHarnessOutput;
+        }
+        return output;
+    }
+    catch {
+        return output;
+    }
+}
+
+function prettyPrintLspHarnessOutput(error: string, filter: boolean): string {
+    const errorObj = parseLspHarnessOutput(error);
+    if (typeof errorObj === "string") {
+        return errorObj;
+    }
+
+    if (errorObj.message) {
+        return `${errorObj.method}\n${filter ? filterToGoLines(errorObj.message) : errorObj.message}`;
+    }
+
+    return JSON.stringify(errorObj, undefined, 2);
+}
+
+function getLspErrorMessage(output: string): string {
+    const error = parseLspHarnessOutput(output);
+    if (typeof error === "string") return error;
+
+    // The first line of the message is typically "panic handling request <method>: <error>"
+    const firstLine = error.message.split(/\r?\n/)[0];
+    return firstLine;
+}
+
+function filterToGoLines(stackLines: string): string {
+    const goRegex = /^.*typescript-go.*$/mg;
+    let goLines = "";
+    let match;
+    while (match = goRegex.exec(stackLines)) {
+        goLines += match[0] + "\n";
+    }
+    return goLines.trimEnd() || stackLines;
 }
 
 function insetLines(text: string): string {

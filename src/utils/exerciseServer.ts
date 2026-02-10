@@ -36,8 +36,8 @@ exerciseServer(testDir, replayScriptPath, tsserverPath).catch(e => {
     process.exit(EXIT_UNHANDLED_EXCEPTION);
 });
 
+const requestTimes: Record<string, number> = {};
 export async function exerciseServer(testDir: string, replayScriptPath: string, tsserverPath: string): Promise<void> {
-    const requestTimes: Record<string, number> = {};
     const requestCounts: Record<string, number> = {};
     const start = performance.now();
 

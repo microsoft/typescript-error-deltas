@@ -7,7 +7,7 @@ import * as glob from "glob";
 import { performance } from "perf_hooks";
 import randomSeed from "random-seed";
 import * as protocol from "vscode-languageserver-protocol";
-import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_ERROR } from "./exerciseServerConstants";
+import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_ERROR } from "./exerciseServerConstants";
 import { pathToFileURL } from "url";
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
@@ -99,13 +99,37 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     }, { traceOutput: diagnosticOutput });
 
     server.handleAnyRequest(async (...args) => {
-        console.log("Server sent request:", ...args);
+        console.error("Server sent request:", ...args);
     });
 
-    server.handleAnyNotification(async (...args) => {
-        console.log("Server sent notification:", ...args);
+    // Capture the last error-level log message from the server (e.g. Go panic stack traces)
+    let lastErrorLogMessage = "";
+
+    server.handleAnyNotification(async (...args: any[]) => {
+        console.error("Server sent notification:", ...args);
+        const [method, params] = args;
+        if (method === "window/logMessage" && params?.type === 1) {
+            lastErrorLogMessage = params.message;
+        }
     });
 
+    let exitExpected = false;
+    server.onError(async ([error, message, count]) => {
+        console.error(`Server connection error: ${error} ${message} ${count}`);
+        exitExpected = true;
+        await server.kill();
+        process.exit(EXIT_SERVER_COMMUNICATION_ERROR);
+    });
+    
+    server.onClose((e) => {
+        if (!exitExpected) {
+            const errorMessage = lastErrorLogMessage || `Server connection closed prematurely: ${e}`;
+            console.log(JSON.stringify({ method: "unknown", message: errorMessage }));
+            console.error("Server connection closed prematurely:", e);
+            process.exit(EXIT_SERVER_CRASH);
+        }
+    });
+    
     let documentVersion = 0;
 
     const testDirUrl = filePathToUri(testDir);
@@ -409,14 +433,16 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             }
         }
 
-        console.log("\nShutting down server");
+        console.error("\nShutting down server");
+        exitExpected = true;
         // Send shutdown request and exit notification
         void request(protocol.ShutdownRequest.method, undefined);
         void notify("exit", undefined);
     } catch (e) {
         console.error("Killing server after unhandled exception");
         console.error(e);
-
+        
+        exitExpected = true;
         await server.kill();
         process.exit(EXIT_UNHANDLED_EXCEPTION);
     }
@@ -447,14 +473,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             requestTimes[method] = (requestTimes[method] ?? 0) + (end - start);
             requestCounts[method] = (requestCounts[method] ?? 0) + 1;
 
-            const errorMessage = e.message ?? "Unknown error";
+            const errorMessage = lastErrorLogMessage || e.message || "Unknown error";
             if (diagnosticOutput) {
                 console.error(`Request failed:\n${JSON.stringify(replayEntry, undefined, 2)}\n${e}`);
             }
             else {
                 console.error(errorMessage);
             }
-            console.error(JSON.stringify({ error: e.message }));
+            console.log(JSON.stringify({ method, message: errorMessage }));
 
             void server.kill();
             process.exit(EXIT_SERVER_ERROR);
@@ -474,14 +500,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             await server.sendNotification(method, params);
         }
         catch (e: any) {
-            const errorMessage = e.message ?? "Unknown error";
+            const errorMessage = lastErrorLogMessage || e.message || "Unknown error";
             if (diagnosticOutput) {
                 console.error(`Notification failed:\n${JSON.stringify(replayEntry, undefined, 2)}\n${e}`);
             }
             else {
                 console.error(errorMessage);
             }
-            console.log(JSON.stringify({ error: e.message }));
+            console.log(JSON.stringify({ method, message: errorMessage }));
 
             await server.kill();
             process.exit(EXIT_SERVER_ERROR);

@@ -1,5 +1,5 @@
 import * as cp from "child_process";
-import * as rpc from "vscode-jsonrpc/node.js";
+import * as rpc from "vscode-jsonrpc/node";
 import * as protocol from "vscode-languageserver-protocol";
 
 export interface ServerOptions {
@@ -19,6 +19,9 @@ export interface LanguageServer {
     handleAnyNotification: (handler: (...args: any[]) => Promise<any>) => void;
 
     kill: () => Promise<void>;
+
+    onError: rpc.Event<[Error, rpc.Message | undefined, number | undefined]>;
+    onClose: rpc.Event<void>;
 }
 
 export function startServer(serverPath: string, options: ServerOptions = {}, otherOptions?: { traceOutput?: boolean; }): LanguageServer {
@@ -33,7 +36,7 @@ export function startServer(serverPath: string, options: ServerOptions = {}, oth
     });
 
     const connection = rpc.createMessageConnection(
-        new rpc.StreamMessageReader(serverProc.stdout!),
+        new rpc.StreamMessageReader(serverProc.stdout),
         new rpc.StreamMessageWriter(serverProc.stdin!)
     );
 
@@ -48,6 +51,8 @@ export function startServer(serverPath: string, options: ServerOptions = {}, oth
         handleNotification,
         handleAnyNotification,
         kill,
+        onError: connection.onError,
+        onClose: connection.onClose,
     };
 
     function sendRequest<K extends keyof RequestToParams>(method: K, params: RequestToParams[K]): Promise<MessageResponseType[K]> {
