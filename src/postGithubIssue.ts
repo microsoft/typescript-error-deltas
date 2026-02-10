@@ -105,4 +105,4 @@ if (entrypoint !== "tsserver") {
 
 
 const bodyChunks = [header, ...outputs];
-git.createIssue(postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);
+git.createIssue(entrypoint, postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);
