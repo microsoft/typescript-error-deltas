@@ -274,26 +274,25 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             let prev = "";
 
             // Organize imports (source.organizeImports code action)
-            // await request("textDocument/codeAction", {
-            //     textDocument: { uri: openFileUri },
-            //     range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-            //     context: {
-            //         diagnostics: [],
-            //         only: [protocol.CodeActionKind.SourceOrganizeImports],
-            //     },
-            // }, 0.5);
+            await request("textDocument/codeAction", {
+                textDocument: { uri: openFileUri },
+                range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                context: {
+                    diagnostics: [],
+                    only: [protocol.CodeActionKind.SourceOrganizeImports],
+                },
+            }, 0.5);
 
             if (openFileContents.length < 1e6) {
                 // Folding ranges (equivalent to getOutliningSpans)
-                // TODO: folding ranges are broken for JS files
-                // await request("textDocument/foldingRange", {
-                //     textDocument: { uri: openFileUri },
-                // }, +(languageId.startsWith("typescript")));
+                await request("textDocument/foldingRange", {
+                    textDocument: { uri: openFileUri },
+                });
 
-                // // Document symbols (equivalent to navtree/navbar)
-                // await request("textDocument/documentSymbol", {
-                //     textDocument: { uri: openFileUri },
-                // });
+                // Document symbols (equivalent to navtree/navbar)
+                await request("textDocument/documentSymbol", {
+                    textDocument: { uri: openFileUri },
+                });
             }
 
             // Workspace symbol search (equivalent to navto)
@@ -310,21 +309,21 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 }
             }
 
-            // // Diagnostics (equivalent to geterr)
-            // const diagnosticsPromise = request("textDocument/diagnostic", {
-            //     textDocument: { uri: openFileUri },
-            // });
+            // Diagnostics (equivalent to geterr)
+            const diagnosticsPromise = request("textDocument/diagnostic", {
+                textDocument: { uri: openFileUri },
+            });
 
-            // const codeLensesPromise = request("textDocument/codeLens", {
-            //     textDocument: { uri: openFileUri },
-            // });
+            const codeLensesPromise = request("textDocument/codeLens", {
+                textDocument: { uri: openFileUri },
+            });
 
-            // const inlayHintsPromise = request("textDocument/inlayHint", {
-            //     textDocument: { uri: openFileUri },
-            //     range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
-            // });
+            const inlayHintsPromise = request("textDocument/inlayHint", {
+                textDocument: { uri: openFileUri },
+                range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
+            });
 
-            // await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
+            await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
 
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
@@ -336,17 +335,17 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
                     // Definition (equivalent to definitionAndBoundSpan)
-                    // await request("textDocument/definition", {
-                    //     textDocument: { uri: openFileUri },
-                    //     position: { line, character },
-                    // }, isAt ? 0.5 : 0.001);
+                    await request("textDocument/definition", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                    }, isAt ? 0.5 : 0.001);
 
-                    // // References
-                    // await request("textDocument/references", {
-                    //     textDocument: { uri: openFileUri },
-                    //     position: { line, character },
-                    //     context: { includeDeclaration: true },
-                    // }, isAt ? 0.5 : 0.00005);
+                    // References
+                    await request("textDocument/references", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                        context: { includeDeclaration: true },
+                    }, isAt ? 0.5 : 0.00005);
 
                     // TODO:
                     // - https://github.com/microsoft/typescript-go/issues/2253
