@@ -1,6 +1,6 @@
 import fs = require("fs");
 import path = require("path");
-import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix,TsEntrypoint } from "./main";
+import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, TsEntrypoint } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");
 import { asMarkdownInlineCode } from "./utils/markdownUtils";

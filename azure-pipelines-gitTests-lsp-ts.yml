@@ -1,135 +1,23 @@
-schedules:
-  - cron: "0 19 * * Sun" # time is in UTC
-    displayName: Sunday overnight run
-    always: true
-    branches:
-      include:
-        - main
+# schedules:
+#   - cron: "0 19 * * Sun" # time is in UTC
+#     displayName: Sunday overnight run
+#     always: true
+#     branches:
+#       include:
+#         - main
 
 pr: none
 trigger: none
-
-parameters:
-  - name: POST_RESULT
-    displayName: Post GitHub issue with results
-    type: boolean
-    default: true
-  - name: DIAGNOSTIC_OUTPUT
-    displayName: Log diagnostic data
-    type: boolean
-    default: false
-  - name: REPO_COUNT
-    displayName: Repo Count
-    type: number
-    default: 300
-  - name: REPO_START_INDEX
-    displayName: Repo Start Index
-    type: number
-    default: 0
-  - name: NEW_VERSION
-    displayName: Candidate TypeScript package version
-    type: string
-    default: next
-  - name: MACHINE_COUNT
-    displayName: Machine Count
-    type: number
-    default: 8
-  - name: PRNG_SEED
-    displayName: Pseudo-random number generator seed
-    type: string
-    default: 'n/a'
 
 pool:
   name: TypeScript-1ES-Large
   demands:
     - ImageOverride -equals azure-linux-3
 
-jobs:
-- job: ListRepos
-  pool:
-    name: TypeScript-1ES-Deploys
-    demands:
-      - ImageOverride -equals azure-linux-3
-  steps:
-  - task: AzureKeyVault@2
-    inputs:
-      azureSubscription: 'TypeScript Public CI'
-      KeyVaultName: 'jststeam-passwords'
-      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
-    displayName: Get secrets
-    retryCountOnTaskFailure: 3
-  - task: UseNode@1
-    inputs:
-      version: '22.x'
-    displayName: 'Install Node.js'
-  - script: |
-      npm ci
-      npm run build
-      mkdir artifacts
-      node dist/listTopRepos TypeScript ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} artifacts/repos.json
-    displayName: 'List top TS repos'
-    env:
-      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
-  - publish: artifacts
-    artifact: RepoList
-- job: DetectNewErrors
-  dependsOn: ListRepos
-  continueOnError: true
-  timeoutInMinutes: 360
-  strategy:
-    parallel: ${{ parameters.MACHINE_COUNT }}
-  steps:
-  - download: current
-    artifact: RepoList
-  - task: UseNode@1
-    inputs:
-      version: '22.x'
-    displayName: 'Install Node.js'
-  - script: |
-      df -h
-      df -h -i
-    displayName: Debugging
-    continueOnError: true
-  - script: |
-      npm ci
-      npm run build
-      npm install -g yarn
-      npm install -g pnpm
-      npm install -g corepack@latest
-      export COREPACK_ENABLE_AUTO_PIN=0
-      export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-      export COREPACK_ENABLE_STRICT=0
-      corepack enable
-      corepack enable npm
-      mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkGithubRepos lsp 0 ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
-    displayName: 'Run TypeScript on repos'
-    continueOnError: true
-  - publish: 'RepoResults$(System.JobPositionInPhase)'
-    artifact: 'RepoResults$(System.JobPositionInPhase)'
-- job: ReportNewErrors
-  dependsOn: DetectNewErrors
-  pool:
-    name: TypeScript-1ES-Deploys
-    demands:
-      - ImageOverride -equals azure-linux-3
-  steps:
-  - task: AzureKeyVault@2
-    inputs:
-      azureSubscription: 'TypeScript Public CI'
-      KeyVaultName: 'jststeam-passwords'
-      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
-    displayName: Get secrets
-    retryCountOnTaskFailure: 3
-  - download: current
-  - task: UseNode@1
-    inputs:
-      version: '22.x'
-    displayName: 'Install Node.js'
-  - script: |
-      npm ci
-      npm run build
-      node dist/postGithubIssue lsp TypeScript ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
-    displayName: 'Create issue from new errors'
-    env:
-      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
+extends:
+  template: azure-pipelines-gitTests-template.yml
+  parameters:
+    ENTRYPOINT: lsp
+    OLD_VERSION: '0'
+    NEW_VERSION: latest
+    LANGUAGE: TypeScript

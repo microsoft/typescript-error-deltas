@@ -347,9 +347,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         context: { includeDeclaration: true },
                     }, isAt ? 0.5 : 0.00005);
 
-                    // TODO:
-                    // - https://github.com/microsoft/typescript-go/issues/2253
-                    const completionsProb = 1;
+                    const completionsProb = 0.1;
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
@@ -452,7 +450,6 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         params: lsp.RequestToParams[K],
         prob = 1,
     ): Promise<lsp.MessageResponseType[K] extends never ? never : lsp.MessageResponseType[K]> {
-        // await new Promise(resolve => setTimeout(resolve, 500));
         if (prng.random() > prob) return undefined as any;
 
         const replayEntry = { kind: "request", method, params };
@@ -489,7 +486,6 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         method: K,
         params: lsp.NotificationToParams[K],
     ): Promise<void> {
-        // await new Promise(resolve => setTimeout(resolve, 500));
         const replayEntry = { kind: "notification", method, params };
         const replayStr = JSON.stringify(replayEntry).replaceAll(testDirUrl, testDirPlaceholder);
         await replayScriptHandle.write(replayStr + "\n");
