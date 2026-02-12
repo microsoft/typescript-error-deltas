@@ -1,0 +1,23 @@
+# schedules:
+#   - cron: "0 19 * * Sun" # time is in UTC
+#     displayName: Sunday overnight run
+#     always: true
+#     branches:
+#       include:
+#         - main
+
+pr: none
+trigger: none
+
+pool:
+  name: TypeScript-1ES-Large
+  demands:
+    - ImageOverride -equals azure-linux-3
+
+extends:
+  template: azure-pipelines-gitTests-template.yml
+  parameters:
+    ENTRYPOINT: lsp
+    OLD_VERSION: '0'
+    NEW_VERSION: latest
+    LANGUAGE: TypeScript

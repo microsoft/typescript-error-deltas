@@ -45,11 +45,14 @@ for (const path of metadataFilePaths) {
 }
 
 
-const title = `${entrypoint === "tsserver" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
+const title = `${entrypoint === "tsserver" || entrypoint === "lsp" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
 
 const description = entrypoint === "tsserver"
     ? `The following errors were reported by ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`
-    : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
+    : entrypoint == "lsp"
+        ? `The following errors were reported by ${newTscResolvedVersion}`
+        : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
+// TODO: modify for tsgo
 let header = `${description}
 [Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
 [Logs for the pipeline run](${logUri})
@@ -102,4 +105,4 @@ if (entrypoint !== "tsserver") {
 
 
 const bodyChunks = [header, ...outputs];
-git.createIssue(postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);
+git.createIssue(entrypoint, postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);

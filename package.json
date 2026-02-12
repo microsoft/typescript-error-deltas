@@ -24,7 +24,9 @@
         "json5": "^2.2.3",
         "markdown-escape": "^2.0.0",
         "random-seed": "^0.3.0",
-        "simple-git": "^3.22.0"
+        "simple-git": "^3.22.0",
+        "vscode-jsonrpc": "^8.2.1",
+        "vscode-languageserver-protocol": "^3.17.5"
     },
     "devDependencies": {
         "@types/jest": "^29.5.12",

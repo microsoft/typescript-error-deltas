@@ -1,6 +1,6 @@
 import fs = require("fs");
 import path = require("path");
-import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix } from "./main";
+import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, TsEntrypoint } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");
 import { asMarkdownInlineCode } from "./utils/markdownUtils";
@@ -82,7 +82,7 @@ let header = `@${userToTag} Here are the results of running the ${suiteDescripti
 ${summary.join("\n")}`;
 
 if (!outputs.length) {
-    git.createComment(+prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
+    git.createComment(entrypoint as TsEntrypoint, +prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
 }
 else {
     const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
@@ -137,5 +137,5 @@ else {
         console.log(`Chunk of size ${chunk.length}`);
     }
 
-    git.createComment(+prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
+    git.createComment(entrypoint as TsEntrypoint, +prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
 }

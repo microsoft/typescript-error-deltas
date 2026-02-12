@@ -6,6 +6,7 @@ import path = require("path");
 
 // The bundled types don't work with CJS imports
 import { simpleGit as git } from "simple-git";
+import { TsEntrypoint } from "../main";
 
 export interface Repo {
     name: string;
@@ -15,10 +16,21 @@ export interface Repo {
     branch?: string;
 }
 
-const repoProperties = {
-    owner: "microsoft",
-    repo: "typescript",
-};
+function getRepoProperties(entrypoint: TsEntrypoint) {
+    switch (entrypoint) {
+        case "tsserver":
+        case "tsc":
+            return {
+                owner: "microsoft",
+                repo: "typescript",
+            };
+        case "lsp":
+            return {
+                owner: "microsoft",
+                repo: "typescript-go",
+            };
+    }
+}
 
 export async function getPopularRepos(language = "TypeScript", count = 100, repoStartIndex = 0, skipRepos?: string[], cachePath?: string): Promise<readonly Repo[]> {
     const cacheEncoding = { encoding: "utf-8" } as const;
@@ -105,7 +117,8 @@ type Result = {
 export type GitResult = Result & { kind: 'git', title: string }
 export type UserResult = Result & { kind: 'user', issue_number: number }
 
-export async function createIssue(postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
+export async function createIssue(entrypoint: TsEntrypoint, postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
+    const repoProperties = getRepoProperties(entrypoint);
     const issue = {
         ...repoProperties,
         title,
@@ -158,7 +171,8 @@ export async function createIssue(postResult: boolean, title: string, bodyChunks
     }
 }
 
-export async function createComment(prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
+export async function createComment(entrypoint: TsEntrypoint, prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
+    const repoProperties = getRepoProperties(entrypoint);
     const newComments = bodyChunks.map(body => ({
         ...repoProperties,
         issue_number: prNumber,

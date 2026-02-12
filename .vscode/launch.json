@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Attach by Process ID",
+            "processId": "${command:PickProcess}",
+            "request": "attach",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "type": "node"
+        },
+        {
             "type": "node",
             "request": "launch",
             "name": "Launch listTopRepos",
@@ -115,6 +124,32 @@
                 "artifacts",
                 "false"
             ]
-        }
+        },
+         {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch LSP checkGithubRepos",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/checkGithubRepos.js",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "args": [
+                "lsp",
+                "0",
+                "latest",
+                "./artifacts/repos.json",
+                "1",
+                "1",
+                "RepoResults",
+                "true",
+                "n/a",
+                "false"
+            ],
+            "preLaunchTask": "npm: build"
+        },
     ]
 }
