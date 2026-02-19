@@ -52,9 +52,11 @@ const description = entrypoint === "tsserver"
     : entrypoint == "lsp"
         ? `The following errors were reported by ${newTscResolvedVersion}`
         : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
-// TODO: modify for tsgo
+const pipelineUri = entrypoint === "lsp" ?
+    "https://dev.azure.com/typescript/TypeScript/_build?definitionId=75" :
+    "https://typescript.visualstudio.com/TypeScript/_build?definitionId=48";
 let header = `${description}
-[Pipeline that generated this bug](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48)
+[Pipeline that generated this bug](${pipelineUri})
 [Logs for the pipeline run](${logUri})
 [File that generated the pipeline](https://github.com/microsoft/typescript-error-deltas/blob/main/azure-pipelines-gitTests.yml)
 
@@ -67,10 +69,6 @@ This run considered ${repoCount} popular TS repos from GH (after skipping the to
 |---------|-------|
 ${Object.keys(statusCounts).sort().map(status => `| ${status} | ${statusCounts[status as RepoStatus]} |\n`).join("")}
 </details>
-
-## Investigation Status
-| Repo | Errors | Outcome |
-|------|--------|---------|
 `;
 
 const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
@@ -82,7 +80,12 @@ const outputs = resultPaths.map(p =>
 
 // tsserver groups results by error, causing the summary to not make sense. Remove the list for now.
 // See issue: https://github.com/microsoft/typescript-error-deltas/issues/114
-if (entrypoint !== "tsserver") {
+if (entrypoint !== "tsserver" || "lsp") {
+    header += `
+## Investigation Status
+| Repo | Errors | Outcome |
+|------|--------|---------|
+`
     // Prints the investigation status list.
     for (let i = 0; i < outputs.length; i++) {
         const resultPath = resultPaths[i];

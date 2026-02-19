@@ -9,6 +9,7 @@ import * as protocol from "vscode-languageserver-protocol";
 import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_ERROR } from "./exerciseServerConstants";
 import { pathToFileURL } from "url";
 
+const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
 const testDirPlaceholder = "@PROJECT_ROOT@";
 
 const argv = process.argv;
@@ -82,6 +83,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     const serverArgs: string[] = ["--lsp", "--stdio"];
 
     replayScriptHandle.write(JSON.stringify({
+        rootDirUriPlaceholder: testDirUriPlaceholder,
         rootDirPlaceholder: testDirPlaceholder,
         serverArgs,
     }) + "\n");
@@ -453,7 +455,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         if (prng.random() > prob) return undefined as any;
 
         const replayEntry = { kind: "request", method, params };
-        const replayStr = JSON.stringify(replayEntry).replaceAll(testDirUrl, testDirPlaceholder);
+        const replayStr = JSON.stringify(replayEntry).replaceAll(testDirUrl, testDirUriPlaceholder).replaceAll(testDir, testDirPlaceholder);
         await replayScriptHandle.write(replayStr + "\n");
 
         const start = performance.now();
@@ -487,7 +489,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         params: lsp.NotificationToParams[K],
     ): Promise<void> {
         const replayEntry = { kind: "notification", method, params };
-        const replayStr = JSON.stringify(replayEntry).replaceAll(testDirUrl, testDirPlaceholder);
+        const replayStr = JSON.stringify(replayEntry).replaceAll(testDirUrl, testDirUriPlaceholder).replaceAll(testDir, testDirPlaceholder);
         await replayScriptHandle.write(replayStr + "\n");
 
         try {

@@ -35,6 +35,8 @@ export function getHashForGoStack(stack: string): string {
         }
         // Strip goroutine IDs: "goroutine 554 [running]:" -> "goroutine [running]:"
         line = line.replace(/goroutine \d+/, "goroutine <number>");
+        // Strip range expressions e.g. "[:1234]" -> "[:]"
+        line = line.replace(/\[\d*:\d*\]/g, "[:]");
         // Strip function arguments
         line = line.replace(/^(.+)\(.+$/g, "$1()");
         return line;
