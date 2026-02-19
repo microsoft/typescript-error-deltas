@@ -458,8 +458,8 @@ function groupErrors(summaries: Summary[]) {
         if (summary.tsServerResult.newServerFailed) {
             // Group new errors
             error = isLsp
-                ? parseLspHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout)
-                : parseServerHarnessOutput(summary.tsServerResult.newSpawnResult!.stdout);
+                ? parseLspHarnessOutput(summary.tsServerResult.newSpawnResult.stdout)
+                : parseServerHarnessOutput(summary.tsServerResult.newSpawnResult.stdout);
             group = groupedNewErrors;
         }
         else if (summary.tsServerResult.oldServerFailed) {
