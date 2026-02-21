@@ -322,10 +322,18 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             const inlayHintsPromise = request("textDocument/inlayHint", {
                 textDocument: { uri: openFileUri },
+                // TODO - this is still a hack.
+                // Could just move it to the end after we've iterated through the file.
                 range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
             });
 
-            await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
+            const [_diags, codeLenses, _inlayHints] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
+
+            if (codeLenses) {
+                await Promise.all(codeLenses.map(async (lens) => {
+                    await request("codeLens/resolve", lens);
+                }));
+            }
 
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
@@ -429,6 +437,18 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
                 prev = curr;
             }
+
+            // We do these at the end since we'd prefer to catch other crashes like completions first.
+            await request("textDocument/formatting", {
+                textDocument: { uri: openFileUri },
+                options: {
+                    tabSize: prng.intBetween(0, 4),
+                    insertSpaces: prng.random() < 0.5,
+                    trimTrailingWhitespace: prng.random() < 0.90,
+                    trimFinalNewlines: prng.random() < 0.90,
+                    insertFinalNewline: prng.random() < 0.90,
+                },
+            });
         }
 
         console.error("\nShutting down server");
