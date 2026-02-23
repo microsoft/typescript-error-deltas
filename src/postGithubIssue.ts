@@ -80,7 +80,7 @@ const outputs = resultPaths.map(p =>
 
 // tsserver groups results by error, causing the summary to not make sense. Remove the list for now.
 // See issue: https://github.com/microsoft/typescript-error-deltas/issues/114
-if (entrypoint !== "tsserver" || "lsp") {
+if (entrypoint !== "tsserver" && entrypoint !== "lsp") {
     header += `
 ## Investigation Status
 | Repo | Errors | Outcome |
