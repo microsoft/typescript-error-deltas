@@ -1,10 +1,10 @@
-schedules:
-  - cron: "0 19 * * Sun" # time is in UTC
-    displayName: Sunday overnight run
-    always: true
-    branches:
-      include:
-        - main
+# schedules:
+#   - cron: "0 19 * * Sun" # time is in UTC
+#     displayName: Sunday overnight run
+#     always: true
+#     branches:
+#       include:
+#         - main
 
 pr: none
 trigger: none
@@ -20,4 +20,4 @@ extends:
     ENTRYPOINT: lsp
     OLD_VERSION: '0'
     NEW_VERSION: latest
-    LANGUAGE: TypeScript
+    LANGUAGE: JavaScript
