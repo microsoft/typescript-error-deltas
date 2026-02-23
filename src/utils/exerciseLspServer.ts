@@ -234,8 +234,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         const openFileUris: string[] = [];
 
         // NB: greater than 1 behaves the same as 1
-        // const skipFileProb = 1000 / files.length;
-        const skipFileProb = 1;
+        const skipFileProb = 1000 / files.length;
         for (const openFileAbsolutePath of files) {
             if (prng.random() > skipFileProb) continue;
 
@@ -336,11 +335,12 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
+                    const standardProb = 0.001;
                     // Definition (equivalent to definitionAndBoundSpan)
                     await request("textDocument/definition", {
                         textDocument: { uri: openFileUri },
                         position: { line, character },
-                    }, isAt ? 0.5 : 0.001);
+                    }, isAt ? 0.5 : standardProb);
 
                     // References
                     await request("textDocument/references", {
@@ -349,8 +349,6 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         context: { includeDeclaration: true },
                     }, isAt ? 0.5 : 0.00005);
 
-                    const completionsProb = 0.1;
-
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
                         textDocument: { uri: openFileUri },
@@ -358,7 +356,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         context: {
                             triggerKind: protocol.CompletionTriggerKind.Invoked,
                         },
-                    }, completionsProb);
+                    }, isAt ? 0.5 : standardProb);
 
                     // Completion resolve (equivalent to completionEntryDetails)
                     if (completionResponse) {
@@ -378,7 +376,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                                 triggerKind: protocol.CompletionTriggerKind.TriggerCharacter,
                                 triggerCharacter: triggerChars[triggerCharIndex],
                             },
-                        }, completionsProb /*previously 0.005*/);
+                        }, standardProb);
                     }
                 }
 
@@ -393,7 +391,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             triggerKind: currisSignatureHelpTrigger ? protocol.SignatureHelpTriggerKind.TriggerCharacter : protocol.SignatureHelpTriggerKind.Invoked,
                             isRetrigger: signatureHelpTriggerChars.includes(prev),
                         }
-                    }, 0);
+                    }, 0.005);
                 }
 
                 if (curr === "\r" || curr === "\n") {
