@@ -1,13 +1,13 @@
-import * as lsp from "./lspHarness";
 import fs from "fs";
-import process from "process";
-import path from "path";
 import * as glob from "glob";
+import path from "path";
 import { performance } from "perf_hooks";
+import process from "process";
 import randomSeed from "random-seed";
-import * as protocol from "vscode-languageserver-protocol";
-import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_ERROR } from "./exerciseServerConstants";
 import { pathToFileURL } from "url";
+import * as protocol from "vscode-languageserver-protocol";
+import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
+import * as lsp from "./lspHarness";
 
 const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
 const testDirPlaceholder = "@PROJECT_ROOT@";
@@ -195,12 +195,15 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 },
                 hover: { contentFormat: ["markdown", "plaintext"] },
                 diagnostic: { relatedDocumentSupport: true },
-                declaration: { linkSupport: true },
                 implementation: { linkSupport: true },
                 typeDefinition: { linkSupport: true },
-                rename: {
-                    // TODO: ...
-                }
+                documentHighlight: {},
+                selectionRange: {},
+                rename: {},
+                callHierarchy: {},
+                onTypeFormatting: {
+                    dynamicRegistration: false,
+                },
                 // TODO: ...
 
             },
@@ -294,6 +297,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 await request("textDocument/documentSymbol", {
                     textDocument: { uri: openFileUri },
                 });
+
             }
 
             // Workspace symbol search (equivalent to navto)
@@ -326,12 +330,25 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
             });
 
-            const [_diags, codeLenses, _inlayHints] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
+            const [diagResult, codeLenses, _inlayHints] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
 
             if (codeLenses) {
                 await Promise.all(codeLenses.map(async (lens) => {
                     await request("codeLens/resolve", lens);
                 }));
+            }
+
+            // Code actions based on diagnostics (equivalent to getCodeFixes)
+            if (diagResult && "items" in diagResult && diagResult.items.length > 0) {
+                const diag = diagResult.items[0];
+                await request("textDocument/codeAction", {
+                    textDocument: { uri: openFileUri },
+                    range: diag.range,
+                    context: {
+                        diagnostics: [diag],
+                        only: [protocol.CodeActionKind.QuickFix],
+                    },
+                }, 0.5);
             }
 
             for (let i = 0; i < openFileContents.length; i++) {
@@ -356,6 +373,75 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         position: { line, character },
                         context: { includeDeclaration: true },
                     }, isAt ? 0.5 : 0.00005);
+
+                    // Hover (equivalent to quickinfo)
+                    await request("textDocument/hover", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                    }, isAt ? 0.5 : standardProb);
+
+                    // Implementation (equivalent to implementation)
+                    await request("textDocument/implementation", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                    }, isAt ? 0.3 : 0.0003);
+
+                    // Type definition (equivalent to typeDefinition)
+                    await request("textDocument/typeDefinition", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                    }, isAt ? 0.3 : 0.0003);
+
+                    // Document highlight (equivalent to documentHighlights)
+                    await request("textDocument/documentHighlight", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                    }, isAt ? 0.3 : 0.0003);
+
+                    // Call hierarchy (equivalent to prepareCallHierarchy + incoming/outgoing)
+                    const callHierarchyItems = await request("textDocument/prepareCallHierarchy", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                    }, isAt ? 0.3 : 0.0002);
+
+                    if (callHierarchyItems && callHierarchyItems.length > 0) {
+                        const item = callHierarchyItems[0];
+                        await request("callHierarchy/incomingCalls", { item }, 0.5);
+                        await request("callHierarchy/outgoingCalls", { item }, 0.5);
+                    }
+
+                    // Code action for refactors (equivalent to getApplicableRefactors)
+                    const refactorActions = await request("textDocument/codeAction", {
+                        textDocument: { uri: openFileUri },
+                        range: { start: { line, character }, end: { line, character } },
+                        context: {
+                            diagnostics: [],
+                            only: [protocol.CodeActionKind.Refactor],
+                        },
+                    }, isAt ? 0.3 : 0.0005);
+
+                    // Rename (equivalent to rename)
+                    await request("textDocument/rename", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                        newName: "renamedSymbol",
+                    }, isAt ? 0.2 : 0.0002);
+
+                    // Selection range (equivalent to selectionRange)
+                    await request("textDocument/selectionRange", {
+                        textDocument: { uri: openFileUri },
+                        positions: [{ line, character }],
+                    }, isAt ? 0.3 : 0.0003);
+
+                    // Range formatting (equivalent to format with range)
+                    await request("textDocument/rangeFormatting", {
+                        textDocument: { uri: openFileUri },
+                        range: { start: { line, character: 0 }, end: { line: line + 10, character: 0 } },
+                        options: {
+                            tabSize: prng.intBetween(1, 4),
+                            insertSpaces: prng.random() < 0.5,
+                        },
+                    }, isAt ? 0.3 : 0.0003);
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
@@ -400,6 +486,19 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             isRetrigger: signatureHelpTriggerChars.includes(prev),
                         }
                     }, 0.005);
+                }
+
+                // On-type formatting (equivalent to formatonkey)
+                if (curr === ";" || curr === "}") {
+                    await request("textDocument/onTypeFormatting", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character },
+                        ch: curr,
+                        options: {
+                            tabSize: 4,
+                            insertSpaces: true,
+                        },
+                    }, 0.01);
                 }
 
                 if (curr === "\r" || curr === "\n") {

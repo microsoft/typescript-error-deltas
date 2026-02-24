@@ -134,6 +134,15 @@ export interface RequestToParams {
     [protocol.ApplyWorkspaceEditRequest.method]: protocol.ApplyWorkspaceEditParams;
     [protocol.InlayHintRequest.method]: protocol.InlayHintParams;
     [protocol.InlayHintResolveRequest.method]: protocol.InlayHint;
+    [protocol.DeclarationRequest.method]: protocol.DeclarationParams;
+    [protocol.ImplementationRequest.method]: protocol.ImplementationParams;
+    [protocol.TypeDefinitionRequest.method]: protocol.TypeDefinitionParams;
+    [protocol.SelectionRangeRequest.method]: protocol.SelectionRangeParams;
+    [protocol.LinkedEditingRangeRequest.method]: protocol.LinkedEditingRangeParams;
+    [protocol.SemanticTokensRequest.method]: protocol.SemanticTokensParams;
+    [protocol.CallHierarchyPrepareRequest.method]: protocol.CallHierarchyPrepareParams;
+    [protocol.CallHierarchyIncomingCallsRequest.method]: protocol.CallHierarchyIncomingCallsParams;
+    [protocol.CallHierarchyOutgoingCallsRequest.method]: protocol.CallHierarchyOutgoingCallsParams;
 }
 
 export interface MessageResponseType {
@@ -171,6 +180,15 @@ export interface MessageResponseType {
     [protocol.ApplyWorkspaceEditRequest.method]: protocol.ApplyWorkspaceEditResult;
     [protocol.InlayHintRequest.method]: protocol.InlayHint[] | null;
     [protocol.InlayHintResolveRequest.method]: protocol.InlayHint;
+    [protocol.DeclarationRequest.method]: protocol.Declaration | protocol.LocationLink[] | null;
+    [protocol.ImplementationRequest.method]: protocol.Definition | protocol.LocationLink[] | null;
+    [protocol.TypeDefinitionRequest.method]: protocol.Definition | protocol.LocationLink[] | null;
+    [protocol.SelectionRangeRequest.method]: protocol.SelectionRange[] | null;
+    [protocol.LinkedEditingRangeRequest.method]: protocol.LinkedEditingRanges | null;
+    [protocol.SemanticTokensRequest.method]: protocol.SemanticTokens | null;
+    [protocol.CallHierarchyPrepareRequest.method]: protocol.CallHierarchyItem[] | null;
+    [protocol.CallHierarchyIncomingCallsRequest.method]: protocol.CallHierarchyIncomingCall[] | null;
+    [protocol.CallHierarchyOutgoingCallsRequest.method]: protocol.CallHierarchyOutgoingCall[] | null;
 }
 
 export interface NotificationToParams {
