@@ -298,22 +298,6 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     textDocument: { uri: openFileUri },
                 });
 
-                // Selection range (equivalent to selectionRange)
-                await request("textDocument/selectionRange", {
-                    textDocument: { uri: openFileUri },
-                    positions: [{ line: 0, character: 0 }],
-                }, 0.3);
-
-                // Range formatting (equivalent to format with range)
-                const fileLineCount = openFileContents.split("\n").length;
-                await request("textDocument/rangeFormatting", {
-                    textDocument: { uri: openFileUri },
-                    range: { start: { line: 0, character: 0 }, end: { line: Math.min(9, fileLineCount - 1), character: 0 } },
-                    options: {
-                        tabSize: prng.intBetween(1, 4),
-                        insertSpaces: prng.random() < 0.5,
-                    },
-                }, 0.3);
             }
 
             // Workspace symbol search (equivalent to navto)
@@ -442,6 +426,22 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         position: { line, character },
                         newName: "renamedSymbol",
                     }, isAt ? 0.2 : 0.0002);
+
+                    // Selection range (equivalent to selectionRange)
+                    await request("textDocument/selectionRange", {
+                        textDocument: { uri: openFileUri },
+                        positions: [{ line, character }],
+                    }, isAt ? 0.3 : 0.0003);
+
+                    // Range formatting (equivalent to format with range)
+                    await request("textDocument/rangeFormatting", {
+                        textDocument: { uri: openFileUri },
+                        range: { start: { line, character: 0 }, end: { line: line + 10, character: 0 } },
+                        options: {
+                            tabSize: prng.intBetween(1, 4),
+                            insertSpaces: prng.random() < 0.5,
+                        },
+                    }, isAt ? 0.3 : 0.0003);
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
