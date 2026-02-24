@@ -351,6 +351,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 }, 0.5);
             }
 
+            const standardProb = 0.001;
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
                 const next = openFileContents[i + 1];
@@ -358,9 +359,72 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 // Increase probabilities around things that look like jsdoc, where we've had problems in the past
                 const isAt = curr === "@";
 
+                // Single character mutations (insertion/deletion)
+                const mutationRoll = prng.random();
+                if (mutationRoll < standardProb) {
+                    const mutationType = prng.random();
+                    if (mutationType < 1 / 3) {
+                        // Insert "."
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    range: {
+                                        start: { line, character },
+                                        end: { line, character },
+                                    },
+                                    text: ".",
+                                },
+                            ],
+                        });
+                    }
+                    else if (mutationType < 2 / 3) {
+                        // Insert random character
+                        const randomChar = String.fromCharCode(prng.intBetween(32, 126));
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    range: {
+                                        start: { line, character },
+                                        end: { line, character },
+                                    },
+                                    text: randomChar,
+                                },
+                            ],
+                        });
+                    }
+                    else if (character > 0) {
+                        // Delete previous character
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    range: {
+                                        start: { line, character: character - 1 },
+                                        end: { line, character },
+                                    },
+                                    text: "",
+                                },
+                            ],
+                        });
+                    }
+                }
+
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
-                    const standardProb = 0.001;
                     // Definition (equivalent to definitionAndBoundSpan)
                     await request("textDocument/definition", {
                         textDocument: { uri: openFileUri },
