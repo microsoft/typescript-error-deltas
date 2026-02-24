@@ -274,6 +274,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             let line = 0; // LSP uses 0-based lines
             let character = 0; // LSP uses 0-based characters
+            let characterDelta = 0; // Net character offset from mutations on the current line
+            const totalLines = openFileContents.split(/\r\n|\r|\n/).length;
 
             let prev = "";
 
@@ -363,6 +365,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 const mutationRoll = prng.random();
                 if (mutationRoll < standardProb) {
                     const mutationType = prng.random();
+                    const serverCharacter = character + characterDelta;
                     if (mutationType < 1 / 3) {
                         // Insert "."
                         documentVersion++;
@@ -374,13 +377,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             contentChanges: [
                                 {
                                     range: {
-                                        start: { line, character },
-                                        end: { line, character },
+                                        start: { line, character: serverCharacter },
+                                        end: { line, character: serverCharacter },
                                     },
                                     text: ".",
                                 },
                             ],
                         });
+                        characterDelta++;
                     }
                     else if (mutationType < 2 / 3) {
                         // Insert random character
@@ -394,15 +398,16 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             contentChanges: [
                                 {
                                     range: {
-                                        start: { line, character },
-                                        end: { line, character },
+                                        start: { line, character: serverCharacter },
+                                        end: { line, character: serverCharacter },
                                     },
                                     text: randomChar,
                                 },
                             ],
                         });
+                        characterDelta++;
                     }
-                    else if (character > 0) {
+                    else if (serverCharacter > 0) {
                         // Delete previous character
                         documentVersion++;
                         await notify("textDocument/didChange", {
@@ -413,13 +418,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             contentChanges: [
                                 {
                                     range: {
-                                        start: { line, character: character - 1 },
-                                        end: { line, character },
+                                        start: { line, character: serverCharacter - 1 },
+                                        end: { line, character: serverCharacter },
                                     },
                                     text: "",
                                 },
                             ],
                         });
+                        characterDelta--;
                     }
                 }
 
@@ -500,7 +506,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Range formatting (equivalent to format with range)
                     await request("textDocument/rangeFormatting", {
                         textDocument: { uri: openFileUri },
-                        range: { start: { line, character: 0 }, end: { line: line + 10, character: 0 } },
+                        range: { start: { line, character: 0 }, end: { line: Math.min(line + 10, totalLines - 1), character: 0 } },
                         options: {
                             tabSize: prng.intBetween(1, 4),
                             insertSpaces: prng.random() < 0.5,
@@ -588,6 +594,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
                     line++;
                     character = 0;
+                    characterDelta = 0;
                     if (curr === "\r" && next === "\n") {
                         i++;
                     }
