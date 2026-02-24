@@ -539,7 +539,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             await request("textDocument/formatting", {
                 textDocument: { uri: openFileUri },
                 options: {
-                    tabSize: prng.intBetween(1, 4),
+                    tabSize: prng.intBetween(0, 4),
                     insertSpaces: prng.random() < 0.5,
                     trimTrailingWhitespace: prng.random() < 0.90,
                     trimFinalNewlines: prng.random() < 0.90,
