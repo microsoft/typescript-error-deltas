@@ -276,6 +276,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             let character = 0; // LSP uses 0-based characters
             let characterDelta = 0; // Net character offset from mutations on the current line
             const totalLines = openFileContents.split(/\r\n|\r|\n/).length;
+            let serverLineCount = totalLines;
 
             let prev = "";
 
@@ -361,7 +362,24 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 // Increase probabilities around things that look like jsdoc, where we've had problems in the past
                 const isAt = curr === "@";
 
-                // Single character mutations (insertion/deletion)
+                // Skip mutations and requests when line is out of bounds for the server
+                if (line >= serverLineCount) {
+                    if (curr === "\r" || curr === "\n") {
+                        line++;
+                        character = 0;
+                        characterDelta = 0;
+                        if (curr === "\r" && next === "\n") {
+                            i++;
+                        }
+                    }
+                    else {
+                        character++;
+                    }
+                    prev = curr;
+                    continue;
+                }
+
+                // Single character mutations (insertion/deletion/reset)
                 const delimiters = ",.;:{}[]<>()";
                 const isDelimiter = delimiters.includes(curr);
                 const mutationRoll = prng.random();
@@ -369,7 +387,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     const mutationType = prng.random();
                     const serverCharacter = Math.max(0, character + characterDelta);
                     // Delimiter characters have increased probability of single character deletion
-                    if (mutationType < (isDelimiter ? 1 / 6 : 1 / 4)) {
+                    if (mutationType < (isDelimiter ? 2 / 20 : 5 / 20)) {
                         // Insert "."
                         documentVersion++;
                         await notify("textDocument/didChange", {
@@ -389,7 +407,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         });
                         characterDelta++;
                     }
-                    else if (mutationType < (isDelimiter ? 2 / 6 : 2 / 4)) {
+                    else if (mutationType < (isDelimiter ? 4 / 20 : 10 / 20)) {
                         // Insert random character
                         const randomChar = String.fromCharCode(prng.intBetween(32, 126));
                         documentVersion++;
@@ -410,27 +428,34 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         });
                         characterDelta++;
                     }
-                    else if (mutationType < (isDelimiter ? 5 / 6 : 3 / 4) && serverCharacter > 0) {
-                        // Delete previous character
-                        documentVersion++;
-                        await notify("textDocument/didChange", {
-                            textDocument: {
-                                uri: openFileUri,
-                                version: documentVersion,
-                            },
-                            contentChanges: [
-                                {
-                                    range: {
-                                        start: { line, character: serverCharacter - 1 },
-                                        end: { line, character: serverCharacter },
-                                    },
-                                    text: "",
+                    else if (mutationType < (isDelimiter ? 16 / 20 : 15 / 20)) {
+                        // Delete current character, but only if within estimated line content
+                        let lineEndIdx = i;
+                        while (lineEndIdx < openFileContents.length && openFileContents[lineEndIdx] !== "\r" && openFileContents[lineEndIdx] !== "\n") {
+                            lineEndIdx++;
+                        }
+                        const estimatedServerLineLength = Math.max(0, character + (lineEndIdx - i) + characterDelta);
+                        if (serverCharacter + 1 <= estimatedServerLineLength) {
+                            documentVersion++;
+                            await notify("textDocument/didChange", {
+                                textDocument: {
+                                    uri: openFileUri,
+                                    version: documentVersion,
                                 },
-                            ],
-                        });
-                        characterDelta--;
+                                contentChanges: [
+                                    {
+                                        range: {
+                                            start: { line, character: serverCharacter },
+                                            end: { line, character: serverCharacter + 1 },
+                                        },
+                                        text: "",
+                                    },
+                                ],
+                            });
+                            characterDelta--;
+                        }
                     }
-                    else {
+                    else if (mutationType < (isDelimiter ? 19 / 20 : 19 / 20)) {
                         // Delete rest of line (not including newline)
                         let endIdx = i;
                         while (endIdx < openFileContents.length && openFileContents[endIdx] !== "\r" && openFileContents[endIdx] !== "\n") {
@@ -459,6 +484,23 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             });
                             characterDelta -= charsToDelete;
                         }
+                    }
+                    else {
+                        // Reset file to original contents
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    text: openFileContents,
+                                },
+                            ],
+                        });
+                        characterDelta = 0;
+                        serverLineCount = totalLines;
                     }
                 }
 
