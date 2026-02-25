@@ -429,49 +429,51 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     }
                 }
 
+                const serverCharacter = character + characterDelta;
+
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
                     // Definition (equivalent to definitionAndBoundSpan)
                     await request("textDocument/definition", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.5 : standardProb);
 
                     // References
                     await request("textDocument/references", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         context: { includeDeclaration: true },
                     }, isAt ? 0.5 : 0.00005);
 
                     // Hover (equivalent to quickinfo)
                     await request("textDocument/hover", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.5 : standardProb);
 
                     // Implementation (equivalent to implementation)
                     await request("textDocument/implementation", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0003);
 
                     // Type definition (equivalent to typeDefinition)
                     await request("textDocument/typeDefinition", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0003);
 
                     // Document highlight (equivalent to documentHighlights)
                     await request("textDocument/documentHighlight", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0003);
 
                     // Call hierarchy (equivalent to prepareCallHierarchy + incoming/outgoing)
                     const callHierarchyItems = await request("textDocument/prepareCallHierarchy", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0002);
 
                     if (callHierarchyItems && callHierarchyItems.length > 0) {
@@ -483,7 +485,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Code action for refactors (equivalent to getApplicableRefactors)
                     const refactorActions = await request("textDocument/codeAction", {
                         textDocument: { uri: openFileUri },
-                        range: { start: { line, character }, end: { line, character } },
+                        range: { start: { line, character: serverCharacter }, end: { line, character: serverCharacter } },
                         context: {
                             diagnostics: [],
                             only: [protocol.CodeActionKind.Refactor],
@@ -493,14 +495,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Rename (equivalent to rename)
                     await request("textDocument/rename", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         newName: "renamedSymbol",
                     }, isAt ? 0.2 : 0.0002);
 
                     // Selection range (equivalent to selectionRange)
                     await request("textDocument/selectionRange", {
                         textDocument: { uri: openFileUri },
-                        positions: [{ line, character }],
+                        positions: [{ line, character: serverCharacter }],
                     }, isAt ? 0.3 : 0.0003);
 
                     // Range formatting (equivalent to format with range)
@@ -516,7 +518,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         context: {
                             triggerKind: protocol.CompletionTriggerKind.Invoked,
                         },
@@ -535,7 +537,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     if (triggerCharIndex >= 0 && /\w/.test(prev)) {
                         await request("textDocument/completion", {
                             textDocument: { uri: openFileUri },
-                            position: { line, character },
+                            position: { line, character: serverCharacter },
                             context: {
                                 triggerKind: protocol.CompletionTriggerKind.TriggerCharacter,
                                 triggerCharacter: triggerChars[triggerCharIndex],
@@ -549,7 +551,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Signature help (equivalent to signatureHelp)
                     await request("textDocument/signatureHelp", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         context: {
                             triggerCharacter: currisSignatureHelpTrigger ? curr : undefined,
                             triggerKind: currisSignatureHelpTrigger ? protocol.SignatureHelpTriggerKind.TriggerCharacter : protocol.SignatureHelpTriggerKind.Invoked,
@@ -562,7 +564,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 if (curr === ";" || curr === "}") {
                     await request("textDocument/onTypeFormatting", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         ch: curr,
                         options: {
                             tabSize: 4,
@@ -583,8 +585,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             contentChanges: [
                                 {
                                     range: {
-                                        start: { line, character },
-                                        end: { line, character },
+                                        start: { line, character: serverCharacter },
+                                        end: { line, character: serverCharacter },
                                     },
                                     text: " //comment",
                                 },
