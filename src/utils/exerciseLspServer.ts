@@ -362,11 +362,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 const isAt = curr === "@";
 
                 // Single character mutations (insertion/deletion)
+                const delimiters = ",.;:{}[]<>()";
+                const isDelimiter = delimiters.includes(curr);
                 const mutationRoll = prng.random();
-                if (mutationRoll < standardProb) {
+                if (mutationRoll < (isDelimiter ? standardProb * 3 : standardProb)) {
                     const mutationType = prng.random();
-                    const serverCharacter = character + characterDelta;
-                    if (mutationType < 1 / 3) {
+                    const serverCharacter = Math.max(0, character + characterDelta);
+                    // Delimiter characters have increased probability of single character deletion
+                    if (mutationType < (isDelimiter ? 1 / 6 : 1 / 4)) {
                         // Insert "."
                         documentVersion++;
                         await notify("textDocument/didChange", {
@@ -386,7 +389,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         });
                         characterDelta++;
                     }
-                    else if (mutationType < 2 / 3) {
+                    else if (mutationType < (isDelimiter ? 2 / 6 : 2 / 4)) {
                         // Insert random character
                         const randomChar = String.fromCharCode(prng.intBetween(32, 126));
                         documentVersion++;
@@ -407,7 +410,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         });
                         characterDelta++;
                     }
-                    else if (serverCharacter > 0) {
+                    else if (mutationType < (isDelimiter ? 5 / 6 : 3 / 4) && serverCharacter > 0) {
                         // Delete previous character
                         documentVersion++;
                         await notify("textDocument/didChange", {
@@ -427,9 +430,39 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         });
                         characterDelta--;
                     }
+                    else {
+                        // Delete rest of line (not including newline)
+                        let endIdx = i;
+                        while (endIdx < openFileContents.length && openFileContents[endIdx] !== "\r" && openFileContents[endIdx] !== "\n") {
+                            endIdx++;
+                        }
+                        const remainingChars = endIdx - i;
+                        // Compute end of line in server coordinates, accounting for prior mutations
+                        const serverEndOfLine = Math.max(0, character + remainingChars + characterDelta);
+                        if (serverEndOfLine > serverCharacter) {
+                            const charsToDelete = serverEndOfLine - serverCharacter;
+                            documentVersion++;
+                            await notify("textDocument/didChange", {
+                                textDocument: {
+                                    uri: openFileUri,
+                                    version: documentVersion,
+                                },
+                                contentChanges: [
+                                    {
+                                        range: {
+                                            start: { line, character: serverCharacter },
+                                            end: { line, character: serverEndOfLine },
+                                        },
+                                        text: "",
+                                    },
+                                ],
+                            });
+                            characterDelta -= charsToDelete;
+                        }
+                    }
                 }
 
-                const serverCharacter = character + characterDelta;
+                const serverCharacter = Math.max(0, character + characterDelta);
 
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
