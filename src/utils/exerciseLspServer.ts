@@ -274,9 +274,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             let line = 0; // LSP uses 0-based lines
             let character = 0; // LSP uses 0-based characters
-            let characterDelta = 0; // Net character offset from mutations on the current line
+            let characterDelta = 0; // Net character offset from insertions/deletions on the current line
             const totalLines = openFileContents.split(/\r\n|\r|\n/).length;
-            let serverLineCount = totalLines;
 
             let prev = "";
 
@@ -355,6 +354,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             }
 
             const standardProb = 0.001;
+            let skipRestOfLine = false;
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
                 const next = openFileContents[i + 1];
@@ -362,80 +362,19 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 // Increase probabilities around things that look like jsdoc, where we've had problems in the past
                 const isAt = curr === "@";
 
-                // Skip mutations and requests when line is out of bounds for the server
-                if (line >= serverLineCount) {
-                    if (curr === "\r" || curr === "\n") {
-                        line++;
-                        character = 0;
-                        characterDelta = 0;
-                        if (curr === "\r" && next === "\n") {
-                            i++;
-                        }
-                    }
-                    else {
-                        character++;
-                    }
-                    prev = curr;
-                    continue;
-                }
-
                 // Single character mutations (insertion/deletion/reset)
                 const delimiters = ",.;:{}[]<>()";
                 const isDelimiter = delimiters.includes(curr);
                 const mutationRoll = prng.random();
                 if (mutationRoll < (isDelimiter ? standardProb * 3 : standardProb)) {
                     const mutationType = prng.random();
-                    const serverCharacter = Math.max(0, character + characterDelta);
-                    // Delimiter characters have increased probability of single character deletion
-                    if (mutationType < (isDelimiter ? 2 / 20 : 5 / 20)) {
-                        // Insert "."
-                        documentVersion++;
-                        await notify("textDocument/didChange", {
-                            textDocument: {
-                                uri: openFileUri,
-                                version: documentVersion,
-                            },
-                            contentChanges: [
-                                {
-                                    range: {
-                                        start: { line, character: serverCharacter },
-                                        end: { line, character: serverCharacter },
-                                    },
-                                    text: ".",
-                                },
-                            ],
-                        });
-                        characterDelta++;
-                    }
-                    else if (mutationType < (isDelimiter ? 4 / 20 : 10 / 20)) {
-                        // Insert random character
-                        const randomChar = String.fromCharCode(prng.intBetween(32, 126));
-                        documentVersion++;
-                        await notify("textDocument/didChange", {
-                            textDocument: {
-                                uri: openFileUri,
-                                version: documentVersion,
-                            },
-                            contentChanges: [
-                                {
-                                    range: {
-                                        start: { line, character: serverCharacter },
-                                        end: { line, character: serverCharacter },
-                                    },
-                                    text: randomChar,
-                                },
-                            ],
-                        });
-                        characterDelta++;
-                    }
-                    else if (mutationType < (isDelimiter ? 16 / 20 : 15 / 20)) {
-                        // Delete current character, but only if within estimated line content
-                        let lineEndIdx = i;
-                        while (lineEndIdx < openFileContents.length && openFileContents[lineEndIdx] !== "\r" && openFileContents[lineEndIdx] !== "\n") {
-                            lineEndIdx++;
-                        }
-                        const estimatedServerLineLength = Math.max(0, character + (lineEndIdx - i) + characterDelta);
-                        if (serverCharacter + 1 <= estimatedServerLineLength) {
+                    const serverCharacter = character + characterDelta;
+                    // After a delete-rest-of-line, remaining positions on this line
+                    // no longer exist on the server; skip all mutations until the next line.
+                    if (!skipRestOfLine) {
+                        // Delimiter characters have increased probability of single character deletion
+                        if (mutationType < (isDelimiter ? 2 / 20 : 5 / 20)) {
+                            // Insert "."
                             documentVersion++;
                             await notify("textDocument/didChange", {
                                 textDocument: {
@@ -446,26 +385,17 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                                     {
                                         range: {
                                             start: { line, character: serverCharacter },
-                                            end: { line, character: serverCharacter + 1 },
+                                            end: { line, character: serverCharacter },
                                         },
-                                        text: "",
+                                        text: ".",
                                     },
                                 ],
                             });
-                            characterDelta--;
+                            characterDelta++;
                         }
-                    }
-                    else if (mutationType < (isDelimiter ? 19 / 20 : 19 / 20)) {
-                        // Delete rest of line (not including newline)
-                        let endIdx = i;
-                        while (endIdx < openFileContents.length && openFileContents[endIdx] !== "\r" && openFileContents[endIdx] !== "\n") {
-                            endIdx++;
-                        }
-                        const remainingChars = endIdx - i;
-                        // Compute end of line in server coordinates, accounting for prior mutations
-                        const serverEndOfLine = Math.max(0, character + remainingChars + characterDelta);
-                        if (serverEndOfLine > serverCharacter) {
-                            const charsToDelete = serverEndOfLine - serverCharacter;
+                        else if (mutationType < (isDelimiter ? 4 / 20 : 10 / 20)) {
+                            // Insert random character
+                            const randomChar = String.fromCharCode(prng.intBetween(32, 126));
                             documentVersion++;
                             await notify("textDocument/didChange", {
                                 textDocument: {
@@ -476,31 +406,80 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                                     {
                                         range: {
                                             start: { line, character: serverCharacter },
-                                            end: { line, character: serverEndOfLine },
+                                            end: { line, character: serverCharacter },
                                         },
-                                        text: "",
+                                        text: randomChar,
                                     },
                                 ],
                             });
-                            characterDelta -= charsToDelete;
+                            characterDelta++;
                         }
-                    }
-                    else {
-                        // Reset file to original contents
-                        documentVersion++;
-                        await notify("textDocument/didChange", {
-                            textDocument: {
-                                uri: openFileUri,
-                                version: documentVersion,
-                            },
-                            contentChanges: [
-                                {
-                                    text: openFileContents,
+                        else if (mutationType < (isDelimiter ? 16 / 20 : 15 / 20)) {
+                            // Delete current character, but not newlines (to preserve line count invariant)
+                            if (curr !== "\r" && curr !== "\n") {
+                                documentVersion++;
+                                await notify("textDocument/didChange", {
+                                    textDocument: {
+                                        uri: openFileUri,
+                                        version: documentVersion,
+                                    },
+                                    contentChanges: [
+                                        {
+                                            range: {
+                                                start: { line, character: serverCharacter },
+                                                end: { line, character: serverCharacter + 1 },
+                                            },
+                                            text: "",
+                                        },
+                                    ],
+                                });
+                                characterDelta--;
+                            }
+                        }
+                        else if (mutationType < 19 / 20) {
+                            // Delete rest of line (not including newline)
+                            let endIdx = i;
+                            while (endIdx < openFileContents.length && openFileContents[endIdx] !== "\r" && openFileContents[endIdx] !== "\n") {
+                                endIdx++;
+                            }
+                            const remainingChars = endIdx - i;
+                            if (remainingChars > 0) {
+                                documentVersion++;
+                                await notify("textDocument/didChange", {
+                                    textDocument: {
+                                        uri: openFileUri,
+                                        version: documentVersion,
+                                    },
+                                    contentChanges: [
+                                        {
+                                            range: {
+                                                start: { line, character: serverCharacter },
+                                                end: { line, character: serverCharacter + remainingChars },
+                                            },
+                                            text: "",
+                                        },
+                                    ],
+                                });
+                                characterDelta -= remainingChars;
+                                skipRestOfLine = true;
+                            }
+                        }
+                        else {
+                            // Reset file to original contents
+                            documentVersion++;
+                            await notify("textDocument/didChange", {
+                                textDocument: {
+                                    uri: openFileUri,
+                                    version: documentVersion,
                                 },
-                            ],
-                        });
-                        characterDelta = 0;
-                        serverLineCount = totalLines;
+                                contentChanges: [
+                                    {
+                                        text: openFileContents,
+                                    },
+                                ],
+                            });
+                            characterDelta = 0;
+                        }
                     }
                 }
 
@@ -672,6 +651,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     line++;
                     character = 0;
                     characterDelta = 0;
+                    skipRestOfLine = false;
                     if (curr === "\r" && next === "\n") {
                         i++;
                     }
