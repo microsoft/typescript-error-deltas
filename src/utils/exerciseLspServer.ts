@@ -274,6 +274,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             let line = 0; // LSP uses 0-based lines
             let character = 0; // LSP uses 0-based characters
+            let characterDelta = 0; // Net character offset from insertions/deletions on the current line
+            const totalLines = openFileContents.split(/\r\n|\r|\n/).length;
 
             let prev = "";
 
@@ -351,6 +353,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 }, 0.5);
             }
 
+            const standardProb = 0.001;
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
                 const next = openFileContents[i + 1];
@@ -358,50 +361,171 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 // Increase probabilities around things that look like jsdoc, where we've had problems in the past
                 const isAt = curr === "@";
 
+                // Single character mutations (insertion/deletion/reset)
+                const delimiters = ",.;:{}[]<>()";
+                const isDelimiter = delimiters.includes(curr);
+                const mutationRoll = prng.random();
+                if (mutationRoll < (isDelimiter ? standardProb * 3 : standardProb)) {
+                    const mutationType = prng.random();
+                    const serverCharacter = character + characterDelta;
+                    // Delimiter characters have increased probability of single character deletion
+                    if (mutationType < (isDelimiter ? 2 / 20 : 5 / 20)) {
+                        // Insert "."
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    range: {
+                                        start: { line, character: serverCharacter },
+                                        end: { line, character: serverCharacter },
+                                    },
+                                    text: ".",
+                                },
+                            ],
+                        });
+                        characterDelta++;
+                    }
+                    else if (mutationType < (isDelimiter ? 4 / 20 : 10 / 20)) {
+                        // Insert random character
+                        const randomChar = String.fromCharCode(prng.intBetween(32, 126));
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    range: {
+                                        start: { line, character: serverCharacter },
+                                        end: { line, character: serverCharacter },
+                                    },
+                                    text: randomChar,
+                                },
+                            ],
+                        });
+                        characterDelta++;
+                    }
+                    else if (mutationType < (isDelimiter ? 16 / 20 : 15 / 20)) {
+                        // Delete current character, but not newlines (to preserve line count invariant)
+                        if (curr !== "\r" && curr !== "\n") {
+                            documentVersion++;
+                            await notify("textDocument/didChange", {
+                                textDocument: {
+                                    uri: openFileUri,
+                                    version: documentVersion,
+                                },
+                                contentChanges: [
+                                    {
+                                        range: {
+                                            start: { line, character: serverCharacter },
+                                            end: { line, character: serverCharacter + 1 },
+                                        },
+                                        text: "",
+                                    },
+                                ],
+                            });
+                            characterDelta--;
+                        }
+                    }
+                    else if (mutationType < 19 / 20) {
+                        // Delete rest of line (not including newline)
+                        let endIdx = i;
+                        while (endIdx < openFileContents.length && openFileContents[endIdx] !== "\r" && openFileContents[endIdx] !== "\n") {
+                            endIdx++;
+                        }
+                        const remainingChars = endIdx - i;
+                        if (remainingChars > 0) {
+                            documentVersion++;
+                            await notify("textDocument/didChange", {
+                                textDocument: {
+                                    uri: openFileUri,
+                                    version: documentVersion,
+                                },
+                                contentChanges: [
+                                    {
+                                        range: {
+                                            start: { line, character: serverCharacter },
+                                            end: { line, character: serverCharacter + remainingChars },
+                                        },
+                                        text: "",
+                                    },
+                                ],
+                            });
+                            characterDelta -= remainingChars;
+                            // Skip to the newline; remaining positions no longer exist on the server.
+                            // The loop increment will place i at the newline for normal newline handling.
+                            character += remainingChars;
+                            i = endIdx - 1;
+                        }
+                    }
+                    else {
+                        // Reset file to original contents
+                        documentVersion++;
+                        await notify("textDocument/didChange", {
+                            textDocument: {
+                                uri: openFileUri,
+                                version: documentVersion,
+                            },
+                            contentChanges: [
+                                {
+                                    text: openFileContents,
+                                },
+                            ],
+                        });
+                        characterDelta = 0;
+                    }
+                }
+
+                const serverCharacter = Math.max(0, character + characterDelta);
+
                 // Note that this only catches Latin letters - we'll test within tokens of non-Latin characters
                 if (!(/\w/.test(prev) && /\w/.test(curr)) && !(/[ \t]/.test(prev) && /[ \t]/.test(curr))) {
-                    const standardProb = 0.001;
                     // Definition (equivalent to definitionAndBoundSpan)
                     await request("textDocument/definition", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.5 : standardProb);
 
                     // References
                     await request("textDocument/references", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         context: { includeDeclaration: true },
                     }, isAt ? 0.5 : 0.00005);
 
                     // Hover (equivalent to quickinfo)
                     await request("textDocument/hover", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.5 : standardProb);
 
                     // Implementation (equivalent to implementation)
                     await request("textDocument/implementation", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0003);
 
                     // Type definition (equivalent to typeDefinition)
                     await request("textDocument/typeDefinition", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0003);
 
                     // Document highlight (equivalent to documentHighlights)
                     await request("textDocument/documentHighlight", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0003);
 
                     // Call hierarchy (equivalent to prepareCallHierarchy + incoming/outgoing)
                     const callHierarchyItems = await request("textDocument/prepareCallHierarchy", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                     }, isAt ? 0.3 : 0.0002);
 
                     if (callHierarchyItems && callHierarchyItems.length > 0) {
@@ -413,7 +537,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Code action for refactors (equivalent to getApplicableRefactors)
                     const refactorActions = await request("textDocument/codeAction", {
                         textDocument: { uri: openFileUri },
-                        range: { start: { line, character }, end: { line, character } },
+                        range: { start: { line, character: serverCharacter }, end: { line, character: serverCharacter } },
                         context: {
                             diagnostics: [],
                             only: [protocol.CodeActionKind.Refactor],
@@ -423,20 +547,20 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Rename (equivalent to rename)
                     await request("textDocument/rename", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         newName: "renamedSymbol",
                     }, isAt ? 0.2 : 0.0002);
 
                     // Selection range (equivalent to selectionRange)
                     await request("textDocument/selectionRange", {
                         textDocument: { uri: openFileUri },
-                        positions: [{ line, character }],
+                        positions: [{ line, character: serverCharacter }],
                     }, isAt ? 0.3 : 0.0003);
 
                     // Range formatting (equivalent to format with range)
                     await request("textDocument/rangeFormatting", {
                         textDocument: { uri: openFileUri },
-                        range: { start: { line, character: 0 }, end: { line: line + 10, character: 0 } },
+                        range: { start: { line, character: 0 }, end: { line: Math.min(line + 10, totalLines - 1), character: 0 } },
                         options: {
                             tabSize: prng.intBetween(1, 4),
                             insertSpaces: prng.random() < 0.5,
@@ -446,7 +570,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         context: {
                             triggerKind: protocol.CompletionTriggerKind.Invoked,
                         },
@@ -465,7 +589,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     if (triggerCharIndex >= 0 && /\w/.test(prev)) {
                         await request("textDocument/completion", {
                             textDocument: { uri: openFileUri },
-                            position: { line, character },
+                            position: { line, character: serverCharacter },
                             context: {
                                 triggerKind: protocol.CompletionTriggerKind.TriggerCharacter,
                                 triggerCharacter: triggerChars[triggerCharIndex],
@@ -479,7 +603,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                     // Signature help (equivalent to signatureHelp)
                     await request("textDocument/signatureHelp", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         context: {
                             triggerCharacter: currisSignatureHelpTrigger ? curr : undefined,
                             triggerKind: currisSignatureHelpTrigger ? protocol.SignatureHelpTriggerKind.TriggerCharacter : protocol.SignatureHelpTriggerKind.Invoked,
@@ -492,7 +616,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 if (curr === ";" || curr === "}") {
                     await request("textDocument/onTypeFormatting", {
                         textDocument: { uri: openFileUri },
-                        position: { line, character },
+                        position: { line, character: serverCharacter },
                         ch: curr,
                         options: {
                             tabSize: 4,
@@ -513,8 +637,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             contentChanges: [
                                 {
                                     range: {
-                                        start: { line, character },
-                                        end: { line, character },
+                                        start: { line, character: serverCharacter },
+                                        end: { line, character: serverCharacter },
                                     },
                                     text: " //comment",
                                 },
@@ -524,6 +648,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
                     line++;
                     character = 0;
+                    characterDelta = 0;
                     if (curr === "\r" && next === "\n") {
                         i++;
                     }
