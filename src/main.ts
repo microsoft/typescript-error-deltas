@@ -1305,6 +1305,8 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
 
 async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
     const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
+    console.log(`Building in ${repoName}`);
+
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });
 
     const repoPath = path.join(cwd, repoName);
@@ -1320,6 +1322,7 @@ async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number,
 
 async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
     await execAsync(repoPath, "npm ci");
+    console.log(`Building in ${repoPath}`);
 
     if (repoPath.includes("typescript-go")) {
         await execAsync(repoPath, "npx hereby build");
