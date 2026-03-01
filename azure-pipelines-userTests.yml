@@ -113,6 +113,11 @@ jobs:
     inputs:
       version: '20.x'
     displayName: 'Install Node.js'
+  - task: GoTool@0
+    inputs:
+      version: '1.26'
+    displayName: 'Install Go'
+    condition: contains('${{ parameters.OLD_TS_REPO_URL }}', 'microsoft/typescript-go')
   - script: |
       df -h
       df -h -i

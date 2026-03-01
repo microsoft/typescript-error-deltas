@@ -1292,7 +1292,7 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
 }
 
 export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
-    const repoName = `typescript-${headRef}`;
+    const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${headRef}` : `typescript-${headRef}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
     const repoPath = path.join(cwd, repoName);
@@ -1304,7 +1304,7 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
 }
 
 async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
-    const repoName = `typescript-${prNumber}`;
+    const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });
 
     const repoPath = path.join(cwd, repoName);
@@ -1320,15 +1320,22 @@ async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number,
 
 async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
     await execAsync(repoPath, "npm ci");
-    await execAsync(repoPath, `npx gulp ${entrypoint}`);
 
-    if (entrypoint === "tsc") {
-        // We build the LKG for the benefit of scenarios that want to install it as an npm package
-        await execAsync(repoPath, "npx gulp configure-insiders");
-        await execAsync(repoPath, "npx gulp LKG");
+    if (repoPath.includes("typescript-go")) {
+        await execAsync(repoPath, "npx hereby build");
+        return path.join(repoPath, "built", "local", "tsgo");
     }
+    else {
+        await execAsync(repoPath, `npx gulp ${entrypoint}`);
 
-    return path.join(repoPath, "built", "local", `${entrypoint}.js`);
+        if (entrypoint === "tsc") {
+            // We build the LKG for the benefit of scenarios that want to install it as an npm package
+            await execAsync(repoPath, "npx gulp configure-insiders");
+            await execAsync(repoPath, "npx gulp LKG");
+        }
+
+        return path.join(repoPath, "built", "local", `${entrypoint}.js`);
+    }
 }
 
 async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {

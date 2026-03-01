@@ -111,8 +111,12 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
     for (const { path: projectPath, isComposite } of projectsToBuild) {
         const elapsedMs = performance.now() - startMs;
 
-        const args = ["--max-old-space-size=3072", tscPath, ...(isComposite ? compositeBuildArgs : simpleBuildArgs), path.basename(projectPath)];
-        const spawnResult = await spawnWithTimeoutAsync(path.dirname(projectPath), nodePath, args, timeoutMs - elapsedMs);
+        const isNativeBinary = !tscPath.endsWith(".js");
+        const spawnCommand = isNativeBinary ? tscPath : nodePath;
+        const args = isNativeBinary
+            ? [...(isComposite ? compositeBuildArgs : simpleBuildArgs), path.basename(projectPath)]
+            : ["--max-old-space-size=3072", tscPath, ...(isComposite ? compositeBuildArgs : simpleBuildArgs), path.basename(projectPath)];
+        const spawnResult = await spawnWithTimeoutAsync(path.dirname(projectPath), spawnCommand, args, timeoutMs - elapsedMs);
         if (!spawnResult) {
             throw new Error(`Building ${projectPath} timed out after ${Math.round(timeoutMs - elapsedMs)} ms (of ${timeoutMs} ms for repo)`);
         }
