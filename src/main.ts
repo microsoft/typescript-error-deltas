@@ -1256,6 +1256,7 @@ function makeMarkdownLink(url: string) {
 async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
     const entrypoint = params.entrypoint;
     if (params.testType === "user") {
+        console.log("runing user test, downloading TS from repo");
         // TODO user tests for lsp
         if (params.entrypoint === "lsp") {
             throw new Error("Not implemented");
@@ -1292,6 +1293,7 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
 }
 
 export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+    console.log(`Cloning ${repoUrl} at ref ${headRef}`);
     const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${headRef}` : `typescript-${headRef}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
@@ -1304,6 +1306,8 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
 }
 
 async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+    console.log(`Cloning ${repoUrl} at pull ${prNumber}`);
+
     const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
     console.log(`Building in ${repoName}`);
 
