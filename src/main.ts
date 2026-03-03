@@ -1256,7 +1256,7 @@ function makeMarkdownLink(url: string) {
 async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
     const entrypoint = params.entrypoint;
     if (params.testType === "user") {
-        console.log("runing user test, downloading TS from repo");
+        console.log("running user test, downloading TS from repo");
         // TODO user tests for lsp
         if (params.entrypoint === "lsp") {
             throw new Error("Not implemented");
@@ -1329,6 +1329,9 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
     console.log(`Building in ${repoPath}`);
 
     if (repoPath.includes("typescript-go")) {
+        if (entrypoint !== "tsc") {
+            throw new Error(`TsEntrypoint '${entrypoint}' is not supported for typescript-go repositories; only 'tsc' is supported.`);
+        }
         await execAsync(repoPath, "npx hereby build");
         return path.join(repoPath, "built", "local", "tsgo");
     }

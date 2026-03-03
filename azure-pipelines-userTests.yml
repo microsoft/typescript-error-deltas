@@ -117,7 +117,7 @@ jobs:
     inputs:
       version: '1.26'
     displayName: 'Install Go'
-    condition: contains('${{ parameters.OLD_TS_REPO_URL }}', 'microsoft/typescript-go')
+    condition: contains('${{ parameters.OLD_TS_REPO_URL }}', 'typescript-go')
   - script: |
       df -h
       df -h -i
