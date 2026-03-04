@@ -1257,7 +1257,6 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
     const entrypoint = params.entrypoint;
     if (params.testType === "user") {
         console.log("running user test, downloading TS from repo");
-        // TODO user tests for lsp
         if (params.entrypoint === "lsp") {
             throw new Error("Not implemented");
         }
@@ -1277,7 +1276,9 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
             { tsEntrypointPath: undefined, resolvedVersion: undefined } :
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = params.entrypoint === "lsp" ?
-            await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
+            params.newTsNpmVersion === "main" ?
+                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint) :
+                await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
             await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
 
         return {
@@ -1329,10 +1330,10 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
     console.log(`Building in ${repoPath}`);
 
     if (repoPath.includes("typescript-go")) {
-        if (entrypoint !== "tsc") {
-            throw new Error(`TsEntrypoint '${entrypoint}' is not supported for typescript-go repositories; only 'tsc' is supported.`);
+        if (entrypoint !== "tsc" && entrypoint !== "lsp") {
+            throw new Error(`TsEntrypoint '${entrypoint}' is not supported for typescript-go repositories.`);
         }
-        await execAsync(repoPath, "npx hereby build");
+        await execAsync(repoPath, `npx hereby build ${entrypoint === "lsp" ? "--assert" : ""}`);
         return path.join(repoPath, "built", "local", "tsgo");
     }
     else {
