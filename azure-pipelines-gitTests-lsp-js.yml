@@ -19,5 +19,5 @@ extends:
   parameters:
     ENTRYPOINT: lsp
     OLD_VERSION: '0'
-    NEW_VERSION: latest
+    NEW_VERSION: main
     LANGUAGE: JavaScript

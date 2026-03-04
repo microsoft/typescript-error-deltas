@@ -79,6 +79,10 @@ jobs:
     inputs:
       version: '22.x'
     displayName: 'Install Node.js'
+  - task: GoTool@0
+    inputs:
+      version: '1.26'
+    displayName: 'Install Go'
   - script: |
       df -h
       df -h -i
