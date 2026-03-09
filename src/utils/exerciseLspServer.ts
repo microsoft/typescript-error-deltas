@@ -82,7 +82,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
     const serverArgs: string[] = ["--lsp", "--stdio"];
 
-    replayScriptHandle.write(JSON.stringify({
+    await replayScriptHandle.write(JSON.stringify({
         rootDirUriPlaceholder: testDirUriPlaceholder,
         rootDirPlaceholder: testDirPlaceholder,
         serverArgs,

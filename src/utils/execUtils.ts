@@ -1,5 +1,22 @@
 import cp = require("child_process");
-import path = require("path");
+import { constants } from "buffer";
+
+const MAX_LENGTH = constants.MAX_STRING_LENGTH;
+const TRUNCATION_MESSAGE = "\n...truncated...\n";
+
+function cappedAppend(current: string, data: string): string {
+    if (current.length + data.length <= MAX_LENGTH) {
+        return current + data;
+    }
+    // Truncate before appending to avoid exceeding the limit.
+    // Preserve the tail of the output.
+    const hasTruncationMessage = current.startsWith(TRUNCATION_MESSAGE);
+    const available = hasTruncationMessage ? MAX_LENGTH : MAX_LENGTH - TRUNCATION_MESSAGE.length;
+    const tail = data.length >= available
+        ? data.slice(data.length - available)
+        : current.slice(current.length - (available - data.length)) + data;
+    return hasTruncationMessage ? tail : TRUNCATION_MESSAGE + tail;
+}
 
 export async function execAsync(cwd: string, command: string): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -57,11 +74,11 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
         });
 
         childProcess.stdout.on("data", data => {
-            stdout += data;
+            stdout = cappedAppend(stdout, data);
         });
 
         childProcess.stderr.on("data", data => {
-            stderr += data;
+            stderr = cappedAppend(stderr, data);
         });
 
         const timeout = setTimeout(async () => {
