@@ -1,6 +1,6 @@
 schedules:
-  - cron: "0 19 * * Sun" # time is in UTC
-    displayName: Sunday overnight run
+  - cron: "0 19 * * Fri" # time is in UTC
+    displayName: Friday overnight run
     always: true
     branches:
       include:
@@ -21,3 +21,4 @@ extends:
     OLD_VERSION: '0'
     NEW_VERSION: main
     LANGUAGE: TypeScript
+    DIAGNOSTIC_OUTPUT: true

@@ -9,6 +9,7 @@ export interface ServerOptions {
 }
 
 export interface LanguageServer {
+    readonly pid: number;
     sendRequest: <K extends keyof RequestToParams>(method: K, params: RequestToParams[K]) => Promise<MessageResponseType[K]>;
     sendRequestUntyped: (method: string, params: object) => Promise<unknown>;
     sendNotification: <K extends keyof NotificationToParams>(method: K, params: NotificationToParams[K]) => Promise<void>;
@@ -43,6 +44,7 @@ export function startServer(serverPath: string, options: ServerOptions = {}, oth
     connection.listen();
 
     return {
+        pid: serverProc.pid!,
         sendRequest,
         sendRequestUntyped,
         sendNotification,

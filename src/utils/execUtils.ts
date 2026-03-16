@@ -1,4 +1,5 @@
 import cp = require("child_process");
+import fs = require("fs");
 import { constants } from "buffer";
 
 const MAX_LENGTH = constants.MAX_STRING_LENGTH;
@@ -144,4 +145,15 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
             // Resolve when we detect that childProcess has closed (above)
         });
     });
+}
+
+export async function getProcessRssKb(pid: number): Promise<number | undefined> {
+    try {
+        const status = await fs.promises.readFile(`/proc/${pid}/status`, { encoding: "utf-8" });
+        const match = /^VmRSS:\s+(\d+)\s+kB$/m.exec(status);
+        return match ? parseInt(match[1], 10) : undefined;
+    }
+    catch {
+        return undefined;
+    }
 }

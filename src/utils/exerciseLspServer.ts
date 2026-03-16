@@ -7,6 +7,7 @@ import randomSeed from "random-seed";
 import { pathToFileURL } from "url";
 import * as protocol from "vscode-languageserver-protocol";
 import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
+import { getProcessRssKb } from "./execUtils";
 import * as lsp from "./lspHarness";
 
 const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
@@ -14,34 +15,41 @@ const testDirPlaceholder = "@PROJECT_ROOT@";
 
 const argv = process.argv;
 
-if (argv.length !== 7) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <server_path> <diagnostic_output> <prng_seed>`);
+if (argv.length !== 8) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <project_dir> <requests_path> <server_path> <diagnostic_output> <prng_seed> <stats_output>`);
     process.exit(EXIT_BAD_ARGS);
 }
 
 // CONVENTION: stderr is for output to the log; stdout is for output to the user
 
-const [, , testDir, replayScriptPath, lspServerPath, diag, seed] = argv;
+const [, , testDir, replayScriptPath, lspServerPath, diag, seed, statsOutputPath] = argv;
 const diagnosticOutput = diag.toLocaleLowerCase() === "true";
 const prng = randomSeed.create(seed);
 
-exerciseLspServer(testDir, replayScriptPath, lspServerPath).catch(e => {
+exerciseLspServer(testDir, replayScriptPath, lspServerPath, statsOutputPath).catch(e => {
     console.error(e);
     process.exit(EXIT_UNHANDLED_EXCEPTION);
 });
 
-export async function exerciseLspServer(testDir: string, replayScriptPath: string, lspServerPath: string): Promise<void> {
+export interface LspRequestStats {
+    successCount: number;
+    failCount: number;
+}
+
+export async function exerciseLspServer(testDir: string, replayScriptPath: string, lspServerPath: string, statsOutputPath: string): Promise<void> {
     const requestTimes: Record<string, number> = {};
     const requestCounts: Record<string, number> = {};
+    const requestStats: LspRequestStats = { successCount: 0, failCount: 0 };
     const start = performance.now();
 
     const oldCwd = process.cwd();
     const replayScriptHandle = await fs.promises.open(replayScriptPath, "w");
     try {
-        await exerciseLspServerWorker(testDir, lspServerPath, replayScriptHandle, requestTimes, requestCounts);
+        await exerciseLspServerWorker(testDir, lspServerPath, replayScriptHandle, requestTimes, requestCounts, requestStats);
     }
     finally {
         await replayScriptHandle.close();
+        await fs.promises.writeFile(statsOutputPath, JSON.stringify(requestStats), { encoding: "utf-8" });
 
         process.chdir(oldCwd);
 
@@ -77,7 +85,7 @@ function getLanguageId(filePath: string): string {
     }
 }
 
-async function exerciseLspServerWorker(testDir: string, lspServerPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
+async function exerciseLspServerWorker(testDir: string, lspServerPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>, requestStats: LspRequestStats): Promise<void> {
     const files = await glob.glob("**/*.@(ts|tsx|mts|cts|js|jsx|mjs|cjs)", { cwd: testDir, absolute: true, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
 
     const serverArgs: string[] = ["--lsp", "--stdio"];
@@ -98,6 +106,21 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     const server = lsp.startServer(lspServerPath, {
         args: serverArgs,
     }, { traceOutput: diagnosticOutput });
+
+    // Periodically log memory usage of the LSP server process and the harness process
+    const memoryLogInterval = diagnosticOutput ? setInterval(async () => {
+        const serverRssKb = await getProcessRssKb(server.pid);
+        if (serverRssKb !== undefined) {
+            const rssMb = Math.round(serverRssKb / 1024);
+            console.error(`LSP server memory (pid ${server.pid}): ${rssMb} MB`);
+        }
+        const harnessRssKb = await getProcessRssKb(process.pid);
+        if (harnessRssKb !== undefined) {
+            const rssMb = Math.round(harnessRssKb / 1024);
+            console.error(`Harness memory (pid ${process.pid}): ${rssMb} MB`);
+        }
+    }, 30_000) : undefined;
+    memoryLogInterval?.unref();
 
     server.handleAnyRequest(async (...args) => {
         console.error("Server sent request:", ...args);
@@ -689,6 +712,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
     await server.kill();
 
+    clearInterval(memoryLogInterval);
+
     async function request<K extends keyof lsp.RequestToParams>(
         method: K,
         params: lsp.RequestToParams[K],
@@ -706,11 +731,13 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             const end = performance.now();
             requestTimes[method] = (requestTimes[method] ?? 0) + (end - start);
             requestCounts[method] = (requestCounts[method] ?? 0) + 1;
+            requestStats.successCount++;
             return response;
         } catch (e: any) {
             const end = performance.now();
             requestTimes[method] = (requestTimes[method] ?? 0) + (end - start);
             requestCounts[method] = (requestCounts[method] ?? 0) + 1;
+            requestStats.failCount++;
 
             const errorMessage = lastErrorLogMessage || e.message || "Unknown error";
             if (diagnosticOutput) {

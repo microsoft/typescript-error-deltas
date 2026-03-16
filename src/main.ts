@@ -2,7 +2,8 @@ import exercise = require("./utils/exerciseServerConstants");
 import ge = require("./utils/getTscErrors");
 import pu = require("./utils/packageUtils");
 import git = require("./utils/gitUtils");
-import { execAsync, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
+import { execAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
+import type { LspRequestStats } from "./utils/exerciseLspServer";
 import ip = require("./utils/installPackages");
 import ut = require("./utils/userTestUtils");
 import fs = require("fs");
@@ -116,6 +117,7 @@ interface RepoResult {
     readonly tsServerResult?: TSServerResult;
     readonly replayScriptPath?: string;
     readonly rawErrorPath?: string;
+    readonly lspStats?: LspRequestStats;
 }
 
 function logStepTime(diagnosticOutput: boolean, repo: git.Repo, step: string, start: number): void {
@@ -382,14 +384,26 @@ export async function getLSPResult(
     const rawErrorName = path.basename(rawErrorArtifactPath);
     const rawErrorPath = path.join(downloadDir.path, rawErrorName);
 
+    const statsName = `${prng.string(8)}.lspStats.json`;
+    const statsPath = path.join(downloadDir.path, statsName);
+
     const lsStart = performance.now();
+    // Periodically log memory usage of the main fuzzer process
+    const mainMemoryInterval = diagnosticOutput ? setInterval(async () => {
+        const rssKb = await getProcessRssKb(process.pid);
+        if (rssKb !== undefined) {
+            const rssMb = Math.round(rssKb / 1024);
+            console.error(`Main process memory (pid ${process.pid}): ${rssMb} MB`);
+        }
+    }, 30_000) : undefined;
+    mainMemoryInterval?.unref();
     try {
         console.log(`Testing LSP server with ${lspServerPath}`);
-        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10), statsPath], executionTimeout);
 
         if (!spawnResult) {
             console.log(`LSP server timed out after ${executionTimeout} ms`);
-            return { status: "Timeout" };
+            return { status: "Timeout", lspStats: await tryReadLspStats(statsPath) };
         }
 
         if (diagnosticOutput) {
@@ -402,11 +416,11 @@ export async function getLSPResult(
             case null:
                 if (spawnResult.signal !== null) {
                     console.log(`Exited with signal ${spawnResult.signal}`);
-                    return { status: "Unknown failure" };
+                    return { status: "Unknown failure", lspStats: await tryReadLspStats(statsPath) };
                 }
 
                 console.log("No crashes found");
-                return { status: "Detected no interesting changes" };
+                return { status: "Detected no interesting changes", lspStats: await tryReadLspStats(statsPath) };
             case exercise.EXIT_SERVER_CRASH:
             case exercise.EXIT_SERVER_ERROR:
             case exercise.EXIT_SERVER_EXIT_FAILED:
@@ -419,13 +433,14 @@ export async function getLSPResult(
                 if (!diagnosticOutput) {
                     dumpSpawnResult(spawnResult);
                 }
-                return { status: "Unknown failure" };
+                return { status: "Unknown failure", lspStats: await tryReadLspStats(statsPath) };
         }
 
         // Server crashed - report the error
         console.log(`Crash found in ${lspServerPath}:`);
-        console.log(insetLines(prettyPrintLspHarnessOutput(spawnResult.stdout, /*filter*/ false)));
-        await fs.promises.writeFile(rawErrorPath, prettyPrintLspHarnessOutput(spawnResult.stdout, /*filter*/ false));
+        const harnessOutput = prettyPrintLspHarnessOutput(spawnResult.stdout, /*filter*/ false);
+        console.log(insetLines(harnessOutput));
+        await fs.promises.writeFile(rawErrorPath, harnessOutput);
 
         const tsServerResult: TSServerResult = {
             oldServerFailed: false,
@@ -436,13 +451,14 @@ export async function getLSPResult(
             installCommands,
         };
 
-        return { status: "Detected interesting changes", tsServerResult, replayScriptPath, rawErrorPath };
+        return { status: "Detected interesting changes", tsServerResult, replayScriptPath, rawErrorPath, lspStats: await tryReadLspStats(statsPath) };
     }
     catch (err) {
         reportError(err, `Error running LSP server on ${repo.url ?? repo.name}`);
-        return { status: "Unknown failure" };
+        return { status: "Unknown failure", lspStats: await tryReadLspStats(statsPath) };
     }
     finally {
+        clearInterval(mainMemoryInterval);
         console.log(`Done ${repo.url ?? repo.name}`);
         logStepTime(diagnosticOutput, repo, "language service", lsStart);
     }
@@ -875,8 +891,19 @@ export const metadataFileName = "metadata.json";
 export const resultFileNameSuffix = "results.txt";
 export const replayScriptFileNameSuffix = "replay.txt";
 export const rawErrorFileNameSuffix = "rawError.txt";
+export const lspStatsFileName = "lspRequestStats.json";
 export const artifactFolderUrlPlaceholder = "PLACEHOLDER_ARTIFACT_FOLDER";
 export const getArtifactsApiUrlPlaceholder = "PLACEHOLDER_GETARTIFACTS_API";
+
+async function tryReadLspStats(statsPath: string): Promise<LspRequestStats | undefined> {
+    try {
+        const content = await fs.promises.readFile(statsPath, { encoding: "utf-8" });
+        return JSON.parse(content) as LspRequestStats;
+    }
+    catch {
+        return undefined;
+    }
+}
 
 export type StatusCounts = {
     [P in RepoStatus]?: number
@@ -886,6 +913,7 @@ export interface Metadata {
     readonly newTsResolvedVersion: string;
     readonly oldTsResolvedVersion: string;
     readonly statusCounts: StatusCounts;
+    readonly lspRequestStats?: LspRequestStats;
 }
 
 function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, workerNumber: number): git.Repo[] {
@@ -934,11 +962,12 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
     var summaries: Summary[] = [];
 
+    const aggregateLspStats: LspRequestStats = { successCount: 0, failCount: 0 };
+    const diagnosticOutput = !!params.diagnosticOutput;
+
     let i = 1;
     for (const repo of repos) {
         console.log(`Starting #${i++} / ${repos.length}: ${repo.url ?? repo.name}`);
-
-        const diagnosticOutput = !!params.diagnosticOutput;
 
         await using downloadDir = await createFs(downloadDirPath, diagnosticOutput);
 
@@ -965,9 +994,14 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
             default:
                 throw new Error(`Unknown entrypoint: ${params.entrypoint}`);
         }
-        const { status, summary, tsServerResult: tsServerResult, replayScriptPath, rawErrorPath } = repoResult;
+        const { status, summary, tsServerResult: tsServerResult, replayScriptPath, rawErrorPath, lspStats } = repoResult;
         console.log(`Repo ${repo.url ?? repo.name} had status "${status}"`);
         statusCounts[status] = (statusCounts[status] ?? 0) + 1;
+
+        if (lspStats) {
+            aggregateLspStats.successCount += lspStats.successCount;
+            aggregateLspStats.failCount += lspStats.failCount;
+        }
 
         if (summary) {
             const resultFileName = `${repoPrefix}.${resultFileNameSuffix}`;
@@ -1046,6 +1080,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         newTsResolvedVersion: newTsResolvedVersion,
         oldTsResolvedVersion: oldTsResolvedVersion || "",
         statusCounts,
+        lspRequestStats: aggregateLspStats,
     };
     await fs.promises.writeFile(path.join(resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
 }
