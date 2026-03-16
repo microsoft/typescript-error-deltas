@@ -1080,7 +1080,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         newTsResolvedVersion: newTsResolvedVersion,
         oldTsResolvedVersion: oldTsResolvedVersion || "",
         statusCounts,
-        lspRequestStats: aggregateLspStats,
+        lspRequestStats: params.entrypoint === "lsp" ? aggregateLspStats : undefined,
     };
     await fs.promises.writeFile(path.join(resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
 }
