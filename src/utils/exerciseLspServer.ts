@@ -592,10 +592,12 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         },
                     }, isAt ? 0.3 : 0.0003);
 
-                    await request("textDocument/linkedEditingRange", {
-                        textDocument: { uri: openFileUri },
-                        position: { line, character: serverCharacter },
-                    }, isJsx ? 0.005 : 0.0001);
+                    if (isJsx) {
+                        await request("textDocument/linkedEditingRange", {
+                            textDocument: { uri: openFileUri },
+                            position: { line, character: serverCharacter },
+                        }, 0.001);
+                    }
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
