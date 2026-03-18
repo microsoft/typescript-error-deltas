@@ -376,6 +376,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 }, 0.5);
             }
 
+            const isJsx = languageId === "typescriptreact" || languageId === "javascriptreact";
+
             const standardProb = 0.001;
             for (let i = 0; i < openFileContents.length; i++) {
                 const curr = openFileContents[i];
@@ -589,6 +591,11 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                             insertSpaces: prng.random() < 0.5,
                         },
                     }, isAt ? 0.3 : 0.0003);
+
+                    await request("textDocument/linkedEditingRange", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character: serverCharacter },
+                    }, isJsx ? 0.005 : 0.0001);
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
