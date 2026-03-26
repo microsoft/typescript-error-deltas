@@ -54,11 +54,11 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch checkGithubRepos",
+            "name": "Launch checkReposScheduled",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/dist/checkGithubRepos.js",
+            "program": "${workspaceFolder}/dist/checkReposScheduled.js",
             "sourceMaps": true,
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
@@ -79,11 +79,11 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch checkUserTestRepos",
+            "name": "Launch checkReposTriggered",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/dist/checkUserTestRepos.js",
+            "program": "${workspaceFolder}/dist/checkReposTriggered.js",
             "sourceMaps": true,
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
@@ -125,14 +125,14 @@
                 "false"
             ]
         },
-         {
+        {
             "type": "node",
             "request": "launch",
-            "name": "Launch LSP checkGithubRepos",
+            "name": "Launch LSP checkReposScheduled",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/dist/checkGithubRepos.js",
+            "program": "${workspaceFolder}/dist/checkReposScheduled.js",
             "sourceMaps": true,
             "outFiles": [
                 "${workspaceFolder}/dist/**/*.js"
@@ -141,6 +141,34 @@
                 "lsp",
                 "0",
                 "latest",
+                "./artifacts/repos.json",
+                "1",
+                "1",
+                "RepoResults",
+                "true",
+                "n/a",
+                "false"
+            ],
+            "preLaunchTask": "npm: build"
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Go checkReposTriggered",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/dist/checkReposTriggered.js",
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
+            "args": [
+                "tsserver",
+                "https://github.com/microsoft/typescript-go.git",
+                "main",
+                "3176",
+                "false",
                 "./artifacts/repos.json",
                 "1",
                 "1",

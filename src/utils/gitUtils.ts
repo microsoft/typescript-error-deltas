@@ -24,7 +24,7 @@ function getRepoProperties(entrypoint: TsEntrypoint) {
                 owner: "microsoft",
                 repo: "typescript",
             };
-        case "lsp":
+        case "fuzzer":
             return {
                 owner: "microsoft",
                 repo: "typescript-go",

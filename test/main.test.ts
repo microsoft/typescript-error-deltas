@@ -139,7 +139,7 @@ describe("main", () => {
         else if (actualFs.existsSync("./testDownloads/main/typescript-test-fake-error")) {
             execSync("cd ./testDownloads/main/typescript-test-fake-error && git restore . && cd ..")
         }
-        await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc')
+        await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc', false)
     });
 
     it("outputs server errors", async () => {
@@ -154,7 +154,7 @@ describe("main", () => {
         });
 
         await mainAsync({
-            testType: "github",
+            testType: "scheduled",
             tmpfs: false,
             entrypoint: 'tsserver',
             diagnosticOutput: false,
@@ -166,6 +166,7 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
+            isGo: false,
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
@@ -198,7 +199,7 @@ describe("main", () => {
         };
 
         await mainAsync({
-            testType: "github",
+            testType: "scheduled",
             tmpfs: false,
             entrypoint: 'tsserver',
             diagnosticOutput: false,
@@ -210,6 +211,7 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
+            isGo: false
         });
 
         // Remove all references to the base path so that snapshot pass successfully.

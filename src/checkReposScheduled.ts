@@ -11,7 +11,7 @@ if (argv.length < 11) {
 const [,, entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, tmpfs] = argv;
 
 mainAsync({
-    testType: "github",
+    testType: "scheduled",
     tmpfs: tmpfs && tmpfs.toLowerCase() === "false" ? false : true,
     entrypoint: entrypoint as TsEntrypoint,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
@@ -23,6 +23,7 @@ mainAsync({
     newTsNpmVersion,
     resultDirName,
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
+    isGo: true,
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

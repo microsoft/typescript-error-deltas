@@ -45,14 +45,14 @@ for (const path of metadataFilePaths) {
 }
 
 
-const title = `${entrypoint === "tsserver" || entrypoint === "lsp" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
+const title = `${entrypoint === "tsserver" || entrypoint === "fuzzer" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
 
 const description = entrypoint === "tsserver"
     ? `The following errors were reported by ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`
-    : entrypoint == "lsp"
+    : entrypoint == "fuzzer"
         ? `The following errors were reported by ${newTscResolvedVersion}`
         : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
-const pipelineUri = entrypoint === "lsp" ?
+const pipelineUri = entrypoint === "fuzzer" ?
     "https://dev.azure.com/typescript/TypeScript/_build?definitionId=75" :
     "https://typescript.visualstudio.com/TypeScript/_build?definitionId=48";
 let header = `${description}
@@ -80,7 +80,7 @@ const outputs = resultPaths.map(p =>
 
 // tsserver groups results by error, causing the summary to not make sense. Remove the list for now.
 // See issue: https://github.com/microsoft/typescript-error-deltas/issues/114
-if (entrypoint !== "tsserver" && entrypoint !== "lsp") {
+if (entrypoint !== "tsserver" && entrypoint !== "fuzzer") {
     header += `
 ## Investigation Status
 | Repo | Errors | Outcome |

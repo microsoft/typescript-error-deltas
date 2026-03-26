@@ -1,6 +1,7 @@
 import * as cp from "child_process";
 import * as rpc from "vscode-jsonrpc/node";
 import * as protocol from "vscode-languageserver-protocol";
+import { pathToFileURL } from "url";
 
 export interface ServerOptions {
     args?: string[];
@@ -13,6 +14,7 @@ export interface LanguageServer {
     sendRequest: <K extends keyof RequestToParams>(method: K, params: RequestToParams[K]) => Promise<MessageResponseType[K]>;
     sendRequestUntyped: (method: string, params: object) => Promise<unknown>;
     sendNotification: <K extends keyof NotificationToParams>(method: K, params: NotificationToParams[K]) => Promise<void>;
+    sendNotificationUntyped: (method: string, params: unknown) => Promise<void>;
 
     handleRequest: <K extends keyof RequestToParams>(method: K, handler: (params: RequestToParams[K]) => Promise<MessageResponseType[K]>) => void;
     handleAnyRequest: (handler: (...args: any[]) => Promise<any>) => void;
@@ -48,6 +50,7 @@ export function startServer(serverPath: string, options: ServerOptions = {}, oth
         sendRequest,
         sendRequestUntyped,
         sendNotification,
+        sendNotificationUntyped,
         handleRequest,
         handleAnyRequest,
         handleNotification,
@@ -58,14 +61,24 @@ export function startServer(serverPath: string, options: ServerOptions = {}, oth
     };
 
     function sendRequest<K extends keyof RequestToParams>(method: K, params: RequestToParams[K]): Promise<MessageResponseType[K]> {
-        return connection.sendRequest(method, params);
+        return sendRequestUntyped(method, params) as Promise<MessageResponseType[K]>;
     }
 
-    function sendRequestUntyped(method: string, params: object): Promise<unknown> {
+    function sendRequestUntyped(method: string, params: unknown): Promise<unknown> {
+        if (params === undefined) {
+            return connection.sendRequest(method);
+        }
         return connection.sendRequest(method, params);
     }
 
     function sendNotification<K extends keyof NotificationToParams>(method: K, params: NotificationToParams[K]): Promise<void> {
+        return sendNotificationUntyped(method, params);
+    }
+
+    function sendNotificationUntyped(method: string, params: unknown): Promise<void> {
+        if (params === undefined) {
+            return connection.sendNotification(method);
+        }
         return connection.sendNotification(method, params);
     }
 
@@ -203,4 +216,8 @@ export interface NotificationToParams {
     [protocol.WillSaveTextDocumentNotification.method]: protocol.WillSaveTextDocumentParams;
     [protocol.DidChangeWatchedFilesNotification.method]: protocol.DidChangeWatchedFilesParams;
     [protocol.PublishDiagnosticsNotification.method]: protocol.PublishDiagnosticsParams;
+}
+
+export function filePathToUri(filePath: string): string {
+    return pathToFileURL(filePath).toString();
 }
