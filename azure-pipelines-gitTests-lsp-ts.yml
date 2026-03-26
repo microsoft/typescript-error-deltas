@@ -22,3 +22,4 @@ extends:
     NEW_VERSION: main
     LANGUAGE: TypeScript
     DIAGNOSTIC_OUTPUT: true
+    REPO_IS_TSGO: true

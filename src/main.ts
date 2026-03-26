@@ -1402,7 +1402,7 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
     console.log(`Building in ${repoPath}`);
 
     if (repoPath.includes("typescript-go")) {
-        await execAsync(repoPath, `npx hereby build ${entrypoint === "fuzzer" ? "--assert" : ""}`);
+        await execAsync(repoPath, `npx hereby build`);
         return path.join(repoPath, "built", "local", "tsgo");
     }
     else {

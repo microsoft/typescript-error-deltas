@@ -16,20 +16,17 @@ export interface Repo {
     branch?: string;
 }
 
-function getRepoProperties(entrypoint: TsEntrypoint) {
-    switch (entrypoint) {
-        case "tsserver":
-        case "tsc":
-            return {
-                owner: "microsoft",
-                repo: "typescript",
-            };
-        case "fuzzer":
-            return {
-                owner: "microsoft",
-                repo: "typescript-go",
-            };
+function getRepoProperties(isGoRepo: boolean) {
+    if (isGoRepo) {
+        return {
+            owner: "microsoft",
+            repo: "typescript-go",
+        };
     }
+    return {
+        owner: "microsoft",
+        repo: "typescript",
+    };
 }
 
 export async function getPopularRepos(language = "TypeScript", count = 100, repoStartIndex = 0, skipRepos?: string[], cachePath?: string): Promise<readonly Repo[]> {
@@ -117,8 +114,8 @@ type Result = {
 export type GitResult = Result & { kind: 'git', title: string }
 export type UserResult = Result & { kind: 'user', issue_number: number }
 
-export async function createIssue(entrypoint: TsEntrypoint, postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
-    const repoProperties = getRepoProperties(entrypoint);
+export async function createIssue(isGoRepo: boolean, postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
+    const repoProperties = getRepoProperties(isGoRepo);
     const issue = {
         ...repoProperties,
         title,
@@ -171,8 +168,8 @@ export async function createIssue(entrypoint: TsEntrypoint, postResult: boolean,
     }
 }
 
-export async function createComment(entrypoint: TsEntrypoint, prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
-    const repoProperties = getRepoProperties(entrypoint);
+export async function createComment(isGoRepo: boolean, prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
+    const repoProperties = getRepoProperties(isGoRepo);
     const newComments = bodyChunks.map(body => ({
         ...repoProperties,
         issue_number: prNumber,
@@ -213,8 +210,7 @@ export async function createComment(entrypoint: TsEntrypoint, prNumber: number, 
         // Get status comment contents
         const statusCommentResp = await kit.issues.getComment({
             comment_id: statusComment,
-            owner: "Microsoft",
-            repo: "TypeScript",
+            ...repoProperties,
         });
 
         const oldComment = statusCommentResp.data.body;
@@ -231,9 +227,8 @@ export async function createComment(entrypoint: TsEntrypoint, prNumber: number, 
         // Update status comment
         await kit.issues.updateComment({
             comment_id: statusComment,
-            owner: "Microsoft",
-            repo: "TypeScript",
             body: newComment,
+            ...repoProperties,
         });
 
         // Repeat; someone may have edited the comment at the same time.

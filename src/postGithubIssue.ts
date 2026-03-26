@@ -6,14 +6,15 @@ import pu = require("./utils/packageUtils");
 
 const { argv } = process;
 
-if (argv.length !== 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result> <get_artifacts_api>`);
+if (argv.length !== 12) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result> <get_artifacts_api> <is_go_repo>`);
     process.exit(-1);
 }
 
-const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi] = argv;
+const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi, isGoStr] = argv;
 const postResult = post.toLowerCase() === "true";
 const entrypoint = ep as TsEntrypoint;
+const isGoRepo = isGoStr.toLowerCase() === "true";
 
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
 
@@ -108,4 +109,4 @@ if (entrypoint !== "tsserver" && entrypoint !== "fuzzer") {
 
 
 const bodyChunks = [header, ...outputs];
-git.createIssue(entrypoint, postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);
+git.createIssue(isGoRepo, postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);

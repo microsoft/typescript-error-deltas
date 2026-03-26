@@ -21,3 +21,4 @@ extends:
     OLD_VERSION: '0'
     NEW_VERSION: main
     LANGUAGE: JavaScript
+    REPO_IS_TSGO: true
