@@ -107,13 +107,15 @@ async function replayServerWorker(testDir: string, lspServerPath: string, messag
         if (method === "window/logMessage" && params?.type === 1) {
             lastErrorLogMessage = params.message;
         }
+        if (method !== "window/logMessage") {
+            console.error("Server sent notification:", ...args);
+        }
     });
 
     let exitExpected = false;
     server.onError(async ([error, message, count]) => {
         console.error(`Server connection error: ${error} ${message} ${count}`);
-        exitExpected = true;
-        await server.kill();
+        await killServer();
         process.exit(EXIT_SERVER_COMMUNICATION_ERROR);
     });
     
@@ -125,6 +127,11 @@ async function replayServerWorker(testDir: string, lspServerPath: string, messag
             process.exit(EXIT_SERVER_CRASH);
         }
     });
+
+    async function killServer() {
+        exitExpected = true;
+        await server.kill();
+    }
 
     try {
         for (const msg of messages) {
@@ -142,13 +149,12 @@ async function replayServerWorker(testDir: string, lspServerPath: string, messag
         console.error("Killing server after unhandled exception");
         console.error(e);
         
-        exitExpected = true;
-        await server.kill();
+        await killServer();
         clearInterval(memoryLogInterval)
         process.exit(EXIT_UNHANDLED_EXCEPTION);
     }
 
-    await server.kill();
+    await killServer();
 
     clearInterval(memoryLogInterval);
 
@@ -169,7 +175,7 @@ async function replayServerWorker(testDir: string, lspServerPath: string, messag
             }
             console.log(JSON.stringify({ method, message: errorMessage, seq }));
 
-            await server.kill();
+            await killServer();
             clearInterval(memoryLogInterval);
             process.exit(EXIT_SERVER_ERROR);
         }
@@ -193,7 +199,7 @@ async function replayServerWorker(testDir: string, lspServerPath: string, messag
             }
             console.log(JSON.stringify({ method, message: errorMessage, seq }));
 
-            await server.kill();
+            await killServer();
             clearInterval(memoryLogInterval);
             process.exit(EXIT_SERVER_ERROR);
         }

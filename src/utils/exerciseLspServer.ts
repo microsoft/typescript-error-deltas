@@ -128,18 +128,19 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     let lastErrorLogMessage = "";
 
     server.handleAnyNotification(async (...args: any[]) => {
-        console.error("Server sent notification:", ...args);
         const [method, params] = args;
         if (method === "window/logMessage" && params?.type === 1) {
             lastErrorLogMessage = params.message;
+        }
+        if (method !== "window/logMessage") {
+            console.error("Server sent notification:", ...args);
         }
     });
 
     let exitExpected = false;
     server.onError(async ([error, message, count]) => {
         console.error(`Server connection error: ${error} ${message} ${count}`);
-        exitExpected = true;
-        await server.kill();
+        await killServer();
         process.exit(EXIT_SERVER_COMMUNICATION_ERROR);
     });
     
@@ -151,6 +152,11 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             process.exit(EXIT_SERVER_CRASH);
         }
     });
+
+    async function killServer() {
+        exitExpected = true;
+        await server.kill();
+    }
     
     let documentVersion = 0;
 
@@ -712,8 +718,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         console.error("Killing server after unhandled exception");
         console.error(e);
         
-        exitExpected = true;
-        await server.kill();
+        await killServer();
         clearInterval(memoryLogInterval)
         process.exit(EXIT_UNHANDLED_EXCEPTION);
     }
@@ -757,7 +762,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             }
             console.log(JSON.stringify({ method, message: errorMessage, seq }));
 
-            await server.kill();
+            await killServer();
             clearInterval(memoryLogInterval);
             process.exit(EXIT_SERVER_ERROR);
         }
@@ -785,7 +790,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             }
             console.log(JSON.stringify({ method, message: errorMessage, seq }));
 
-            await server.kill();
+            await killServer();
             clearInterval(memoryLogInterval);
             process.exit(EXIT_SERVER_ERROR);
         }

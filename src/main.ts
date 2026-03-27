@@ -343,8 +343,6 @@ async function getTsServerRepoResult(
             // We don't want to drown PRs with comments.
             // Override the results to say nothing interesting changed.
             if (isPr && newServerFailed && oldSpawnResult) {
-                
-
                 if (isGo) {
                     const oldOut = parseLspHarnessOutput(oldSpawnResult.stdout);
                     const newOut = parseLspHarnessOutput(newSpawnResult.stdout);
