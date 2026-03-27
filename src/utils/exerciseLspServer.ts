@@ -8,6 +8,7 @@ import * as protocol from "vscode-languageserver-protocol";
 import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
 import { getProcessRssKb } from "./execUtils";
 import * as lsp from "./lspHarness";
+import { getPanicMessageFromStderr } from "./hashStackTrace";
 
 const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
 const testDirPlaceholder = "@PROJECT_ROOT@";
@@ -103,7 +104,17 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
     const server = lsp.startServer(lspServerPath, {
         args: serverArgs,
-    }, { traceOutput: diagnosticOutput });
+    });
+
+    // Collect stderr output from the server process
+    const stderrChunks: string[] = [];
+    server.stderr.on("data", (chunk: Buffer) => {
+        const text = chunk.toString();
+        stderrChunks.push(text);
+        if (diagnosticOutput) {
+            process.stderr.write(text);
+        }
+    });
 
     // Periodically log memory usage of the LSP server process and the harness process
     const memoryLogInterval = diagnosticOutput ? setInterval(async () => {
@@ -146,9 +157,11 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     
     server.onClose((e) => {
         if (!exitExpected) {
-            const errorMessage = lastErrorLogMessage || `Server connection closed prematurely: ${e}`;
+            const stderrOutput = stderrChunks.join("");
+            const panicMsg = getPanicMessageFromStderr(stderrOutput);
+            const errorMessage = panicMsg || lastErrorLogMessage || `Server connection closed prematurely: ${e}`;
             console.log(JSON.stringify({ method: "unknown", message: errorMessage, seq }));
-            console.error("Server connection closed prematurely:", e);
+            console.error(errorMessage);
             process.exit(EXIT_SERVER_CRASH);
         }
     });
