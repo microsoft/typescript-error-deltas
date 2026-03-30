@@ -17,7 +17,8 @@ pool:
 extends:
   template: azure-pipelines-gitTests-template.yml
   parameters:
-    ENTRYPOINT: lsp
+    ENTRYPOINT: fuzzer
     OLD_VERSION: '0'
     NEW_VERSION: main
     LANGUAGE: JavaScript
+    REPO_IS_TSGO: true

@@ -4,11 +4,11 @@ import path from "path";
 import { performance } from "perf_hooks";
 import process from "process";
 import randomSeed from "random-seed";
-import { pathToFileURL } from "url";
 import * as protocol from "vscode-languageserver-protocol";
 import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
 import { getProcessRssKb } from "./execUtils";
 import * as lsp from "./lspHarness";
+import { getPanicMessageFromStderr } from "./hashStackTrace";
 
 const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
 const testDirPlaceholder = "@PROJECT_ROOT@";
@@ -49,7 +49,9 @@ export async function exerciseLspServer(testDir: string, replayScriptPath: strin
     }
     finally {
         await replayScriptHandle.close();
-        await fs.promises.writeFile(statsOutputPath, JSON.stringify(requestStats), { encoding: "utf-8" });
+        if (statsOutputPath != "n/a") {
+            await fs.promises.writeFile(statsOutputPath, JSON.stringify(requestStats), { encoding: "utf-8" });
+        }
 
         process.chdir(oldCwd);
 
@@ -61,10 +63,6 @@ export async function exerciseLspServer(testDir: string, replayScriptPath: strin
             }
         }
     }
-}
-
-function filePathToUri(filePath: string): string {
-    return pathToFileURL(filePath).toString();
 }
 
 function getLanguageId(filePath: string): string {
@@ -86,6 +84,7 @@ function getLanguageId(filePath: string): string {
 }
 
 async function exerciseLspServerWorker(testDir: string, lspServerPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>, requestStats: LspRequestStats): Promise<void> {
+    let seq = 0;
     const files = await glob.glob("**/*.@(ts|tsx|mts|cts|js|jsx|mjs|cjs)", { cwd: testDir, absolute: true, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
 
     const serverArgs: string[] = ["--lsp", "--stdio"];
@@ -105,7 +104,17 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
     const server = lsp.startServer(lspServerPath, {
         args: serverArgs,
-    }, { traceOutput: diagnosticOutput });
+    });
+
+    // Collect stderr output from the server process
+    const stderrChunks: string[] = [];
+    server.stderr.on("data", (chunk: Buffer) => {
+        const text = chunk.toString();
+        stderrChunks.push(text);
+        if (diagnosticOutput) {
+            process.stderr.write(text);
+        }
+    });
 
     // Periodically log memory usage of the LSP server process and the harness process
     const memoryLogInterval = diagnosticOutput ? setInterval(async () => {
@@ -130,37 +139,45 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     let lastErrorLogMessage = "";
 
     server.handleAnyNotification(async (...args: any[]) => {
-        console.error("Server sent notification:", ...args);
         const [method, params] = args;
         if (method === "window/logMessage" && params?.type === 1) {
             lastErrorLogMessage = params.message;
+        }
+        if (method !== "window/logMessage") {
+            console.error("Server sent notification:", ...args);
         }
     });
 
     let exitExpected = false;
     server.onError(async ([error, message, count]) => {
         console.error(`Server connection error: ${error} ${message} ${count}`);
-        exitExpected = true;
-        await server.kill();
+        await killServer();
         process.exit(EXIT_SERVER_COMMUNICATION_ERROR);
     });
     
     server.onClose((e) => {
         if (!exitExpected) {
-            const errorMessage = lastErrorLogMessage || `Server connection closed prematurely: ${e}`;
-            console.log(JSON.stringify({ method: "unknown", message: errorMessage }));
-            console.error("Server connection closed prematurely:", e);
+            const stderrOutput = stderrChunks.join("");
+            const panicMsg = getPanicMessageFromStderr(stderrOutput);
+            const errorMessage = panicMsg || lastErrorLogMessage || `Server connection closed prematurely: ${e}`;
+            console.log(JSON.stringify({ method: "unknown", message: errorMessage, seq }));
+            console.error(errorMessage);
             process.exit(EXIT_SERVER_CRASH);
         }
     });
+
+    async function killServer() {
+        exitExpected = true;
+        await server.kill();
+    }
     
     let documentVersion = 0;
 
-    const testDirUrl = filePathToUri(testDir);
+    const testDirUrl = lsp.filePathToUri(testDir);
 
     // Initialize the server
     const initializeParams: protocol.InitializeParams = {
-        processId: process.pid,
+        processId: null,
         capabilities: {
             textDocument: {
                 completion: {
@@ -264,7 +281,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         for (const openFileAbsolutePath of files) {
             if (prng.random() > skipFileProb) continue;
 
-            const openFileUri = filePathToUri(openFileAbsolutePath);
+            const openFileUri = lsp.filePathToUri(openFileAbsolutePath);
 
             if (openFileUris.length === 5) {
                 const closedFileUri = openFileUris.shift()!;
@@ -708,14 +725,14 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         console.error("\nShutting down server");
         exitExpected = true;
         // Send shutdown request and exit notification
-        void request(protocol.ShutdownRequest.method, undefined);
-        void notify("exit", undefined);
+        await request(protocol.ShutdownRequest.method, undefined);
+        await notify("exit", undefined);
     } catch (e) {
         console.error("Killing server after unhandled exception");
         console.error(e);
         
-        exitExpected = true;
-        await server.kill();
+        await killServer();
+        clearInterval(memoryLogInterval)
         process.exit(EXIT_UNHANDLED_EXCEPTION);
     }
 
@@ -728,6 +745,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         params: lsp.RequestToParams[K],
         prob = 1,
     ): Promise<lsp.MessageResponseType[K] extends never ? never : lsp.MessageResponseType[K]> {
+        seq++;
         if (prng.random() > prob) return undefined as any;
 
         const replayEntry = { kind: "request", method, params };
@@ -755,9 +773,10 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             else {
                 console.error(errorMessage);
             }
-            console.log(JSON.stringify({ method, message: errorMessage }));
+            console.log(JSON.stringify({ method, message: errorMessage, seq }));
 
-            void server.kill();
+            await killServer();
+            clearInterval(memoryLogInterval);
             process.exit(EXIT_SERVER_ERROR);
         }
     }
@@ -766,6 +785,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         method: K,
         params: lsp.NotificationToParams[K],
     ): Promise<void> {
+        seq++;
         const replayEntry = { kind: "notification", method, params };
         const replayStr = JSON.stringify(replayEntry).replaceAll(testDirUrl, testDirUriPlaceholder).replaceAll(testDir, testDirPlaceholder);
         await replayScriptHandle.write(replayStr + "\n");
@@ -781,9 +801,10 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             else {
                 console.error(errorMessage);
             }
-            console.log(JSON.stringify({ method, message: errorMessage }));
+            console.log(JSON.stringify({ method, message: errorMessage, seq }));
 
-            await server.kill();
+            await killServer();
+            clearInterval(memoryLogInterval);
             process.exit(EXIT_SERVER_ERROR);
         }
     }

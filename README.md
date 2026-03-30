@@ -17,11 +17,11 @@ To run online, you can
 These commands can also be run locally.
 
 ```sh
-# New Error Detector (a.k.a. "git tests")
-node dist/checkGithubRepos.js [post-results] [repo-count] [repo-start-index] [old-ts-version-on-npm] [old-ts-version-on-npm]
+# New Error Detector (a.k.a. "scheduled tests")
+node dist/checkReposScheduled.js [post-results] [repo-count] [repo-start-index] [old-ts-version-on-npm] [old-ts-version-on-npm]
 
-# Inline User Test Reporter (a.k.a. "user tests")
-node dist/checkUserTestRepos.js [post-results] [ts-repo-url] [head-ref] [requesting-user] [source-issue] [github-comment-id-for-updates] [query-repos-by-stars]
+# Inline User Test Reporter (a.k.a. "triggered tests")
+node dist/checkReposTriggered.js [post-results] [ts-repo-url] [head-ref] [requesting-user] [source-issue] [github-comment-id-for-updates] [query-repos-by-stars]
 
 ```
 

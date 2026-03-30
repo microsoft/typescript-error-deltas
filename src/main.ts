@@ -56,20 +56,23 @@ interface Params {
      * Pass undefined to have a seed generated.
      */
     prngSeed: string | undefined;
+
+    /** True if we're testing typescript-go */
+    isGo: boolean;
 }
-export interface GitParams extends Params {
-    testType: "github";
+export interface ScheduledParams extends Params {
+    testType: "scheduled";
     oldTsNpmVersion: string;
     newTsNpmVersion: string;
 }
-export interface UserParams extends Params {
-    testType: "user";
+export interface TriggeredParams extends Params {
+    testType: "triggered";
     oldTsRepoUrl: string;
     oldHeadRef: string;
     prNumber: number;
 }
 
-export type TsEntrypoint = "tsc" | "tsserver" | "lsp";
+export type TsEntrypoint = "tsc" | "tsserver" | "fuzzer";
 
 const processCwd = process.cwd();
 const packageTimeout = 10 * 60 * 1000;
@@ -218,6 +221,7 @@ async function getTsServerRepoResult(
     rawErrorArtifactPath: string,
     diagnosticOutput: boolean,
     isPr: boolean,
+    isGo: boolean,
 ): Promise<RepoResult> {
 
     if (!await cloneRepo(repo, userTestsDir, downloadDir.path, diagnosticOutput)) {
@@ -238,15 +242,28 @@ async function getTsServerRepoResult(
     const rawErrorName = path.basename(rawErrorArtifactPath);
     const rawErrorPath = path.join(downloadDir.path, rawErrorName);
 
+    // Periodically log memory usage of the main fuzzer process
+    const mainMemoryInterval = diagnosticOutput ? setInterval(async () => {
+        const rssKb = await getProcessRssKb(process.pid);
+        if (rssKb !== undefined) {
+            const rssMb = Math.round(rssKb / 1024);
+            console.error(`Main process memory (pid ${process.pid}): ${rssMb} MB`);
+        }
+    }, 30_000) : undefined;
+    mainMemoryInterval?.unref();
+
     const lsStart = performance.now();
     try {
         console.log(`Testing with ${newTsServerPath} (new)`);
-        const newSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+
+        const newSpawnResult = isGo ?
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10), "n/a"], executionTimeout) :
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
 
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
             console.log(`New server timed out after ${executionTimeout} ms`);
-            return { status: "Unknown failure" };
+            return { status: "Timeout" };
         }
 
         if (diagnosticOutput) {
@@ -265,8 +282,10 @@ async function getTsServerRepoResult(
                 console.log("No issues found");
                 break;
             case exercise.EXIT_LANGUAGE_SERVICE_DISABLED:
-                console.log("Skipping since language service was disabled");
-                return { status: "Language service disabled in new TS" };
+                if (!isGo) {
+                    console.log("Skipping since language service was disabled");
+                    return { status: "Language service disabled in new TS" };
+                }
             case exercise.EXIT_SERVER_CRASH:
             case exercise.EXIT_SERVER_ERROR:
             case exercise.EXIT_SERVER_EXIT_FAILED:
@@ -287,12 +306,15 @@ async function getTsServerRepoResult(
 
         if (newServerFailed) {
             console.log(`Issue found in ${newTsServerPath} (new):`);
-            console.log(insetLines(prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false)));
-            await fs.promises.writeFile(rawErrorPath, prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false));
+            const harnessOutput = isGo ? prettyPrintLspHarnessOutput(newSpawnResult.stdout, /*filter*/ false) : prettyPrintServerHarnessOutput(newSpawnResult.stdout, /*filter*/ false);
+            console.log(insetLines(harnessOutput));
+            await fs.promises.writeFile(rawErrorPath, harnessOutput);
         }
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
-        const oldSpawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);;
+        const oldSpawnResult = isGo ?
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "replayLspServer.js"), repoDir, replayScriptPath, oldTsServerPath, diagnosticOutput.toString()], executionTimeout) :
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
 
         if (diagnosticOutput && oldSpawnResult) {
             console.log("Raw spawn results (old):");
@@ -307,27 +329,40 @@ async function getTsServerRepoResult(
         }
 
         if (oldServerFailed) {
+            const oldHarnessOutput = oldSpawnResult?.stdout &&
+                (isGo ?
+                    prettyPrintLspHarnessOutput(oldSpawnResult.stdout, /*filter*/ false) :
+                    prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false));
             console.log(`Issue found in ${oldTsServerPath} (old):`);
             console.log(
                 insetLines(
-                    oldSpawnResult?.stdout
-                        ? prettyPrintServerHarnessOutput(oldSpawnResult.stdout, /*filter*/ false)
-                        : `Timed out after ${executionTimeout} ms`));
+                    oldHarnessOutput ?? `Timed out after ${executionTimeout} ms`));
 
             await fs.promises.writeFile(rawErrorPath, oldSpawnResult?.stdout ?? `Timed out after ${executionTimeout} ms`);
 
             // We don't want to drown PRs with comments.
             // Override the results to say nothing interesting changed.
             if (isPr && newServerFailed && oldSpawnResult) {
-                const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
-                const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
-
-                if (
-                    typeof oldOut !== "string" && typeof newOut !== "string"
-                    && oldOut.request_seq === newOut.request_seq
-                    && oldOut.command === newOut.command
-                ) {
-                    return { status: "Detected no interesting changes" };
+                if (isGo) {
+                    const oldOut = parseLspHarnessOutput(oldSpawnResult.stdout);
+                    const newOut = parseLspHarnessOutput(newSpawnResult.stdout);
+                    if (
+                        typeof oldOut !== "string" && typeof newOut !== "string"
+                        && oldOut.seq === newOut.seq
+                        && oldOut.method === newOut.method
+                    ) {
+                        return { status: "Detected no interesting changes" };
+                    }
+                } else {
+                    const oldOut = parseServerHarnessOutput(oldSpawnResult.stdout);
+                    const newOut = parseServerHarnessOutput(newSpawnResult.stdout);
+                    if (
+                        typeof oldOut !== "string" && typeof newOut !== "string"
+                        && oldOut.request_seq === newOut.request_seq
+                        && oldOut.command === newOut.command
+                    ) {
+                        return { status: "Detected no interesting changes" };
+                    }
                 }
             }
         }
@@ -464,16 +499,15 @@ export async function getLSPResult(
     }
 }
 
-function groupErrors(summaries: Summary[]) {
+function groupErrors(summaries: Summary[], isGo: boolean) {
     const groupedOldErrors = new Map<string, Summary[]>();
     const groupedNewErrors = new Map<string, Summary[]>();
     let group: Map<string, Summary[]>;
     let error: ServerHarnessOutput | LspHarnessOutput | string;
     for (const summary of summaries) {
-        const isLsp = summary.entrypoint === "lsp";
         if (summary.tsServerResult.newServerFailed) {
             // Group new errors
-            error = isLsp
+            error = isGo
                 ? parseLspHarnessOutput(summary.tsServerResult.newSpawnResult.stdout)
                 : parseServerHarnessOutput(summary.tsServerResult.newSpawnResult.stdout);
             group = groupedNewErrors;
@@ -482,7 +516,7 @@ function groupErrors(summaries: Summary[]) {
             // Group old errors
             const { oldSpawnResult } = summary.tsServerResult;
             error = oldSpawnResult?.stdout
-                ? (isLsp ? parseLspHarnessOutput(oldSpawnResult.stdout) : parseServerHarnessOutput(oldSpawnResult.stdout))
+                ? (isGo ? parseLspHarnessOutput(oldSpawnResult.stdout) : parseServerHarnessOutput(oldSpawnResult.stdout))
                 : `Timed out after ${executionTimeout} ms`;
 
             group = groupedOldErrors;
@@ -493,7 +527,7 @@ function groupErrors(summaries: Summary[]) {
 
         const key = typeof error === "string"
             ? getHash([error])
-            : summary.entrypoint === "lsp"
+            : isGo
                 ? getHashForGoStack(error.message)
                 : getHashForStack(error.message);
         const value = group.get(key) ?? [];
@@ -504,29 +538,28 @@ function groupErrors(summaries: Summary[]) {
     return { groupedOldErrors, groupedNewErrors }
 }
 
-function getErrorMessage(output: string): string {
+function getJSErrorMessage(output: string): string {
     const error = parseServerHarnessOutput(output);
 
     return typeof error === "string" ? error : getErrorMessageFromStack(error.message);
 }
 
-function getErrorMessageForEntrypoint(output: string, entrypoint: TsEntrypoint): string {
-    return entrypoint === "lsp" ? getLspErrorMessage(output) : getErrorMessage(output);
+function getErrorMessage(output: string, isGo: boolean): string {
+    return isGo ? getLspErrorMessage(output) : getJSErrorMessage(output);
 }
 
-function prettyPrintForEntrypoint(output: string, filter: boolean, entrypoint: TsEntrypoint): string {
-    return entrypoint === "lsp" ? prettyPrintLspHarnessOutput(output, filter) : prettyPrintServerHarnessOutput(output, filter);
+function prettyPrint(output: string, filter: boolean, isGo: boolean): string {
+    return isGo ? prettyPrintLspHarnessOutput(output, filter) : prettyPrintServerHarnessOutput(output, filter);
 }
 
-function createOldErrorSummary(summaries: Summary[]): string {
+function createOldErrorSummary(summaries: Summary[], isGo: boolean): string {
     const { oldSpawnResult } = summaries[0].tsServerResult;
-    const entrypoint = summaries[0].entrypoint;
 
     const oldServerError = oldSpawnResult?.stdout
-        ? prettyPrintForEntrypoint(oldSpawnResult.stdout, /*filter*/ true, entrypoint)
+        ? prettyPrint(oldSpawnResult.stdout, /*filter*/ true, isGo)
         : `Timed out after ${executionTimeout} ms`;
 
-    const errorMessage = oldSpawnResult?.stdout ? getErrorMessageForEntrypoint(oldSpawnResult.stdout, entrypoint) : oldServerError;
+    const errorMessage = oldSpawnResult?.stdout ? getErrorMessage(oldSpawnResult.stdout, isGo) : oldServerError;
 
     let text = `
 <details>
@@ -607,14 +640,13 @@ npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsser
     return text;
 }
 
-async function createNewErrorSummaryAsync(summaries: Summary[]): Promise<string> {
-    const entrypoint = summaries[0].entrypoint;
+async function createNewErrorSummaryAsync(summaries: Summary[], isGo: boolean): Promise<string> {
     const stdout = summaries[0].tsServerResult.newSpawnResult.stdout;
 
-    let text = `<h2>${getErrorMessageForEntrypoint(stdout, entrypoint)}</h2>
+    let text = `<h2>${getErrorMessage(stdout, isGo)}</h2>
 
 \`\`\`
-${prettyPrintForEntrypoint(stdout, /*filter*/ true, entrypoint)}
+${prettyPrint(stdout, /*filter*/ true, isGo)}
 \`\`\`
 
 <h4>Affected repos</h4>`;
@@ -628,7 +660,31 @@ ${prettyPrintForEntrypoint(stdout, /*filter*/ true, entrypoint)}
 <summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
 Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
 Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
-<h4>Last few requests</h4>
+`;
+
+        // Show what happened with the old server
+        const { oldServerFailed, oldSpawnResult } = summary.tsServerResult;
+        if (!oldServerFailed) {
+            text += `<h4>Old server result</h4>
+<p>The old server completed successfully for this repo.</p>
+`;
+        }
+        else if (!oldSpawnResult) {
+            text += `<h4>Old server result</h4>
+<p>The old server timed out after ${executionTimeout} ms.</p>
+`;
+        }
+        else {
+            const oldHarnessOutput = prettyPrint(oldSpawnResult.stdout, /*filter*/ true, isGo);
+            text += `<h4>Old server result</h4>
+
+\`\`\`
+${oldHarnessOutput}
+\`\`\`
+`;
+        }
+
+        text += `<h4>Last few requests</h4>
 
 \`\`\`json
 ${summary.replayScript}
@@ -926,7 +982,7 @@ function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, work
     return allRepos.slice(start, end);
 }
 
-export async function mainAsync(params: GitParams | UserParams): Promise<void> {
+export async function mainAsync(params: ScheduledParams | TriggeredParams): Promise<void> {
     if (params.prngSeed) {
         prng.seed(params.prngSeed);
     }
@@ -958,7 +1014,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
     // An object is easier to de/serialize than a real map
     const statusCounts: { [P in RepoStatus]?: number } = {};
 
-    const isPr = params.testType === "user" && !!params.prNumber
+    const isPr = params.testType === "triggered" && !!params.prNumber
 
     var summaries: Summary[] = [];
 
@@ -986,9 +1042,9 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
                 repoResult = await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput);
                 break;
             case "tsserver":
-                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr);
+                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr, params.isGo);
                 break;
-            case "lsp":
+            case "fuzzer":
                 repoResult = await getLSPResult(repo, userTestsDir, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput);
                 break;
             default:
@@ -1049,17 +1105,17 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
 
     // Group errors and create summary files.
     if (summaries.length > 0) {
-        const { groupedOldErrors, groupedNewErrors } = groupErrors(summaries);
+        const { groupedOldErrors, groupedNewErrors } = groupErrors(summaries, params.isGo);
 
         for (let [key, value] of groupedOldErrors) {
-            const summary = createOldErrorSummary(value);
+            const summary = createOldErrorSummary(value, params.isGo);
             const resultFileName = `!${key}.${resultFileNameSuffix}`; // Exclamation point makes the file to be put first when ordering.
 
             await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
         }
 
         for (let [key, value] of groupedNewErrors) {
-            const summary = await createNewErrorSummaryAsync(value);
+            const summary = await createNewErrorSummaryAsync(value, params.isGo);
             const resultFileName = `${key}.${resultFileNameSuffix}`;
 
             await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
@@ -1080,7 +1136,7 @@ export async function mainAsync(params: GitParams | UserParams): Promise<void> {
         newTsResolvedVersion: newTsResolvedVersion,
         oldTsResolvedVersion: oldTsResolvedVersion || "",
         statusCounts,
-        lspRequestStats: params.entrypoint === "lsp" ? aggregateLspStats : undefined,
+        lspRequestStats: params.entrypoint === "fuzzer" ? aggregateLspStats : undefined,
     };
     await fs.promises.writeFile(path.join(resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
 }
@@ -1224,6 +1280,7 @@ function filterToTsserverLines(stackLines: string): string {
 export interface LspHarnessOutput {
     method: string;
     message: string;
+    seq: number;
 }
 
 function parseLspHarnessOutput(output: string): LspHarnessOutput | string {
@@ -1288,16 +1345,16 @@ function makeMarkdownLink(url: string) {
         : `[${mdEscape(match[1])}](${url})`;
 }
 
-async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
+async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
     const entrypoint = params.entrypoint;
-    if (params.testType === "user") {
+    if (params.testType === "triggered") {
         console.log("running user test, downloading TS from repo");
-        if (params.entrypoint === "lsp") {
+        if (params.entrypoint === "fuzzer") {
             throw new Error("Not implemented");
         }
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint);
+        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint, params.isGo);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint);
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint, params.isGo);
 
         return {
             oldTsEntrypointPath,
@@ -1306,15 +1363,17 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
             newTsResolvedVersion
         };
     }
-    else if (params.testType === "github") {
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = params.entrypoint === "lsp" ?
+    else if (params.testType === "scheduled") {
+        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = params.entrypoint === "fuzzer" ?
             { tsEntrypointPath: undefined, resolvedVersion: undefined } :
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = params.entrypoint === "lsp" ?
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = params.entrypoint === "fuzzer" ?
             params.newTsNpmVersion === "main" ?
-                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint) :
+                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint, params.isGo) :
                 await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
-            await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
+            params.isGo ?
+                await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
+                await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
 
         return {
             oldTsEntrypointPath,
@@ -1328,9 +1387,9 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
     }
 }
 
-export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
     console.log(`Cloning ${repoUrl} at ref ${headRef}`);
-    const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${headRef}` : `typescript-${headRef}`;
+    const repoName = isGo ? `typescript-go-${headRef}` : `typescript-${headRef}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
     const repoPath = path.join(cwd, repoName);
@@ -1341,10 +1400,10 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
     };
 }
 
-async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
     console.log(`Cloning ${repoUrl} at pull ${prNumber}`);
 
-    const repoName = repoUrl.includes("typescript-go") ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
+    const repoName = isGo ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
     console.log(`Building in ${repoName}`);
 
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });
@@ -1365,10 +1424,7 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
     console.log(`Building in ${repoPath}`);
 
     if (repoPath.includes("typescript-go")) {
-        if (entrypoint !== "tsc" && entrypoint !== "lsp") {
-            throw new Error(`TsEntrypoint '${entrypoint}' is not supported for typescript-go repositories.`);
-        }
-        await execAsync(repoPath, `npx hereby build ${entrypoint === "lsp" ? "--assert" : ""}`);
+        await execAsync(repoPath, `npx hereby build`);
         return path.join(repoPath, "built", "local", "tsgo");
     }
     else {

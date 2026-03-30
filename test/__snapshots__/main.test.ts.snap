@@ -36,6 +36,16 @@ Req #123 - cursedCommand
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
 Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
 Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+<h4>Old server result</h4>
+
+\`\`\`
+Req #123 - cursedCommand
+    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)
+    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)
+    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)
+    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)
+    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)
+\`\`\`
 <h4>Last few requests</h4>
 
 \`\`\`json
@@ -222,6 +232,16 @@ Req #123 - cursedCommand
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
 Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
 Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+<h4>Old server result</h4>
+
+\`\`\`
+Req #123 - cursedCommand
+    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)
+    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)
+    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)
+    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)
+    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)
+\`\`\`
 <h4>Last few requests</h4>
 
 \`\`\`json

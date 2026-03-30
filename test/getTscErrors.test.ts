@@ -10,7 +10,7 @@ describe("getErrors", () => {
             if (!existsSync("./testDownloads/getErrors")) {
                 mkdirSync("./testDownloads/getErrors", { recursive: true });
             }
-            await downloadTsRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc');
+            await downloadTsRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc', false);
         }
     });
 

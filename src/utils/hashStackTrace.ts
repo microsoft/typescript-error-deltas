@@ -51,3 +51,12 @@ export function getErrorMessageFromStack(stack: string): string {
 
     return stackLines[1];
 }
+
+export function getPanicMessageFromStderr(stderr: string): string | undefined {
+    const stackLines = stderr.split(/\r?\n/);
+    const panicLine = stackLines.findIndex(line => line.trim().startsWith("panic:"));
+    if (panicLine >= 0) {
+        return stackLines.slice(panicLine).join("\n");
+    }
+    return undefined;
+}
