@@ -660,7 +660,31 @@ ${prettyPrint(stdout, /*filter*/ true, isGo)}
 <summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
 Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
 Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
-<h4>Last few requests</h4>
+`;
+
+        // Show what happened with the old server
+        const { oldServerFailed, oldSpawnResult } = summary.tsServerResult;
+        if (!oldServerFailed) {
+            text += `<h4>Old server result</h4>
+<p>The old server completed successfully for this repo.</p>
+`;
+        }
+        else if (!oldSpawnResult) {
+            text += `<h4>Old server result</h4>
+<p>The old server timed out after ${executionTimeout} ms.</p>
+`;
+        }
+        else {
+            const oldHarnessOutput = prettyPrint(oldSpawnResult.stdout, /*filter*/ true, isGo);
+            text += `<h4>Old server result</h4>
+
+\`\`\`
+${oldHarnessOutput}
+\`\`\`
+`;
+        }
+
+        text += `<h4>Last few requests</h4>
 
 \`\`\`json
 ${summary.replayScript}

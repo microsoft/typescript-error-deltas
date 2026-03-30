@@ -11,7 +11,10 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "type": "node"
+            "type": "node",
+            "outFiles": [
+                "${workspaceFolder}/dist/**/*.js"
+            ],
         },
         {
             "type": "node",
