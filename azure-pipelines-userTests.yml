@@ -68,6 +68,10 @@ pool:
 variables:
   Codeql.Enabled: false
   skipComponentGovernanceDetection: true
+  ${{ if and(eq(parameters.ENTRYPOINT, 'tsserver'), contains(parameters.OLD_TS_REPO_URL, 'typescript-go')) }}:
+    effectiveEntrypoint: lsp
+  ${{ else }}:
+    effectiveEntrypoint: ${{ parameters.ENTRYPOINT }}
 
 jobs:
 - job: ListRepos
@@ -135,7 +139,7 @@ jobs:
       corepack enable
       corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkUserTestRepos ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
+      node dist/checkUserTestRepos ${{ variables.effectiveEntrypoint }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run user tests'
   - publish: 'RepoResults$(System.JobPositionInPhase)'
     artifact: 'RepoResults$(System.JobPositionInPhase)'
@@ -161,7 +165,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubComments ${{ parameters.ENTRYPOINT }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
+      node dist/postGithubComments ${{ variables.effectiveEntrypoint }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)

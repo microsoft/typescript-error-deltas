@@ -1292,9 +1292,6 @@ async function downloadTsAsync(cwd: string, params: GitParams | UserParams): Pro
     const entrypoint = params.entrypoint;
     if (params.testType === "user") {
         console.log("running user test, downloading TS from repo");
-        if (params.entrypoint === "lsp") {
-            throw new Error("Not implemented");
-        }
         const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint);
