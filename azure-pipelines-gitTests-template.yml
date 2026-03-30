@@ -104,7 +104,7 @@ jobs:
       corepack enable
       corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkReposScheduled ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }} false
+      node dist/checkReposScheduled ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
     displayName: 'Run TypeScript on repos'
     continueOnError: true
   - publish: 'RepoResults$(System.JobPositionInPhase)'
