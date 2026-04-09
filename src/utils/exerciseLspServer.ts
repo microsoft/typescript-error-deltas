@@ -315,7 +315,8 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             let line = 0; // LSP uses 0-based lines
             let character = 0; // LSP uses 0-based characters
             let characterDelta = 0; // Net character offset from insertions/deletions on the current line
-            const totalLines = openFileContents.split(/\r\n|\r|\n/).length;
+            const lines = openFileContents.split(/\r\n|\r|\n/);
+            const totalLines = lines.length;
 
             let prev = "";
 
@@ -367,9 +368,10 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             const inlayHintsPromise = request("textDocument/inlayHint", {
                 textDocument: { uri: openFileUri },
-                // TODO - this is still a hack.
-                // Could just move it to the end after we've iterated through the file.
-                range: { start: { line: 0, character: 0 }, end: { line: 0, character: openFileContents.length } },
+                range: {
+                    start: { line: 0, character: 0 },
+                    end: { line: totalLines - 1, character: lines[totalLines - 1].length },
+                },
             });
 
             const [diagResult, codeLenses, _inlayHints] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
