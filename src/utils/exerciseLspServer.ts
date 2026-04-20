@@ -154,7 +154,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         await killServer();
         process.exit(EXIT_SERVER_COMMUNICATION_ERROR);
     });
-    
+
     server.onClose((e) => {
         if (!exitExpected) {
             const stderrOutput = stderrChunks.join("");
@@ -170,7 +170,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
         exitExpected = true;
         await server.kill();
     }
-    
+
     let documentVersion = 0;
 
     const testDirUrl = lsp.filePathToUri(testDir);
@@ -243,6 +243,58 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 callHierarchy: {},
                 onTypeFormatting: {
                     dynamicRegistration: false,
+                },
+                semanticTokens: {
+                    tokenTypes: [
+                        "namespace",
+                        "type",
+                        "class",
+                        "enum",
+                        "interface",
+                        "struct",
+                        "typeParameter",
+                        "parameter",
+                        "variable",
+                        "property",
+                        "enumMember",
+                        "event",
+                        "function",
+                        "method",
+                        "macro",
+                        "keyword",
+                        "comment",
+                        "string",
+                        "number",
+                        "regexp",
+                        "operator",
+                        "decorator",
+                        "label"
+                    ],
+                    tokenModifiers: [
+                        "declaration",
+                        "definition",
+                        "readonly",
+                        "static",
+                        "deprecated",
+                        "abstract",
+                        "async",
+                        "modification",
+                        "documentation",
+                        "defaultLibrary"
+                    ],
+                    formats: [
+                        "relative"
+                    ],
+                    requests: {
+                        "range": true,
+                        "full": {
+                            "delta": true
+                        }
+                    },
+                    multilineTokenSupport: false,
+                    overlappingTokenSupport: false,
+                    serverCancelSupport: true,
+                    augmentsSyntaxTokens: true
                 },
                 // TODO: ...
 
@@ -374,7 +426,11 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 },
             });
 
-            const [diagResult, codeLenses, _inlayHints] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise]);
+            const semanticTokensPromise = request("textDocument/semanticTokens/full", {
+                textDocument: { uri: openFileUri },
+            });
+
+            const [diagResult, codeLenses, _inlayHints, semanticTokens] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise, semanticTokensPromise]);
 
             if (codeLenses) {
                 await Promise.all(codeLenses.map(async (lens) => {
@@ -548,6 +604,13 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         position: { line, character: serverCharacter },
                     }, isAt ? 0.5 : standardProb);
 
+                    // Expandable hover
+                    await request("textDocument/hover", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character: serverCharacter },
+                        verbosityLevel: prng.intBetween(1, 5)
+                    }, standardProb);
+
                     // Implementation (equivalent to implementation)
                     await request("textDocument/implementation", {
                         textDocument: { uri: openFileUri },
@@ -615,8 +678,13 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                         await request("textDocument/linkedEditingRange", {
                             textDocument: { uri: openFileUri },
                             position: { line, character: serverCharacter },
-                        }, 0.001);
+                        }, standardProb);
                     }
+
+                    await request("custom/textDocument/sourceDefinition", {
+                        textDocument: { uri: openFileUri },
+                        position: { line, character: serverCharacter },
+                    }, standardProb);
 
                     // Completions (equivalent to completionInfo)
                     const completionResponse = await request("textDocument/completion", {
@@ -732,7 +800,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     } catch (e) {
         console.error("Killing server after unhandled exception");
         console.error(e);
-        
+
         await killServer();
         clearInterval(memoryLogInterval)
         process.exit(EXIT_UNHANDLED_EXCEPTION);
