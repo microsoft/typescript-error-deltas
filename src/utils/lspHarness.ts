@@ -117,6 +117,8 @@ export function startServer(serverPath: string, options: ServerOptions = {}): La
     }
 }
 
+const sourceDefinitionMethod = "custom/textDocument/sourceDefinition";
+
 export interface RequestToParams {
     [protocol.ShutdownRequest.method]: undefined;
     [protocol.RegistrationRequest.method]: protocol.RegistrationParams;
@@ -126,7 +128,7 @@ export interface RequestToParams {
     [protocol.ShowMessageRequest.method]: protocol.ShowMessageParams;
     [protocol.CompletionRequest.method]: protocol.CompletionParams;
     [protocol.CompletionResolveRequest.method]: protocol.CompletionItem;
-    [protocol.HoverRequest.method]: protocol.HoverParams;
+    [protocol.HoverRequest.method]: protocol.HoverParams & { verbosityLevel?: number };
     [protocol.SignatureHelpRequest.method]: protocol.SignatureHelpParams;
     [protocol.DefinitionRequest.method]: protocol.DefinitionParams;
     [protocol.ReferencesRequest.method]: protocol.ReferenceParams;
@@ -161,6 +163,7 @@ export interface RequestToParams {
     [protocol.CallHierarchyPrepareRequest.method]: protocol.CallHierarchyPrepareParams;
     [protocol.CallHierarchyIncomingCallsRequest.method]: protocol.CallHierarchyIncomingCallsParams;
     [protocol.CallHierarchyOutgoingCallsRequest.method]: protocol.CallHierarchyOutgoingCallsParams;
+    [sourceDefinitionMethod]: protocol.TextDocumentPositionParams;
 }
 
 export interface MessageResponseType {
@@ -172,7 +175,7 @@ export interface MessageResponseType {
     [protocol.ShowMessageRequest.method]: protocol.MessageActionItem | null;
     [protocol.CompletionRequest.method]: protocol.CompletionList | protocol.CompletionItem[] | null;
     [protocol.CompletionResolveRequest.method]: protocol.CompletionItem;
-    [protocol.HoverRequest.method]: protocol.Hover | null;
+    [protocol.HoverRequest.method]: (protocol.Hover & { canIncreaseVerbosity?: boolean }) | null;
     [protocol.SignatureHelpRequest.method]: protocol.SignatureHelp | null;
     [protocol.DefinitionRequest.method]: protocol.Definition | protocol.LocationLink[] | null;
     [protocol.ReferencesRequest.method]: protocol.Location[] | null;
@@ -207,6 +210,7 @@ export interface MessageResponseType {
     [protocol.CallHierarchyPrepareRequest.method]: protocol.CallHierarchyItem[] | null;
     [protocol.CallHierarchyIncomingCallsRequest.method]: protocol.CallHierarchyIncomingCall[] | null;
     [protocol.CallHierarchyOutgoingCallsRequest.method]: protocol.CallHierarchyOutgoingCall[] | null;
+    [sourceDefinitionMethod]: protocol.Location | protocol.Location[] | protocol.DefinitionLink[] | null;
 }
 
 export interface NotificationToParams {
