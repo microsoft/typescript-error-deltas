@@ -348,7 +348,7 @@ async function getTsServerRepoResult(
                     const newOut = parseLspHarnessOutput(newSpawnResult.stdout);
                     if (
                         typeof oldOut !== "string" && typeof newOut !== "string"
-                        && oldOut.seq === newOut.seq
+                        && oldOut.message == newOut.message
                         && oldOut.method === newOut.method
                     ) {
                         return { status: "Detected no interesting changes" };
