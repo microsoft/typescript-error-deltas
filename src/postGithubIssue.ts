@@ -54,8 +54,10 @@ const description = entrypoint === "tsserver"
         ? `The following errors were reported by ${newTscResolvedVersion}`
         : `The following errors were reported by ${newTscResolvedVersion}, but not by ${oldTscResolvedVersion}`;
 const pipelineUri = entrypoint === "fuzzer" ?
-    "https://dev.azure.com/typescript/TypeScript/_build?definitionId=75" :
-    "https://typescript.visualstudio.com/TypeScript/_build?definitionId=48";
+    language.toLowerCase() == "typescript" ?
+        "https://dev.azure.com/typescript/TypeScript/_build?definitionId=75" :
+        "https://dev.azure.com/typescript/TypeScript/_build?definitionId=76" :
+    "https://dev.azure.com/typescript/TypeScript/_build?definitionId=47";
 let header = `${description}
 [Pipeline that generated this bug](${pipelineUri})
 [Logs for the pipeline run](${logUri})
