@@ -347,7 +347,12 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
 
             openFileUris.push(openFileUri);
 
-            const openFileContents = await fs.promises.readFile(openFileAbsolutePath, { encoding: "utf-8" });
+            let openFileContents = await fs.promises.readFile(openFileAbsolutePath, { encoding: "utf-8" });
+            // Strip BOM to match VS Code behavior — VS Code never includes
+            // the BOM in textDocument.getText() / didOpen text content.
+            if (openFileContents.charCodeAt(0) === 0xFEFF) {
+                openFileContents = openFileContents.slice(1);
+            }
             const languageId = getLanguageId(openFileAbsolutePath);
             documentVersion++;
 
