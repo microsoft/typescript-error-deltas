@@ -178,12 +178,7 @@ async function exerciseServerWorker(testDir: string, tsserverPath: string, repla
 
             openFileAbsolutePaths.push(openFileAbsolutePath);
 
-            let openFileContents = await fs.promises.readFile(openFileRelativePath, { encoding: "utf-8" });
-            // Strip BOM to match VS Code behavior — VS Code never includes
-            // the BOM in textDocument.getText() / didOpen text content.
-            if (openFileContents.charCodeAt(0) === 0xFEFF) {
-                openFileContents = openFileContents.slice(1);
-            }
+            const openFileContents = await fs.promises.readFile(openFileRelativePath, { encoding: "utf-8" });
             await message({
                 "command": "updateOpen",
                 "arguments": {
