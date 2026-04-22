@@ -381,6 +381,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 }
             }
 
+            // Open the document
             await notify("textDocument/didOpen", {
                 textDocument: {
                     uri: openFileUri,
