@@ -356,7 +356,31 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
             const languageId = getLanguageId(openFileAbsolutePath);
             documentVersion++;
 
-            // Open the document
+            // Most of the time we want to open the document normally.
+            // But occasionally, it's helpful to open the document with contents that don't match the file on disk.
+            const changeInitialContents = prng.random();
+            if (changeInitialContents < 0.005) {
+                if (changeInitialContents < 0.000625) {
+                    // Empty contents
+                    openFileContents = "";
+                }
+                else if (changeInitialContents < 0.0025) {
+                    // Flip line endings.
+                    if (openFileContents.indexOf("\r\n") >= 0) {
+                        // Replace CRLF with LF
+                        openFileContents = openFileContents.replaceAll("\r\n", "\n");
+                    }
+                    else {
+                        // Replace LF with CRLF
+                        openFileContents = openFileContents.replaceAll("\n", "\r\n");
+                    }
+                }
+                else {
+                    // Just blindly quadruple newlines.
+                    openFileContents = openFileContents.replaceAll("\n", "\n\n\n\n");
+                }
+            }
+
             await notify("textDocument/didOpen", {
                 textDocument: {
                     uri: openFileUri,
@@ -435,7 +459,7 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
                 textDocument: { uri: openFileUri },
             });
 
-            const [diagResult, codeLenses, _inlayHints, semanticTokens] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise, semanticTokensPromise]);
+            const [diagResult, codeLenses, _inlayHints, _semanticTokens] = await Promise.all([diagnosticsPromise, codeLensesPromise, inlayHintsPromise, semanticTokensPromise]);
 
             if (codeLenses) {
                 await Promise.all(codeLenses.map(async (lens) => {
