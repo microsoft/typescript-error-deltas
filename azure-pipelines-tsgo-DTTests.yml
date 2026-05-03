@@ -1,0 +1,354 @@
+# Variable 'CI' was defined in the Variables tab
+# Variable 'distinct_id' was defined in the Variables tab
+# Variable 'DT_SHA' was defined in the Variables tab
+# Variable 'requesting_user' was defined in the Variables tab
+# Variable 'skipComponentGovernanceDetection' was defined in the Variables tab
+# Variable 'source_issue' was defined in the Variables tab
+# Variable 'status_comment' was defined in the Variables tab
+resources:
+  repositories:
+  - repository: microsoft/typescript-go
+    type: git
+    ref: refs/heads/main
+jobs:
+- job: Phase_1
+  displayName: Run dtslint
+  timeoutInMinutes: 300
+  cancelTimeoutInMinutes: 1
+  strategy:
+    parallel: 16
+  pool:
+    name: TypeScript-1ES-Large
+    demands:
+    - ImageOverride -equals azure-linux-3
+  steps:
+  - checkout: self
+    fetchDepth: 2
+    fetchTags: false
+  - task: NodeTool@0
+    displayName: Use Node 22.x
+    inputs:
+      versionSpec: 22.x
+  - task: GoTool@0
+    inputs:
+      version: '1.26'
+    displayName: 'Install Go'
+  - task: CmdLine@2
+    displayName: Install packageManager from package.json
+    inputs:
+      script: >-
+        which jq && npm install -g `jq -r '.packageManager' < package.json`
+
+        npm --version
+  - task: CmdLine@2
+    displayName: Detect package-lock.json
+    inputs:
+      script: "if [ -f ./package-lock.json ]; then\n  echo \"##vso[task.setvariable variable=havePackageLock;]True\"\nfi\n  "
+      workingDirectory: $(Build.SourcesDirectory)
+  - task: Npm@1
+    displayName: npm ci
+    condition: and(succeeded(), eq(variables['havePackageLock'], 'True'))
+    retryCountOnTaskFailure: 3
+    inputs:
+      command: ci
+      workingDir: $(Build.SourcesDirectory)
+      verbose: false
+  - task: Npm@1
+    displayName: npm install
+    condition: and(succeeded(), ne(variables['havePackageLock'], 'True'))
+    retryCountOnTaskFailure: 3
+    inputs:
+      workingDir: $(Build.SourcesDirectory)
+      verbose: false
+      customCommand: uninstall typescript --no-save
+  - task: Npm@1
+    displayName: npm update
+    condition: and(succeeded(), ne(variables['havePackageLock'], 'True'))
+    retryCountOnTaskFailure: 3
+    inputs:
+      command: custom
+      workingDir: $(Build.SourcesDirectory)
+      verbose: false
+      customCommand: update
+  - task: CmdLine@2
+    displayName: build compiler
+    inputs:
+      script: >-
+        npx hereby build
+  - task: CmdLine@2
+    displayName: Git long paths
+    inputs:
+      script: >-
+        set -eo pipefail
+
+
+        git config --global core.longpaths true
+  - task: CmdLine@2
+    displayName: Clone DefinitelyTyped
+    inputs:
+      script: >-
+        set -eo pipefail
+
+
+        git clone --filter blob:none https://github.com/DefinitelyTyped/DefinitelyTyped.git $(Pipeline.Workspace)/DefinitelyTyped
+
+        cd $(Pipeline.Workspace)/DefinitelyTyped
+
+        git switch --detach $DT_SHA
+  - task: CmdLine@2
+    displayName: pnpm install DT
+    retryCountOnTaskFailure: 2
+    inputs:
+      script: >-
+        set -eo pipefail
+
+
+        cd $(Pipeline.Workspace)/DefinitelyTyped
+
+        npm install -g `jq -r '.packageManager' < package.json`
+
+        pnpm install
+  - task: CmdLine@2
+    displayName: Execute PR tests
+    inputs:
+      script: >-
+        echo "PR run: Shard $SYSTEM_JOBPOSITIONINPHASE of $SYSTEM_TOTALJOBSINPHASE"
+
+
+        ROOT="$(Pipeline.Workspace)/pr"
+
+        FAILURES="${ROOT}/prFailures$SYSTEM_JOBPOSITIONINPHASE.json"
+
+        ERRORS="${ROOT}/errors.txt"
+
+
+        mkdir "${ROOT}"
+
+
+        cd $(Pipeline.Workspace)/DefinitelyTyped
+
+        pnpm dtslint-runner \
+            --path . \
+            --localTypeScriptPath $(Build.SourcesDirectory)/built/local \
+            --selection all \
+            --expectOnly \
+            --shardId $SYSTEM_JOBPOSITIONINPHASE \
+            --shardCount $SYSTEM_TOTALJOBSINPHASE \
+            --writeFailures $FAILURES 3>&1 1>&2 2>&3 | tee -a $ERRORS
+
+        exitCode=$?
+
+        exit $exitCode
+  - task: CmdLine@2
+    displayName: Switch to main
+    inputs:
+      script: >-
+        set -eo pipefail
+
+
+        pushd $(Build.SourcesDirectory)
+
+        git switch --detach HEAD^1 # This repo clones the PR's commit with depth 2; this ref will be the merge base i.e main
+  - task: CmdLine@2
+    displayName: Install packageManager from package.json
+    inputs:
+      script: >-
+        which jq && npm install -g `jq -r '.packageManager' < package.json`
+
+        npm --version
+  - task: CmdLine@2
+    displayName: Detect package-lock.json
+    inputs:
+      script: "if [ -f ./package-lock.json ]; then\n  echo \"##vso[task.setvariable variable=havePackageLock;]True\"\nfi\n  "
+      workingDirectory: $(Build.SourcesDirectory)
+  - task: Npm@1
+    displayName: npm ci
+    condition: and(succeeded(), eq(variables['havePackageLock'], 'True'))
+    retryCountOnTaskFailure: 3
+    inputs:
+      command: ci
+      workingDir: $(Build.SourcesDirectory)
+      verbose: false
+  - task: Npm@1
+    displayName: npm install
+    condition: and(succeeded(), ne(variables['havePackageLock'], 'True'))
+    retryCountOnTaskFailure: 3
+    inputs:
+      workingDir: $(Build.SourcesDirectory)
+      verbose: false
+      customCommand: uninstall typescript --no-save
+  - task: Npm@1
+    displayName: npm update
+    condition: and(succeeded(), ne(variables['havePackageLock'], 'True'))
+    retryCountOnTaskFailure: 3
+    inputs:
+      command: custom
+      workingDir: $(Build.SourcesDirectory)
+      verbose: false
+      customCommand: update
+  - task: Npm@1
+    displayName: npm run build:compiler copy
+    inputs:
+      command: custom
+      verbose: false
+      customCommand: run build:compiler
+  - task: CmdLine@2
+    displayName: Execute main tests
+    inputs:
+      script: >-
+        echo "main run: Shard $SYSTEM_JOBPOSITIONINPHASE of $SYSTEM_TOTALJOBSINPHASE"
+
+
+        ROOT="$(Pipeline.Workspace)/main"
+
+        FAILURES="${ROOT}/mainFailures$SYSTEM_JOBPOSITIONINPHASE.json"
+
+        ERRORS="${ROOT}/errors.txt"
+
+
+        mkdir "${ROOT}"
+
+
+        cd $(Pipeline.Workspace)/DefinitelyTyped
+
+        pnpm dtslint-runner \
+            --path . \
+            --localTypeScriptPath $(Build.SourcesDirectory)/built/local \
+            --selection all \
+            --expectOnly \
+            --shardId $SYSTEM_JOBPOSITIONINPHASE \
+            --shardCount $SYSTEM_TOTALJOBSINPHASE \
+            --writeFailures $FAILURES 3>&1 1>&2 2>&3 | tee -a $ERRORS
+
+        exitCode=$?
+
+        exit $exitCode
+  - task: CmdLine@2
+    displayName: Diff
+    inputs:
+      script: >
+        PR_ERRORS="$(Pipeline.Workspace)/pr/errors.txt"
+
+        MAIN_ERRORS="$(Pipeline.Workspace)/main/errors.txt"
+
+
+        echo
+
+        echo "=== Errors only in main ==="
+
+        diff --changed-group-format='%<' --unchanged-group-format='' $MAIN_ERRORS $PR_ERRORS | egrep -v '^(===|[12]>)'
+
+
+        echo
+
+        echo "=== Errors only in branch ==="
+
+        diff --changed-group-format='%>' --unchanged-group-format='' $MAIN_ERRORS $PR_ERRORS  | egrep -v '^(===|[12]>)'
+
+
+        exit 0
+  - task: PublishPipelineArtifact@1
+    displayName: Publish PR failures Artifact
+    inputs:
+      path: $(Pipeline.Workspace)/pr/prFailures$(System.JobPositionInPhase).json
+      artifactName: prFailures$(System.JobPositionInPhase)
+  - task: PublishPipelineArtifact@1
+    displayName: Publish main failures Artifact
+    inputs:
+      path: $(Pipeline.Workspace)/main/mainFailures$(System.JobPositionInPhase).json
+      artifactName: mainFailures$(System.JobPositionInPhase)
+- job: Job_1
+  displayName: Post success results
+  dependsOn: Phase_1
+  pool:
+    name: TypeScript-1ES-Deploys
+    demands:
+    - ImageOverride -equals azure-linux-3
+  steps:
+  - checkout: self
+    fetchDepth: 2
+    fetchTags: false
+  - task: DownloadPipelineArtifact@2
+    displayName: Download main failures Artifact
+    inputs:
+      patterns: '**/mainFailures*'
+      path: $(Pipeline.Workspace)/mainFailures
+  - task: DownloadPipelineArtifact@2
+    displayName: Download PR failures Artifact
+    inputs:
+      patterns: '**/prFailures*'
+      path: $(Pipeline.Workspace)/prFailures
+  - task: NodeTool@0
+    displayName: Use Node 22.x
+    inputs:
+      versionSpec: 22.x
+  - task: AzureKeyVault@2
+    displayName: Get secrets
+    inputs:
+      ConnectedServiceName: a8a6677d-771c-47f7-853f-27ea51889b18
+      KeyVaultName: jststeam-passwords
+      SecretsFilter: typescript-bot-github-PAT-DT-Tests
+  - task: CmdLine@2
+    displayName: Clone dtslint-runner and run result posting script
+    inputs:
+      script: >-
+        git config --global core.longpaths true
+
+        git clone https://github.com/microsoft/DefinitelyTyped-tools $(Build.SourcesDirectory)/DefinitelyTyped-tools --depth 1
+
+        pushd $(Build.SourcesDirectory)/DefinitelyTyped-tools
+
+        npm install -g `jq -r '.packageManager' < package.json`
+
+        pnpm install
+
+        pnpm build
+
+        pushd $(Build.SourcesDirectory)/DefinitelyTyped-tools/packages/dtslint-runner
+
+
+        node ./dist/post-results.js ${GH_TOKEN} $(Build.BuildId) $(status_comment) $(requesting_user) $(source_issue) $(distinct_id) ok $(Pipeline.Workspace)/mainFailures $(Pipeline.Workspace)/prFailures
+- job: Job_2
+  displayName: Post failure results
+  dependsOn: Phase_1
+  condition: failed()
+  pool:
+    name: TypeScript-1ES-Deploys
+    demands:
+    - ImageOverride -equals azure-linux-3
+  steps:
+  - checkout: self
+    fetchDepth: 2
+    fetchTags: false
+  - task: NodeTool@0
+    displayName: Use Node 22.x
+    inputs:
+      versionSpec: 22.x
+  - task: AzureKeyVault@2
+    displayName: Get secrets
+    inputs:
+      ConnectedServiceName: a8a6677d-771c-47f7-853f-27ea51889b18
+      KeyVaultName: jststeam-passwords
+      SecretsFilter: typescript-bot-github-PAT-DT-Tests
+  - task: CmdLine@2
+    displayName: Clone dtslint-runner and run result posting script
+    inputs:
+      script: >-
+        git config --global core.longpaths true
+
+        git clone https://github.com/microsoft/DefinitelyTyped-tools $(Build.SourcesDirectory)/DefinitelyTyped-tools --depth 1
+
+        pushd $(Build.SourcesDirectory)/DefinitelyTyped-tools
+
+        npm install -g `jq -r '.packageManager' < package.json`
+
+        pnpm install
+
+        pnpm build
+
+        pushd $(Build.SourcesDirectory)/DefinitelyTyped-tools/packages/dtslint-runner
+
+
+
+        node ./dist/post-results.js ${GH_TOKEN} $(Build.BuildId) $(status_comment) $(requesting_user) $(source_issue) $(distinct_id) fail
+...
