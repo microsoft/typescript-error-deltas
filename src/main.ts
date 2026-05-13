@@ -1143,6 +1143,21 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
 
 async function installPackages(repoDir: string, commands: readonly ip.InstallCommand[], timeoutMs: number) {
     let usedYarn = false;
+
+    const installEnv: Record<string, string> = {
+        ...process.env,
+        // yarn2 produces extremely verbose output unless CI=true is set and it should be harmless for yarn1 and npm
+        CI: "true",
+        YARN_ENABLE_SCRIPTS: "false",
+        npm_config_ignore_scripts: "true",
+        // pnpm reads npm_config_* too, but not in 11+
+        pnpm_config_ignore_scripts: "true",
+        // Block git-protocol dependencies entirely.
+        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_KEY_0: "protocol.allow",
+        GIT_CONFIG_VALUE_0: "never",
+    };
+
     try {
         let timedOut = false;
         const startMs = performance.now();
@@ -1154,8 +1169,7 @@ async function installPackages(repoDir: string, commands: readonly ip.InstallCom
             const elapsedMs = performance.now() - startMs;
             const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
 
-            // yarn2 produces extremely verbose output unless CI=true is set and it should be harmless for yarn1 and npm
-            const spawnResult = await spawnWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs, { ...process.env, CI: "true" });
+            const spawnResult = await spawnWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs, installEnv);
             if (!spawnResult) {
                 throw new Error(`Timed out after ${timeoutMs} ms`);
             }
@@ -1165,7 +1179,7 @@ async function installPackages(repoDir: string, commands: readonly ip.InstallCom
                     const elapsedMs2 = performance.now() - startMs;
                     const args2 = args.slice();
                     args2[0] = "install";
-                    const spawnResult2 = await spawnWithTimeoutAsync(packageRoot, tool, args2, timeoutMs - elapsedMs2, { ...process.env, CI: "true" });
+                    const spawnResult2 = await spawnWithTimeoutAsync(packageRoot, tool, args2, timeoutMs - elapsedMs2, installEnv);
                     if (spawnResult2 && !spawnResult2.code && !spawnResult2.signal) {
                         continue; // Succeeded on retry
                     }
