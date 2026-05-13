@@ -1150,6 +1150,7 @@ async function installPackages(repoDir: string, commands: readonly ip.InstallCom
         CI: "true",
         YARN_ENABLE_SCRIPTS: "false",
         npm_config_ignore_scripts: "true",
+        npm_config_allow_git: "none",
         // pnpm reads npm_config_* too, but not in 11+
         pnpm_config_ignore_scripts: "true",
         // Block git-protocol dependencies entirely.
