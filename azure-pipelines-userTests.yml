@@ -68,6 +68,8 @@ pool:
 variables:
   Codeql.Enabled: false
   skipComponentGovernanceDetection: true
+  TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID: 'Iv23li4GolzJSEp1mzHI'
+  TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID: 'https://jststeam-passwords.vault.azure.net/keys/typescript-automation'
 
 jobs:
 - job: ListRepos
