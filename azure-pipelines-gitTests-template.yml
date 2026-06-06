@@ -53,6 +53,10 @@ jobs:
     demands:
       - ImageOverride -equals azure-linux-3
   steps:
+  - task: UseNode@1
+    inputs:
+      version: '22.x'
+    displayName: 'Install Node.js'
   - task: AzureCLI@2
     inputs:
       azureSubscription: 'TypeScript Public CI'
@@ -70,10 +74,6 @@ jobs:
       PERMISSIONS: contents:read,issues:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
-  - task: UseNode@1
-    inputs:
-      version: '22.x'
-    displayName: 'Install Node.js'
   - script: |
       npm ci
       npm run build
@@ -135,6 +135,10 @@ jobs:
     demands:
       - ImageOverride -equals azure-linux-3
   steps:
+  - task: UseNode@1
+    inputs:
+      version: '22.x'
+    displayName: 'Install Node.js'
   - task: AzureCLI@2
     inputs:
       azureSubscription: 'TypeScript Public CI'
@@ -153,10 +157,6 @@ jobs:
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
   - download: current
-  - task: UseNode@1
-    inputs:
-      version: '22.x'
-    displayName: 'Install Node.js'
   - script: |
       npm ci
       npm run build
