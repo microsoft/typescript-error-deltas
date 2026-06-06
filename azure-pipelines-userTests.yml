@@ -96,7 +96,7 @@ jobs:
       REPOSITORIES: |
         TypeScript
         typescript-go
-      PERMISSIONS: contents:read,issues:write
+      PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
   - script: |
@@ -181,7 +181,7 @@ jobs:
       REPOSITORIES: |
         TypeScript
         typescript-go
-      PERMISSIONS: contents:read,issues:write
+      PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
   - download: current
