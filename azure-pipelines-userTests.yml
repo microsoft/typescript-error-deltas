@@ -68,6 +68,8 @@ pool:
 variables:
   Codeql.Enabled: false
   skipComponentGovernanceDetection: true
+  TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID: 'Iv23li4GolzJSEp1mzHI'
+  TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID: 'https://jststeam-passwords.vault.azure.net/keys/typescript-automation'
 
 jobs:
 - job: ListRepos
@@ -76,17 +78,27 @@ jobs:
     demands:
       - ImageOverride -equals azure-linux-3
   steps:
-  - task: AzureKeyVault@2
-    inputs:
-      azureSubscription: 'TypeScript Public CI'
-      KeyVaultName: 'jststeam-passwords'
-      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
-    displayName: Get secrets
-    retryCountOnTaskFailure: 3
   - task: UseNode@1
     inputs:
       version: '20.x'
     displayName: 'Install Node.js'
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    displayName: Create GitHub App token
+    env:
+      APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
+      KEY_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID)
+      OWNER: microsoft
+      REPOSITORIES: |
+        TypeScript
+        typescript-go
+      PERMISSIONS: contents:read,issues:write,pull_requests:write
+      OUTPUT: azure-pipelines
+      AZURE_TOKEN_VARIABLE: GITHUB_PAT
   - script: |
       npm ci
       npm run build
@@ -94,11 +106,16 @@ jobs:
   - script: node dist/listTopRepos TypeScript ${{ parameters.REPO_COUNT }} 0 artifacts/repos.json
     condition: eq('${{ parameters.TOP_REPOS }}', 'true')
     env:
-      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
+      GITHUB_PAT: $(GITHUB_PAT)
     displayName: 'List top TS repos'
   - script: node dist/listUserTestRepos ./userTests artifacts/repos.json
     condition: ne('${{ parameters.TOP_REPOS }}', 'true')
     displayName: 'List user test repos'
+  - script: node scripts/create-github-app-token-from-keyvault.cjs
+    displayName: Revoke GitHub App token
+    condition: always()
+    env:
+      REVOKE_TOKEN: $(GITHUB_PAT)
   - publish: artifacts
     artifact: RepoList
 - job: DetectNewErrors
@@ -146,22 +163,37 @@ jobs:
     demands:
       - ImageOverride -equals azure-linux-3
   steps:
-  - task: AzureKeyVault@2
-    inputs:
-      azureSubscription: 'TypeScript Public CI'
-      KeyVaultName: 'jststeam-passwords'
-      SecretsFilter: 'typescript-bot-github-PAT-error-deltas'
-    displayName: Get secrets
-    retryCountOnTaskFailure: 3
-  - download: current
   - task: UseNode@1
     inputs:
       version: '20.x'
     displayName: 'Install Node.js'
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    displayName: Create GitHub App token
+    env:
+      APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
+      KEY_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID)
+      OWNER: microsoft
+      REPOSITORIES: |
+        TypeScript
+        typescript-go
+      PERMISSIONS: contents:read,issues:write,pull_requests:write
+      OUTPUT: azure-pipelines
+      AZURE_TOKEN_VARIABLE: GITHUB_PAT
+  - download: current
   - script: |
       npm ci
       npm run build
       node dist/postGithubComments ${{ parameters.ENTRYPOINT }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts' ${{ contains(parameters.OLD_TS_REPO_URL, 'typescript-go') }}
     displayName: 'Update PR comment with new errors'
     env:
-      GITHUB_PAT: $(typescript-bot-github-PAT-error-deltas)
+      GITHUB_PAT: $(GITHUB_PAT)
+  - script: node scripts/create-github-app-token-from-keyvault.cjs
+    displayName: Revoke GitHub App token
+    condition: always()
+    env:
+      REVOKE_TOKEN: $(GITHUB_PAT)
