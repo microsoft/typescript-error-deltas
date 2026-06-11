@@ -62,21 +62,15 @@ Req #123 - cursedCommand
 
 git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules
 git -C "./MockRepoName" reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935
-# Install packages (exact steps are below, but it might be easier to follow the repo readme)
-npm --prefix "./dirA" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-npm --prefix "./dirB/dirC" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-npm --prefix "./dirD/dirE/dirF" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
 downloadUrl=$(curl -s "PLACEHOLDER_GETARTIFACTS_API?artifactName=RepoResults123&api-version=7.0" | jq -r ".resource.downloadUrl")
 wget -O RepoResults123.zip "$downloadUrl"
 unzip -p RepoResults123.zip RepoResults123/MockRepoOwner.MockRepoName.replay.txt > MockRepoOwner.MockRepoName.replay.txt
 npm install --no-save @typescript/server-replay
+# Install the repro project's packages
+npx tsreplay install ./MockRepoName
 \`\`\`
 
-To run the repro:
-\`\`\`bash
-# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
-npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt <PATH_TO_tsserver.js>
-\`\`\`
+To run the repro, use the "Launch replay test" launch configuration in your local copy of native TypeScript.
 
 </details>
 ",
@@ -131,21 +125,15 @@ Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</cod
 
 git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules
 git -C "./MockRepoName" reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935
-# Install packages (exact steps are below, but it might be easier to follow the repo readme)
-npm --prefix "./dirA" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-npm --prefix "./dirB/dirC" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-npm --prefix "./dirD/dirE/dirF" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
 downloadUrl=$(curl -s "PLACEHOLDER_GETARTIFACTS_API?artifactName=RepoResults123&api-version=7.0" | jq -r ".resource.downloadUrl")
 wget -O RepoResults123.zip "$downloadUrl"
 unzip -p RepoResults123.zip RepoResults123/MockRepoOwner.MockRepoName.replay.txt > MockRepoOwner.MockRepoName.replay.txt
 npm install --no-save @typescript/server-replay
+# Install the repro project's packages
+npx tsreplay install ./MockRepoName
 \`\`\`
 
-To run the repro:
-\`\`\`bash
-# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
-npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt <PATH_TO_tsserver.js>
-\`\`\`
+To run the repro, use the "Launch replay test" launch configuration in your local copy of native TypeScript.
 
 </details>
 
@@ -258,21 +246,15 @@ Req #123 - cursedCommand
 
 git clone https://github.com/MockRepoOwner/MockRepoName --recurse-submodules
 git -C "./MockRepoName" reset --hard 57b462387e88aa7e363af0daf867a5dc1e83a935
-# Install packages (exact steps are below, but it might be easier to follow the repo readme)
-npm --prefix "./dirA" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-npm --prefix "./dirB/dirC" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
-npm --prefix "./dirD/dirE/dirF" install --prefer-offline --no-audit --no-progress --legacy-peer-deps --ignore-scripts -q
 downloadUrl=$(curl -s "PLACEHOLDER_GETARTIFACTS_API?artifactName=RepoResults123&api-version=7.0" | jq -r ".resource.downloadUrl")
 wget -O RepoResults123.zip "$downloadUrl"
 unzip -p RepoResults123.zip RepoResults123/MockRepoOwner.MockRepoName.replay.txt > MockRepoOwner.MockRepoName.replay.txt
 npm install --no-save @typescript/server-replay
+# Install the repro project's packages
+npx tsreplay install ./MockRepoName
 \`\`\`
 
-To run the repro:
-\`\`\`bash
-# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
-npx tsreplay ./MockRepoName ./MockRepoOwner.MockRepoName.replay.txt <PATH_TO_tsserver.js>
-\`\`\`
+To run the repro, use the "Launch replay test" launch configuration in your local copy of native TypeScript.
 
 </details>
 ",

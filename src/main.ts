@@ -4,7 +4,7 @@ import pu = require("./utils/packageUtils");
 import git = require("./utils/gitUtils");
 import { execAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
 import type { LspRequestStats } from "./utils/exerciseLspServer";
-import ip = require("./utils/installPackages");
+import ip = require("@typescript/server-replay/installPackages");
 import ut = require("./utils/userTestUtils");
 import fs = require("fs");
 import path = require("path");
@@ -98,7 +98,7 @@ interface TSServerResult {
     newServerFailed: boolean;
     newSpawnResult: SpawnResult;
     replayScriptPath: string;
-    installCommands: ip.InstallCommand[];
+    installCommand: string | undefined;
 }
 
 interface Summary {
@@ -168,26 +168,24 @@ async function getMonorepoPackages(repoDir: string): Promise<readonly string[] |
     }
 }
 
-async function installPackagesAndGetCommands(
+async function tryInstallPackages(
     repo: git.Repo,
     downloadDir: string,
     repoDir: string,
-    monorepoPackages: readonly string[],
     cleanOnFailure: boolean,
-    diagnosticOutput: boolean): Promise<ip.InstallCommand[] | undefined> {
+    diagnosticOutput: boolean): Promise<string | undefined> {
     const packageInstallStart = performance.now();
+    const isUserTestRepo = !repo.url;
+    const recursiveSearch = !isUserTestRepo;
     try {
         console.log("Installing packages if absent");
-        const isUserTestRepo = !repo.url;
-        const commands = await ip.installPackages(
+        await ip.installDependencies(
             repoDir,
-                /*ignoreScripts*/ true,
                 /*quietOutput*/ !diagnosticOutput,
-                /*recursiveSearch*/ !isUserTestRepo,
-                /*monorepoPackages*/ monorepoPackages,
-            repo.types);
-        await installPackages(repoDir, commands, packageTimeout);
-        return commands;
+                /*recursiveSearch*/ recursiveSearch,
+                /*packageTimeout*/ packageTimeout);
+        // The repro instructions install packages via `npx tsreplay install`, mirroring the options used here.
+        return `npx tsreplay install ./${repo.name}${recursiveSearch ? "" : " --recursiveSearch false"}`;
     }
     catch (err) {
         reportError(err, `Error installing packages for ${repo.name}`);
@@ -200,11 +198,9 @@ async function installPackagesAndGetCommands(
             // but making that mode repro-able could be complicated, so remove all packages for simplicity.
             console.log("Removing installed packages");
             await execAsync(repoDir, "git clean -xdff");
-            return [];
         }
-        else {
-            return undefined;
-        }
+
+        return undefined;
     }
     finally {
         logStepTime(diagnosticOutput, repo, "package install", packageInstallStart);
@@ -232,9 +228,9 @@ async function getTsServerRepoResult(
     const monorepoPackages = await getMonorepoPackages(repoDir);
 
     // Presumably, people occasionally browse repos without installing the packages first
-    const installCommands = (prng.random() > 0.2) && monorepoPackages
-        ? (await installPackagesAndGetCommands(repo, downloadDir.path, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
-        : [];
+    const installCommand = (prng.random() > 0.2) && !!monorepoPackages
+        ? await tryInstallPackages(repo, downloadDir.path, repoDir, /*cleanOnFailure*/ true, diagnosticOutput)
+        : undefined;
 
     const replayScriptName = path.basename(replayScriptArtifactPath);
     const replayScriptPath = path.join(downloadDir.path, replayScriptName);
@@ -314,7 +310,7 @@ async function getTsServerRepoResult(
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = isGo ?
             await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "replayLspServer.js"), repoDir, replayScriptPath, oldTsServerPath, diagnosticOutput.toString()], executionTimeout) :
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "replay.js"), repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "bin", "tsreplay.js"), "strada-replay", repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
 
         if (diagnosticOutput && oldSpawnResult) {
             console.log("Raw spawn results (old):");
@@ -373,7 +369,7 @@ async function getTsServerRepoResult(
             newServerFailed,
             newSpawnResult,
             replayScriptPath,
-            installCommands,
+            installCommand,
         };
 
         return { status: "Detected interesting changes", tsServerResult: tsServerResult, replayScriptPath, rawErrorPath };
@@ -409,9 +405,9 @@ export async function getLSPResult(
     const monorepoPackages = await getMonorepoPackages(repoDir);
 
     // Presumably, people occasionally browse repos without installing the packages first
-    const installCommands = (prng.random() > 0.2) && monorepoPackages
-        ? (await installPackagesAndGetCommands(repo, downloadDir.path, repoDir, monorepoPackages, /*cleanOnFailure*/ true, diagnosticOutput))!
-        : [];
+    const installCommand = (prng.random() > 0.2) && !!monorepoPackages
+        ? await tryInstallPackages(repo, downloadDir.path, repoDir, /*cleanOnFailure*/ true, diagnosticOutput)
+        : undefined;
 
     const replayScriptName = path.basename(replayScriptArtifactPath);
     const replayScriptPath = path.join(downloadDir.path, replayScriptName);
@@ -483,7 +479,7 @@ export async function getLSPResult(
             newServerFailed: true,
             newSpawnResult: spawnResult,
             replayScriptPath,
-            installCommands,
+            installCommand,
         };
 
         return { status: "Detected interesting changes", tsServerResult, replayScriptPath, rawErrorPath, lspStats: await tryReadLspStats(statsPath) };
@@ -552,6 +548,45 @@ function prettyPrint(output: string, filter: boolean, isGo: boolean): string {
     return isGo ? prettyPrintLspHarnessOutput(output, filter) : prettyPrintServerHarnessOutput(output, filter);
 }
 
+function getReplayInstructions(summary: Summary): string {
+    let text = `<h4>Repro steps</h4>
+
+\`\`\`bash
+#!/bin/bash
+
+`;
+    // No url means is user test repo
+    if (!summary.repo.url) {
+        text += `# Manually download user test ${asMarkdownInlineCode(summary.repo.name)}\n`;
+    }
+    else {
+        text += `git clone ${summary.repo.url} --recurse-submodules\n`;
+
+        if (summary.commit) {
+            text += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
+        }
+    }
+
+    text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
+wget -O ${summary.resultDirName}.zip "$downloadUrl"
+unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
+npm install --no-save @typescript/server-replay
+`;
+    if (summary.tsServerResult.installCommand) {
+        text += `# Install the repro project's packages
+${summary.tsServerResult.installCommand}
+`;
+    }
+    text += `\`\`\`
+
+To run the repro, use the "Launch replay test" launch configuration in your local copy of native TypeScript.
+
+</details>
+`;
+
+    return text;
+}
+
 function createOldErrorSummary(summaries: Summary[], isGo: boolean): string {
     const { oldSpawnResult } = summaries[0].tsServerResult;
 
@@ -586,51 +621,8 @@ Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href
 ${summary.replayScript}
 \`\`\`
 
-<h4>Repro steps</h4>
-
-\`\`\`bash
-#!/bin/bash
-
 `;
-        // No url means is user test repo
-        if (!summary.repo.url) {
-            text += `# Manually download user test ${asMarkdownInlineCode(summary.repo.name)}\n`;
-        }
-        else {
-            text += `git clone ${summary.repo.url} --recurse-submodules\n`;
-
-            if (summary.commit) {
-                text += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
-            }
-        }
-
-        if (summary.tsServerResult.installCommands.length > 1) {
-            text += "# Install packages (exact steps are below, but it might be easier to follow the repo readme)\n";
-        }
-        for (const command of summary.tsServerResult.installCommands) {
-            const workingDirFlag = command.tool === ip.InstallTool.Npm
-                ? "--prefix"
-                : command.tool === ip.InstallTool.Yarn
-                    ? "--cwd"
-                    : "--dir"; // pnpm
-
-            text += `${command.tool} ${workingDirFlag} "./${command.prettyDirectory}" ${command.arguments.join(" ")}\n`;
-        }
-
-        text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
-wget -O ${summary.resultDirName}.zip "$downloadUrl"
-unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
-npm install --no-save @typescript/server-replay
-\`\`\`
-
-To run the repro:
-\`\`\`bash
-# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
-npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsserver.js>
-\`\`\`
-
-</details>
-`;
+        text += getReplayInstructions(summary);
     }
 
     text += `
@@ -690,51 +682,8 @@ ${oldHarnessOutput}
 ${summary.replayScript}
 \`\`\`
 
-<h4>Repro steps</h4>
-
-\`\`\`bash
-#!/bin/bash
-
 `;
-        // No url means is user test repo
-        if (!summary.repo.url) {
-            text += `# Manually download user test ${asMarkdownInlineCode(summary.repo.name)}\n`;
-        }
-        else {
-            text += `git clone ${summary.repo.url} --recurse-submodules\n`;
-
-            if (summary.commit) {
-                text += `git -C "./${summary.repo.name}" reset --hard ${summary.commit}\n`;
-            }
-        }
-
-        if (summary.tsServerResult.installCommands.length > 1) {
-            text += "# Install packages (exact steps are below, but it might be easier to follow the repo readme)\n";
-        }
-        for (const command of summary.tsServerResult.installCommands) {
-            const workingDirFlag = command.tool === ip.InstallTool.Npm
-                ? "--prefix"
-                : command.tool === ip.InstallTool.Yarn
-                    ? "--cwd"
-                    : "--dir"; // pnpm
-
-            text += `${command.tool} ${workingDirFlag} "./${command.prettyDirectory}" ${command.arguments.join(" ")}\n`;
-        }
-
-        text += `downloadUrl=$(curl -s "${getArtifactsApiUrlPlaceholder}?artifactName=${summary.resultDirName}&api-version=7.0" | jq -r ".resource.downloadUrl")
-wget -O ${summary.resultDirName}.zip "$downloadUrl"
-unzip -p ${summary.resultDirName}.zip ${summary.resultDirName}/${summary.replayScriptName} > ${summary.replayScriptName}
-npm install --no-save @typescript/server-replay
-\`\`\`
-
-To run the repro:
-\`\`\`bash
-# \`npx tsreplay --help\` to learn about helpful switches for debugging, logging, etc.
-npx tsreplay ./${summary.repo.name} ./${summary.replayScriptName} <PATH_TO_tsserver.js>
-\`\`\`
-
-</details>
-`;
+        text += getReplayInstructions(summary);
     }
 
     return text;
@@ -763,7 +712,7 @@ export async function getTscRepoResult(
     const baseRepoDir = path.join(downloadDir.path, repo.name);
     const monorepoPackages = await getMonorepoPackages(baseRepoDir);
 
-    if (!monorepoPackages || !await installPackagesAndGetCommands(repo, downloadDir.path, baseRepoDir, monorepoPackages, /*cleanOnFailure*/ false, diagnosticOutput)) {
+    if (!monorepoPackages || !await tryInstallPackages(repo, downloadDir.path, baseRepoDir, /*cleanOnFailure*/ false, diagnosticOutput)) {
         return { status: "Package install failed" };
     }
 
@@ -1139,71 +1088,6 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
         lspRequestStats: params.entrypoint === "fuzzer" ? aggregateLspStats : undefined,
     };
     await fs.promises.writeFile(path.join(resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
-}
-
-async function installPackages(repoDir: string, commands: readonly ip.InstallCommand[], timeoutMs: number) {
-    let usedYarn = false;
-
-    const installEnv: Record<string, string> = {
-        ...process.env,
-        // yarn2 produces extremely verbose output unless CI=true is set and it should be harmless for yarn1 and npm
-        CI: "true",
-        YARN_ENABLE_SCRIPTS: "false",
-        npm_config_ignore_scripts: "true",
-        npm_config_allow_git: "none",
-        // pnpm reads npm_config_* too, but not in 11+
-        pnpm_config_ignore_scripts: "true",
-        // Block git-protocol dependencies entirely.
-        GIT_CONFIG_COUNT: "1",
-        GIT_CONFIG_KEY_0: "protocol.allow",
-        GIT_CONFIG_VALUE_0: "never",
-    };
-
-    try {
-        let timedOut = false;
-        const startMs = performance.now();
-        for (const { directory: packageRoot, tool, arguments: args } of commands) {
-            if (timedOut) break;
-
-            usedYarn = usedYarn || tool === ip.InstallTool.Yarn;
-
-            const elapsedMs = performance.now() - startMs;
-            const packageRootDescription = packageRoot.substring(repoDir.length + 1) || "root directory";
-
-            const spawnResult = await spawnWithTimeoutAsync(packageRoot, tool, args, timeoutMs - elapsedMs, installEnv);
-            if (!spawnResult) {
-                throw new Error(`Timed out after ${timeoutMs} ms`);
-            }
-
-            if (spawnResult.code || spawnResult.signal) {
-                if (tool === ip.InstallTool.Npm && args[0] === "ci" && /update your lock file/.test(spawnResult.stderr)) {
-                    const elapsedMs2 = performance.now() - startMs;
-                    const args2 = args.slice();
-                    args2[0] = "install";
-                    const spawnResult2 = await spawnWithTimeoutAsync(packageRoot, tool, args2, timeoutMs - elapsedMs2, installEnv);
-                    if (spawnResult2 && !spawnResult2.code && !spawnResult2.signal) {
-                        continue; // Succeeded on retry
-                    }
-                }
-
-                const errorText = `Exited with ${spawnResult.code ? `code ${spawnResult.code}` : `signal ${spawnResult.signal}`}
-${spawnResult.stdout.trim() || "No stdout"}\n${spawnResult.stderr.trim() || "No stderr"}`;
-
-                if (!/ENOSPC/.test(errorText) && (/(?:ex|s)amples?\//i.test(packageRootDescription) || /tests?\//i.test(packageRootDescription))) {
-                    console.log(`Ignoring package install error from non-product folder ${packageRootDescription}:`);
-                    console.log(insetLines(reduceSpew(errorText)));
-                }
-                else {
-                    throw new Error(`Failed to install packages for ${packageRootDescription}:\n${errorText}`);
-                }
-            }
-        }
-    }
-    finally {
-        if (usedYarn) {
-            await execAsync(repoDir, "yarn cache clean --all");
-        }
-    }
 }
 
 async function reportResourceUsage(downloadDir: string) {
