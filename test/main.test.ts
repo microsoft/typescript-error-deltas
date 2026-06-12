@@ -62,42 +62,9 @@ jest.mock('fs', () => ({
         }
     }
 }));
-jest.mock('../src/utils/installPackages', () => {
-    const actualIp = jest.requireActual('../src/utils/installPackages')
-    const npmCommand = {
-        tool: 'npm',
-        arguments: [
-            'install',
-            '--prefer-offline',
-            '--no-audit',
-            '--no-progress',
-            '--legacy-peer-deps',
-            '--ignore-scripts',
-            '-q',
-        ]
-    };
-
+jest.mock('@typescript/server-replay/installPackages', () => {
     return {
-        InstallTool: actualIp.InstallTool,
-        installPackages: async () => {
-            return [
-                {
-                    ...npmCommand,
-                    directory: '/mnt/repos/dirA',
-                    prettyDirectory: 'dirA',
-                },
-                {
-                    ...npmCommand,
-                    directory: '/mnt/repos/dirB/dirC',
-                    prettyDirectory: 'dirB/dirC',
-                },
-                {
-                    ...npmCommand,
-                    directory: '/mnt/repos/dirD/dirE/dirF',
-                    prettyDirectory: 'dirD/dirE/dirF',
-                }
-            ]
-        }
+        installDependencies: jest.fn().mockResolvedValue(undefined),
     }
 });
 

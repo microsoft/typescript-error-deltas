@@ -141,9 +141,9 @@
                 "${workspaceFolder}/dist/**/*.js"
             ],
             "args": [
-                "lsp",
+                "fuzzer",
                 "0",
-                "latest",
+                "main",
                 "./artifacts/repos.json",
                 "1",
                 "1",
