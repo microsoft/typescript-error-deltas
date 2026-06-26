@@ -24,12 +24,14 @@ const statusCounts: StatusCounts = {};
 
 let newTscResolvedVersion: string | undefined;
 let oldTscResolvedVersion: string | undefined;
+let prngSeed: string | undefined;
 
 for (const path of metadataFilePaths) {
     const metadata: Metadata = JSON.parse(fs.readFileSync(path, { encoding: "utf-8" }));
 
     newTscResolvedVersion ??= metadata.newTsResolvedVersion;
     oldTscResolvedVersion ??= metadata.oldTsResolvedVersion;
+    prngSeed ??= metadata.prngSeed;
 
     for (const s in metadata.statusCounts) {
         const status = s as RepoStatus;
@@ -67,6 +69,7 @@ This run considered ${repoCount} popular TS repos from GH (after skipping the to
 
 <details>
 <summary>Successfully analyzed ${analyzedCount} of ${totalCount} visited repos${totalCount < +repoCount ? ` (:warning: expected ${repoCount})` : ""}</summary>
+${prngSeed ? `Seed: \`${prngSeed}\`` : ""}
 
 | Outcome | Count |
 |---------|-------|

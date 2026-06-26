@@ -1,0 +1,103 @@
+pr: none
+trigger: none
+
+parameters:
+  - name: ISSUE_NUMBER
+    displayName: GitHub issue number (on microsoft/typescript-go) from original run
+    type: number
+  - name: TSGO_REF
+    displayName: Git ref of typescript-go to build (branch, tag, or commit SHA)
+    type: string
+  - name: POST_RESULT
+    displayName: Post results as GitHub comment on the issue
+    type: boolean
+    default: true
+  - name: DIAGNOSTIC_OUTPUT
+    displayName: Log diagnostic data
+    type: boolean
+    default: false
+
+pool:
+  name: TypeScript-1ES-Large
+  demands:
+    - ImageOverride -equals azure-linux-3
+
+variables:
+  TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID: 'Iv23li4GolzJSEp1mzHI'
+  TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID: 'https://jststeam-passwords.vault.azure.net/keys/typescript-automation'
+
+jobs:
+- job: RerunFromIssue
+  displayName: Rerun tsserver tests from issue
+  timeoutInMinutes: 360
+  steps:
+  - task: UseNode@1
+    inputs:
+      version: '22.x'
+    displayName: 'Install Node.js'
+  - task: GoTool@0
+    inputs:
+      version: '1.26'
+    displayName: 'Install Go'
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: 'TypeScript Public CI'
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    displayName: Create GitHub App token
+    env:
+      APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
+      KEY_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID)
+      OWNER: microsoft
+      REPOSITORIES: |
+        TypeScript
+        typescript-go
+      PERMISSIONS: contents:read,issues:write,pull_requests:write
+      OUTPUT: azure-pipelines
+      AZURE_TOKEN_VARIABLE: GITHUB_PAT
+
+  # Build this repo
+  - script: |
+      npm ci
+      npm run build
+    displayName: 'Build typescript-error-deltas'
+
+  # Build tsgo from specified ref
+  - script: |
+      set -e
+      echo "Cloning typescript-go at ref ${{ parameters.TSGO_REF }}..."
+      git clone https://github.com/microsoft/typescript-go.git --recurse-submodules --depth=1 --branch=${{ parameters.TSGO_REF }} typescript-go-rerun
+      cd typescript-go-rerun
+      npm ci
+      echo "Building tsgo..."
+      npx hereby build
+      TSGO_PATH="$(pwd)/built/local/tsgo"
+      echo "Built tsgo at: $TSGO_PATH"
+      echo "##vso[task.setvariable variable=TSGO_PATH]$TSGO_PATH"
+    displayName: 'Build tsgo from ref ${{ parameters.TSGO_REF }}'
+
+  # Parse issue for repo info and replay scripts, then run them
+  - script: |
+      mkdir -p RerunResults
+      node dist/rerunFromIssue ${{ parameters.ISSUE_NUMBER }} "$(TSGO_PATH)" RerunResults ${{ parameters.DIAGNOSTIC_OUTPUT }}
+    displayName: 'Run replay scripts with new tsgo'
+    continueOnError: true
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+
+  - publish: RerunResults
+    artifact: RerunResults
+
+  # Post results as comment on the issue
+  - script: |
+      node dist/postRerunComment ${{ parameters.ISSUE_NUMBER }} RerunResults '${{ parameters.TSGO_REF }}' ${{ parameters.POST_RESULT }}
+    displayName: 'Post results on GitHub issue'
+    env:
+      GITHUB_PAT: $(GITHUB_PAT)
+
+  - script: node scripts/create-github-app-token-from-keyvault.cjs
+    displayName: Revoke GitHub App token
+    condition: always()
+    env:
+      REVOKE_TOKEN: $(GITHUB_PAT)
