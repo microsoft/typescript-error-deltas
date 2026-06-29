@@ -1,5 +1,6 @@
 import path = require("path");
 import { mainAsync, reportError, TsEntrypoint } from "./main";
+import { rerunFromIssueAsync } from "./rerunFromIssue";
 
 const { argv } = process;
 
@@ -10,21 +11,35 @@ if (argv.length < 11) {
 
 const [,, entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, tmpfs] = argv;
 
-mainAsync({
-    testType: "scheduled",
-    tmpfs: tmpfs && tmpfs.toLowerCase() === "false" ? false : true,
-    entrypoint: entrypoint as TsEntrypoint,
-    diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
-    buildWithNewWhenOldFails: false,
-    repoListPath,
-    workerCount: +workerCount,
-    workerNumber: +workerNumber,
-    oldTsNpmVersion,
-    newTsNpmVersion,
-    resultDirName,
-    prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
-    isGo: true,
-}).catch(err => {
-    reportError(err, "Unhandled exception");
-    process.exit(1);
-});
+// When entrypoint is "fuzzer" and OLD_VERSION is an issue number (not '0'),
+// run the rerun pipeline: replay the "last few requests" from the issue against the new tsgo.
+if (entrypoint === "fuzzer" && oldTsNpmVersion !== "0") {
+    rerunFromIssueAsync({
+        issueNumber: +oldTsNpmVersion,
+        newTsNpmVersion,
+        resultDirName,
+        diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
+    }).catch(err => {
+        reportError(err, "Unhandled exception");
+        process.exit(1);
+    });
+} else {
+    mainAsync({
+        testType: "scheduled",
+        tmpfs: tmpfs && tmpfs.toLowerCase() === "false" ? false : true,
+        entrypoint: entrypoint as TsEntrypoint,
+        diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
+        buildWithNewWhenOldFails: false,
+        repoListPath,
+        workerCount: +workerCount,
+        workerNumber: +workerNumber,
+        oldTsNpmVersion,
+        newTsNpmVersion,
+        resultDirName,
+        prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
+        isGo: true,
+    }).catch(err => {
+        reportError(err, "Unhandled exception");
+        process.exit(1);
+    });
+}

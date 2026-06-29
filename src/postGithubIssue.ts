@@ -18,6 +18,11 @@ const isGoRepo = isGoStr.toLowerCase() === "true";
 
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
 
+if (metadataFilePaths.length === 0) {
+    console.log("No metadata files found — nothing to report (this is expected for rerun flows).");
+    process.exit(0);
+}
+
 let analyzedCount = 0;
 let totalCount = 0;
 const statusCounts: StatusCounts = {};

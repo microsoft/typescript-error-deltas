@@ -2,22 +2,21 @@ import path = require("path");
 import fs = require("fs");
 import octokit = require("@octokit/rest");
 import { execAsync, spawnWithTimeoutAsync } from "./utils/execUtils";
-import { reportError } from "./main";
+import { downloadTsRepoAsync, reportError } from "./main";
 import { EXIT_SERVER_CRASH, EXIT_SERVER_EXIT_FAILED } from "./utils/exerciseServerConstants";
-
-const { argv } = process;
-
-if (argv.length !== 6) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <issue_number> <tsgo_path> <result_dir_name> <diagnostic_output>`);
-    process.exit(-1);
-}
-
-const [,, issueNumberStr, tsgoPath, resultDirName, diagnosticOutputStr] = argv;
-const issueNumber = +issueNumberStr;
-const diagnosticOutput = diagnosticOutputStr.toLowerCase() === "true";
 
 const processCwd = process.cwd();
 const executionTimeout = 10 * 60 * 1000;
+
+interface RerunParams {
+    issueNumber: number;
+    /** Either a pre-built tsgo path, or a git ref to build from */
+    newTsNpmVersion: string;
+    resultDirName: string;
+    diagnosticOutput: boolean;
+    /** If provided, use this path directly instead of building tsgo */
+    tsgoPath?: string;
+}
 
 interface RepoInfo {
     repoUrl: string;
@@ -27,7 +26,7 @@ interface RepoInfo {
     lastFewRequests: string;
 }
 
-interface ReplayResult {
+export interface ReplayResult {
     repo: string;
     repoUrl: string;
     replayScript: string;
@@ -38,11 +37,30 @@ interface ReplayResult {
     status: "pass" | "crash" | "error" | "timeout";
 }
 
-async function main() {
+export async function rerunFromIssueAsync(params: RerunParams): Promise<void> {
+    const { issueNumber, resultDirName, diagnosticOutput } = params;
+
     const resultDirPath = path.join(processCwd, resultDirName);
     if (!(await exists(resultDirPath))) {
         await fs.promises.mkdir(resultDirPath, { recursive: true });
     }
+
+    // Build or resolve tsgo path
+    let tsgoPath: string;
+    if (params.tsgoPath) {
+        tsgoPath = params.tsgoPath;
+    } else {
+        console.log(`Building tsgo from ref ${params.newTsNpmVersion}...`);
+        const { tsEntrypointPath } = await downloadTsRepoAsync(
+            processCwd,
+            "https://github.com/microsoft/typescript-go.git",
+            params.newTsNpmVersion,
+            "fuzzer",
+            true,
+        );
+        tsgoPath = tsEntrypointPath;
+    }
+    console.log(`Using tsgo at: ${tsgoPath}`);
 
     // 1. Read the issue body and comments from GitHub
     const kit = new octokit.Octokit({ auth: process.env.GITHUB_PAT });
@@ -137,7 +155,7 @@ async function main() {
         }
 
         // Run the replay
-        const result = await runReplay(repoDir, replayScriptPath, tsgoPath);
+        const result = await runReplay(repoDir, replayScriptPath, tsgoPath, diagnosticOutput);
         results.push({
             repo: `${repo.owner}/${repo.repoName}`,
             repoUrl: repo.repoUrl,
@@ -160,6 +178,78 @@ async function main() {
     const passed = results.filter(r => r.status === "pass").length;
     const failed = results.filter(r => r.status !== "pass").length;
     console.log(`\nSummary: ${passed} passed, ${failed} failed out of ${results.length} total`);
+
+    // 6. Post results as comment on the issue
+    await postRerunResults(kit, issueNumber, params.newTsNpmVersion, results);
+}
+
+async function postRerunResults(kit: InstanceType<typeof octokit.Octokit>, issueNumber: number, tsgoVersion: string, results: ReplayResult[]): Promise<void> {
+    if (results.length === 0) {
+        console.log("No results to post");
+        return;
+    }
+
+    const passed = results.filter(r => r.status === "pass");
+    const failed = results.filter(r => r.status !== "pass");
+
+    let body = `## Rerun results with \`${tsgoVersion}\`
+
+Replayed ${results.length} test(s) from the original run.
+
+| Status | Count |
+|--------|-------|
+| ✅ Pass (no crash) | ${passed.length} |
+| ❌ Still failing | ${failed.length} |
+
+`;
+
+    if (passed.length > 0) {
+        body += `### Fixed (no longer crashing)
+
+| Repo | Replay |
+|------|--------|
+`;
+        for (const result of passed) {
+            body += `| [${result.repo}](${result.repoUrl}) | ${result.replayScript} |\n`;
+        }
+        body += "\n";
+    }
+
+    if (failed.length > 0) {
+        body += `### Still failing
+
+`;
+        for (const result of failed) {
+            body += `<details>
+<summary>${result.status === "crash" ? "💥" : result.status === "timeout" ? "⏰" : "❌"} <a href="${result.repoUrl}">${result.repo}</a> — ${result.status}</summary>
+
+`;
+            if (result.stdout) {
+                body += `\`\`\`\n${result.stdout.slice(0, 3000)}\n\`\`\`\n`;
+            }
+            if (result.stderr && result.status === "timeout") {
+                body += `\n${result.stderr}\n`;
+            }
+            body += `\n</details>\n\n`;
+        }
+    }
+
+    console.log("Posting rerun results as comment on issue #" + issueNumber);
+
+    const maxCommentLength = 65535;
+    if (body.length > maxCommentLength) {
+        body = body.slice(0, maxCommentLength - 100) + "\n\n:warning: Comment truncated — see pipeline artifacts for full results.";
+    }
+
+    // !!! dont post issue during testing
+    // const response = await kit.issues.createComment({
+    //     owner: "microsoft",
+    //     repo: "typescript-go",
+    //     issue_number: issueNumber,
+    //     body,
+    // });
+
+    // console.log(`Posted comment: ${response.data.html_url}`);
 }
 
 /**
@@ -326,7 +416,7 @@ function buildReplayScript(lastFewRequests: string, repoDir: string): string {
     return lines.join("\n") + "\n";
 }
 
-async function runReplay(repoDir: string, replayScriptPath: string, tsgoPath: string): Promise<{ exitCode: number | null; signal: string | null; stdout: string; stderr: string; status: "pass" | "crash" | "error" | "timeout" }> {
+async function runReplay(repoDir: string, replayScriptPath: string, tsgoPath: string, diagnosticOutput: boolean): Promise<{ exitCode: number | null; signal: string | null; stdout: string; stderr: string; status: "pass" | "crash" | "error" | "timeout" }> {
     const replayServerScript = path.join(__dirname, "utils", "replayLspServer.js");
 
     const spawnResult = await spawnWithTimeoutAsync(
@@ -368,7 +458,25 @@ async function exists(p: string): Promise<boolean> {
     return new Promise(resolve => fs.exists(p, e => resolve(e)));
 }
 
-main().catch(err => {
-    reportError(err, "Unhandled exception in rerunFromIssue");
-    process.exit(1);
-});
+// CLI entrypoint
+if (require.main === module) {
+    const { argv } = process;
+
+    if (argv.length !== 6) {
+        console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <issue_number> <tsgo_path> <result_dir_name> <diagnostic_output>`);
+        process.exit(-1);
+    }
+
+    const [,, issueNumberStr, tsgoPath, resultDirName, diagnosticOutputStr] = argv;
+
+    rerunFromIssueAsync({
+        issueNumber: +issueNumberStr,
+        newTsNpmVersion: "",
+        tsgoPath,
+        resultDirName,
+        diagnosticOutput: diagnosticOutputStr.toLowerCase() === "true",
+    }).catch(err => {
+        reportError(err, "Unhandled exception in rerunFromIssue");
+        process.exit(1);
+    });
+}
