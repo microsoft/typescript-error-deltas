@@ -1301,7 +1301,7 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
     };
 }
 
-async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+export async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
     console.log(`Cloning ${repoUrl} at pull ${prNumber}`);
 
     const repoName = isGo ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;

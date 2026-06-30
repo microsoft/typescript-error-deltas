@@ -2,7 +2,7 @@ import path = require("path");
 import fs = require("fs");
 import octokit = require("@octokit/rest");
 import { execAsync, spawnWithTimeoutAsync } from "./utils/execUtils";
-import { downloadTsRepoAsync, reportError } from "./main";
+import { downloadTsPrAsync, reportError } from "./main";
 import { EXIT_SERVER_CRASH, EXIT_SERVER_EXIT_FAILED } from "./utils/exerciseServerConstants";
 
 const processCwd = process.cwd();
@@ -51,10 +51,10 @@ export async function rerunFromIssueAsync(params: RerunParams): Promise<void> {
         tsgoPath = params.tsgoPath;
     } else {
         console.log(`Building tsgo from ref ${params.newTsNpmVersion}...`);
-        const { tsEntrypointPath } = await downloadTsRepoAsync(
+        const { tsEntrypointPath } = await downloadTsPrAsync(
             processCwd,
             "https://github.com/microsoft/typescript-go.git",
-            params.newTsNpmVersion,
+            params.newTsNpmVersion as unknown as number, // TypeScript PR numbers are numeric
             "fuzzer",
             true,
         );
