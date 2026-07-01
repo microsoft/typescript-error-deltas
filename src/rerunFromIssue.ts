@@ -4,6 +4,7 @@ import octokit = require("@octokit/rest");
 import { execAsync, spawnWithTimeoutAsync } from "./utils/execUtils";
 import { downloadTsPrAsync, reportError } from "./main";
 import { EXIT_SERVER_CRASH, EXIT_SERVER_EXIT_FAILED } from "./utils/exerciseServerConstants";
+import { createTempOverlayFS } from "./utils/overlayFS";
 
 const processCwd = process.cwd();
 const executionTimeout = 10 * 60 * 1000;
@@ -92,9 +93,8 @@ export async function rerunFromIssueAsync(params: RerunParams): Promise<void> {
 
     console.log(`Found ${repos.length} repo(s) to replay`);
 
-    // 3. Set up download directory for repos
-    const downloadDir = path.join(processCwd, "rerun_downloads");
-    await fs.promises.mkdir(downloadDir, { recursive: true });
+    // 3. Set up download directory for repos (tmpfs-backed, auto-cleaned per repo)
+    const downloadDirPath = "/mnt/ts_downloads";
 
     // 4. Replay each repo
     const results: ReplayResult[] = [];
@@ -104,48 +104,48 @@ export async function rerunFromIssueAsync(params: RerunParams): Promise<void> {
         console.log(`  Repo URL: ${repo.repoUrl}`);
         console.log(`  Commit: ${repo.commit ?? "HEAD"}`);
 
-        // Clone the repo
-        const repoDir = path.join(downloadDir, repo.repoName);
-        if (!(await exists(repoDir))) {
-            let cloned = false;
-            try {
-                console.log(`  Cloning ${repo.repoUrl}...`);
-                await execAsync(downloadDir, `git clone ${repo.repoUrl} ${repo.repoName} --recurse-submodules --depth=1`);
-                cloned = true;
-            } catch {
-                // Shallow clone may fail for some repos; try full clone
-                try {
-                    await execAsync(downloadDir, `git clone ${repo.repoUrl} ${repo.repoName} --recurse-submodules`);
-                    cloned = true;
-                } catch (err) {
-                    console.error(`  Failed to clone ${repo.repoUrl}`);
-                    results.push({
-                        repo: `${repo.owner}/${repo.repoName}`,
-                        repoUrl: repo.repoUrl,
-                        replayScript: "(from issue)",
-                        exitCode: -1,
-                        signal: null,
-                        stdout: "",
-                        stderr: `Clone failed: ${err}`,
-                        status: "error",
-                    });
-                    continue;
-                }
-            }
+        await using downloadDir = await createTempOverlayFS(downloadDirPath, diagnosticOutput);
+        const repoDir = path.join(downloadDir.path, repo.repoName);
 
-            // Reset to the specific commit if we have one
-            if (cloned && repo.commit) {
-                try {
-                    await execAsync(repoDir, `git fetch origin ${repo.commit}`);
-                    await execAsync(repoDir, `git reset --hard ${repo.commit}`);
-                } catch {
-                    console.log(`  Could not reset to commit ${repo.commit}, using HEAD`);
-                }
+        // Clone the repo
+        let cloned = false;
+        try {
+            console.log(`  Cloning ${repo.repoUrl}...`);
+            await execAsync(downloadDir.path, `git clone ${repo.repoUrl} ${repo.repoName} --recurse-submodules --depth=1`);
+            cloned = true;
+        } catch {
+            // Shallow clone may fail for some repos; try full clone
+            try {
+                await execAsync(downloadDir.path, `git clone ${repo.repoUrl} ${repo.repoName} --recurse-submodules`);
+                cloned = true;
+            } catch (err) {
+                console.error(`  Failed to clone ${repo.repoUrl}`);
+                results.push({
+                    repo: `${repo.owner}/${repo.repoName}`,
+                    repoUrl: repo.repoUrl,
+                    replayScript: "(from issue)",
+                    exitCode: -1,
+                    signal: null,
+                    stdout: "",
+                    stderr: `Clone failed: ${err}`,
+                    status: "error",
+                });
+                continue;
+            }
+        }
+
+        // Reset to the specific commit if we have one
+        if (cloned && repo.commit) {
+            try {
+                await execAsync(repoDir, `git fetch origin ${repo.commit}`);
+                await execAsync(repoDir, `git reset --hard ${repo.commit}`);
+            } catch {
+                console.log(`  Could not reset to commit ${repo.commit}, using HEAD`);
             }
         }
 
         // Build a replay script from the last few requests
-        const replayScriptPath = path.join(downloadDir, `${repo.owner}.${repo.repoName}.replay.txt`);
+        const replayScriptPath = path.join(downloadDir.path, `${repo.owner}.${repo.repoName}.replay.txt`);
         const replayContent = buildReplayScript(repo.lastFewRequests, repoDir);
         await fs.promises.writeFile(replayScriptPath, replayContent, { encoding: "utf-8" });
 
