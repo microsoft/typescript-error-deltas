@@ -178,6 +178,9 @@ async function exerciseLspServerWorker(testDir: string, lspServerPath: string, r
     // Initialize the server
     const initializeParams: protocol.InitializeParams = {
         processId: null,
+        initializationOptions: {
+            trackFlakyDiagnostics: 2,
+        },
         capabilities: {
             textDocument: {
                 completion: {
