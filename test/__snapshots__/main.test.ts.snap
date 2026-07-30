@@ -79,7 +79,7 @@ To run the repro, use the "Launch replay test" launch configuration in your loca
       },
     ],
     [
-      "<BASE_PATH>\\RepoResults123\\metadata.json",
+      "<BASE_PATH>/RepoResults123/metadata.json",
       "{"newTsResolvedVersion":"1.1.1","oldTsResolvedVersion":"0.0.0","statusCounts":{"Detected interesting changes":1},"prngSeed":"testSeed"}",
       {
         "encoding": "utf-8",
@@ -144,7 +144,7 @@ To run the repro, use the "Launch replay test" launch configuration in your loca
       },
     ],
     [
-      "<BASE_PATH>\\RepoResults123\\metadata.json",
+      "<BASE_PATH>/RepoResults123/metadata.json",
       "{"newTsResolvedVersion":"1.1.1","oldTsResolvedVersion":"0.0.0","statusCounts":{"Detected interesting changes":1},"prngSeed":"testSeed"}",
       {
         "encoding": "utf-8",
@@ -263,7 +263,7 @@ To run the repro, use the "Launch replay test" launch configuration in your loca
       },
     ],
     [
-      "<BASE_PATH>\\RepoResults123\\metadata.json",
+      "<BASE_PATH>/RepoResults123/metadata.json",
       "{"newTsResolvedVersion":"1.1.1","oldTsResolvedVersion":"0.0.0","statusCounts":{"Detected interesting changes":1},"prngSeed":"testSeed"}",
       {
         "encoding": "utf-8",
