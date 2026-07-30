@@ -4,7 +4,7 @@ exports[`main outputs old server errors 1`] = `
 [MockFunction] {
   "calls": [
     [
-      "<BASE_PATH>/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
+      "<BASE_PATH>\\ts_downloads\\base\\MockRepoOwner.MockRepoName.rawError.txt",
       "Req #123 - cursedCommand
 Some error. Could not do something. 
 Maybe a Debug fail.
@@ -15,11 +15,11 @@ Maybe a Debug fail.
     at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)",
     ],
     [
-      "<BASE_PATH>/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
+      "<BASE_PATH>\\ts_downloads\\base\\MockRepoOwner.MockRepoName.rawError.txt",
       "{"request_seq":"123","command":"cursedCommand","message":"Some error. Could not do something. \\nMaybe a Debug fail.\\n    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)\\n    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)\\n    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)\\n    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)\\n    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)"}",
     ],
     [
-      "<BASE_PATH>/RepoResults123/718e48b799650d4b66e5d80ad6bac7b9.results.txt",
+      "<BASE_PATH>\\RepoResults123\\718e48b799650d4b66e5d80ad6bac7b9.results.txt",
       "<h2>Maybe a Debug fail.</h2>
 
 \`\`\`
@@ -34,8 +34,8 @@ Req #123 - cursedCommand
 <h4>Affected repos</h4>
 <details>
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
-Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
-Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+Raw error text: <code>RepoResults123\\MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
+Replay commands: <code>RepoResults123\\MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
 <h4>Old server result</h4>
 
 \`\`\`
@@ -86,11 +86,11 @@ To run the repro, use the "Launch replay test" launch configuration in your loca
       },
     ],
     [
-      "<BASE_PATH>/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
+      "<BASE_PATH>\\ts_downloads\\base\\MockRepoOwner.MockRepoName.rawError.txt",
       "{"request_seq":"123","command":"cursedCommand","message":"Some error. Could not do something. \\nMaybe a Debug fail.\\n    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)\\n    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)\\n    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)\\n    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)\\n    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)"}",
     ],
     [
-      "<BASE_PATH>/RepoResults123/!718e48b799650d4b66e5d80ad6bac7b9.results.txt",
+      "<BASE_PATH>\\RepoResults123\\!718e48b799650d4b66e5d80ad6bac7b9.results.txt",
       "
 <details>
 <summary>New server no longer reports this error: Maybe a Debug fail.</summary>
@@ -107,8 +107,8 @@ Req #123 - cursedCommand
 <h4>Affected repos</h4>
 <details>
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
-Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
-Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+Raw error text: <code>RepoResults123\\MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
+Replay commands: <code>RepoResults123\\MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
 <h4>Last few requests</h4>
 
 \`\`\`json
@@ -188,7 +188,7 @@ exports[`main outputs server errors 1`] = `
 [MockFunction] {
   "calls": [
     [
-      "<BASE_PATH>/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
+      "<BASE_PATH>\\ts_downloads\\base\\MockRepoOwner.MockRepoName.rawError.txt",
       "Req #123 - cursedCommand
 Some error. Could not do something. 
 Maybe a Debug fail.
@@ -199,11 +199,11 @@ Maybe a Debug fail.
     at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)",
     ],
     [
-      "<BASE_PATH>/ts_downloads/base/MockRepoOwner.MockRepoName.rawError.txt",
+      "<BASE_PATH>\\ts_downloads\\base\\MockRepoOwner.MockRepoName.rawError.txt",
       "{"request_seq":"123","command":"cursedCommand","message":"Some error. Could not do something. \\nMaybe a Debug fail.\\n    at a (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:1:1)\\n    at b (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:2:2)\\n    at c (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:3:3)\\n    at d (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:4:4)\\n    at e (/mnt/vss/_work/1/s/typescript-1.1.1/lib/typescript.js:5:5)"}",
     ],
     [
-      "<BASE_PATH>/RepoResults123/718e48b799650d4b66e5d80ad6bac7b9.results.txt",
+      "<BASE_PATH>\\RepoResults123\\718e48b799650d4b66e5d80ad6bac7b9.results.txt",
       "<h2>Maybe a Debug fail.</h2>
 
 \`\`\`
@@ -218,8 +218,8 @@ Req #123 - cursedCommand
 <h4>Affected repos</h4>
 <details>
 <summary><a href="https://github.com/MockRepoOwner/MockRepoName">MockRepoOwner/MockRepoName</a></summary>
-Raw error text: <code>RepoResults123/MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
-Replay commands: <code>RepoResults123/MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
+Raw error text: <code>RepoResults123\\MockRepoOwner.MockRepoName.rawError.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a> <br />
+Replay commands: <code>RepoResults123\\MockRepoOwner.MockRepoName.replay.txt</code> in the <a href="PLACEHOLDER_ARTIFACT_FOLDER">artifact folder</a>
 <h4>Old server result</h4>
 
 \`\`\`
