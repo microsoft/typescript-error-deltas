@@ -919,6 +919,7 @@ export interface Metadata {
     readonly oldTsResolvedVersion: string;
     readonly statusCounts: StatusCounts;
     readonly lspRequestStats?: LspRequestStats;
+    readonly prngSeed: string;
 }
 
 function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, workerNumber: number): git.Repo[] {
@@ -932,9 +933,9 @@ function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, work
 }
 
 export async function mainAsync(params: ScheduledParams | TriggeredParams): Promise<void> {
-    if (params.prngSeed) {
-        prng.seed(params.prngSeed);
-    }
+    const effectiveSeed = params.prngSeed ?? randomSeed.create().string(20);
+    prng.seed(effectiveSeed);
+    console.log("PRNG seed: " + effectiveSeed);
 
     const downloadDirPath = params.tmpfs ? "/mnt/ts_downloads" : path.join(processCwd, "ts_downloads");
     const createFs = params.tmpfs ? createTempOverlayFS : createCopyingOverlayFS;
@@ -1086,6 +1087,7 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
         oldTsResolvedVersion: oldTsResolvedVersion || "",
         statusCounts,
         lspRequestStats: params.entrypoint === "fuzzer" ? aggregateLspStats : undefined,
+        prngSeed: effectiveSeed,
     };
     await fs.promises.writeFile(path.join(resultDirPath, metadataFileName), JSON.stringify(metadata), { encoding: "utf-8" });
 }
