@@ -75,7 +75,8 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
         if (fs.existsSync(buildScriptPath)) {
 
             const before = performance.now();
-            const spawnResult = await spawnWithTimeoutAsync(repoDir, path.resolve(buildScriptPath), [], timeoutMs, { ...process.env, TS: tsRepoPath });
+            const { command, args } = getBuildScriptInvocation(buildScriptPath);
+            const spawnResult = await spawnWithTimeoutAsync(repoDir, command, args, timeoutMs, { ...process.env, TS: tsRepoPath });
             if (!spawnResult) {
                 throw new TimeoutError(`build.sh timed out after ${timeoutMs} ms`);
             }
@@ -135,7 +136,7 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
 
 async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout: string, hasBuildFailure: boolean, isComposite: boolean, reportGithubLinks: boolean): Promise<ProjectErrors> {
     const projectDir = path.dirname(projectPath);
-    const projectUrl = reportGithubLinks ? await ghLink.getGithubLink(projectPath) : projectPath; // Use project path for user tests as they don't contain a git project.
+    const projectUrl = reportGithubLinks ? await ghLink.getGithubLink(projectPath) : toUrlPath(projectPath); // Use project path for user tests as they don't contain a git project.
 
     let localErrors: LocalError[] = [];
     let currProjectUrl = projectUrl;
@@ -144,7 +145,8 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
     for (const line of lines) {
         const projectMatch = isComposite && line.match(beginProjectRegex);
         if (projectMatch) {
-            currProjectUrl = reportGithubLinks ? await ghLink.getGithubLink(path.resolve(projectDir, projectMatch[1])) : path.resolve(projectDir, projectMatch[1]);
+            const nestedProjectPath = path.resolve(projectDir, projectMatch[1]);
+            currProjectUrl = reportGithubLinks ? await ghLink.getGithubLink(nestedProjectPath) : toUrlPath(nestedProjectPath);
             continue;
         }
         const localError = getLocalErrorFromLine(line, currProjectUrl);
@@ -156,7 +158,7 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
     const errors = localErrors.filter(le => !le.path).map(le => ({ projectUrl: le.projectUrl, code: le.code, text: le.text } as Error));
 
     const fileLocalErrors = localErrors.filter(le => le.path).map(le => ({ ...le, path: path.resolve(projectDir, le.path!) }));
-    const fileUrls = reportGithubLinks ? await ghLink.getGithubLinks(fileLocalErrors) : fileLocalErrors.map(x => `${x.path}(${x.lineNumber},${x.columnNumber})`);
+    const fileUrls = reportGithubLinks ? await ghLink.getGithubLinks(fileLocalErrors) : fileLocalErrors.map(x => `${toUrlPath(x.path!)}(${x.lineNumber},${x.columnNumber})`);
     for (let i = 0; i < fileLocalErrors.length; i++) {
         const localError = fileLocalErrors[i];
         errors.push({
@@ -181,6 +183,34 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
         errors: errors,
         raw: stdout,
     };
+}
+
+function getBuildScriptInvocation(buildScriptPath: string): { command: string, args: string[] } {
+    const resolvedScriptPath = path.resolve(buildScriptPath);
+    if (process.platform !== "win32") {
+        return { command: resolvedScriptPath, args: [] };
+    }
+
+    for (const directory of (process.env.PATH || "").split(path.delimiter)) {
+        if (!directory || !fs.existsSync(path.join(directory, "git.exe"))) {
+            continue;
+        }
+
+        const candidates = [
+            path.join(directory, "bash.exe"),
+            path.resolve(directory, "..", "bin", "bash.exe"),
+        ];
+        const bashPath = candidates.find(fs.existsSync);
+        if (bashPath) {
+            return { command: bashPath, args: [resolvedScriptPath] };
+        }
+    }
+
+    throw new Error("Git Bash is required to run build.sh on Windows, but bash.exe could not be found next to git.exe on PATH.");
+}
+
+function toUrlPath(filePath: string): string {
+    return filePath.split(path.sep).join("/");
 }
 
 function getLocalErrorFromLine(line: string, projectUrl: string): LocalError | undefined {
