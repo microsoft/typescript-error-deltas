@@ -188,7 +188,7 @@ async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout:
 function getBuildScriptInvocation(buildScriptPath: string): { command: string, args: string[] } {
     const resolvedScriptPath = path.resolve(buildScriptPath);
     if (process.platform !== "win32") {
-        return { command: resolvedScriptPath, args: [] };
+        return { command: "bash", args: [resolvedScriptPath] };
     }
 
     for (const directory of (process.env.PATH || "").split(path.delimiter)) {
