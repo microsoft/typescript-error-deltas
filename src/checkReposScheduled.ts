@@ -23,7 +23,7 @@ mainAsync({
     newTsNpmVersion,
     resultDirName,
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
-    implementationHint: "corsa",
+    candidateImplementation: "corsa",
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

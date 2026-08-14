@@ -24,7 +24,6 @@ mainAsync({
     resultDirName,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
-    implementationHint: oldTsRepoUrl.includes("typescript-go") ? "corsa" : "strada"
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

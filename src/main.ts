@@ -57,13 +57,12 @@ interface Params {
      */
     prngSeed: string | undefined;
 
-    /** Candidate implementation hint for sources that cannot be detected from a checkout. */
-    implementationHint: TypeScriptImplementation;
 }
 export interface ScheduledParams extends Params {
     testType: "scheduled";
     oldTsNpmVersion: string;
     newTsNpmVersion: string;
+    candidateImplementation: TypeScriptImplementation;
 }
 export interface TriggeredParams extends Params {
     testType: "triggered";
@@ -1262,9 +1261,9 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
         if (params.entrypoint === "fuzzer") {
             throw new Error("Not implemented");
         }
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion, implementation: oldImplementation } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint, params.implementationHint);
+        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion, implementation: oldImplementation } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, implementation } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint, params.implementationHint);
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, implementation } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint);
 
         if (entrypoint === "tsserver" && oldImplementation !== implementation) {
             throw new Error("Cannot compare tsserver refs across the TypeScript-to-tsgo migration boundary");
@@ -1284,9 +1283,9 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, implementation } = params.entrypoint === "fuzzer" ?
             params.newTsNpmVersion === "main" ?
-                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint, params.implementationHint) :
+                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint) :
                 await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
-            params.implementationHint === "corsa" ?
+            params.candidateImplementation === "corsa" ?
                 await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
                 await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
 
@@ -1303,9 +1302,14 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
     }
 }
 
-export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint, implementationHint: TypeScriptImplementation): Promise<DownloadedTs> {
+function getTsRepoDownloadName(repoUrl: string, ref: string): string {
+    const repoName = path.basename(repoUrl).replace(/\.git$/, "").toLowerCase();
+    return `${repoName}-${ref}`;
+}
+
+export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint): Promise<DownloadedTs> {
     console.log(`Cloning ${repoUrl} at ref ${headRef}`);
-    const repoName = implementationHint === "corsa" ? `typescript-go-${headRef}` : `typescript-${headRef}`;
+    const repoName = getTsRepoDownloadName(repoUrl, headRef);
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
     const repoPath = path.join(cwd, repoName);
@@ -1318,10 +1322,10 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
     };
 }
 
-async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, implementationHint: TypeScriptImplementation): Promise<DownloadedTs> {
+async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint): Promise<DownloadedTs> {
     console.log(`Cloning ${repoUrl} at pull ${prNumber}`);
 
-    const repoName = implementationHint === "corsa" ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
+    const repoName = getTsRepoDownloadName(repoUrl, prNumber.toString());
     console.log(`Building in ${repoName}`);
 
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });

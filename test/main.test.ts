@@ -112,7 +112,7 @@ describe("main", () => {
         actualFs.mkdirSync(repoPath, { recursive: true });
         actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: "typescript" }));
         try {
-            const result = await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc', "strada")
+            const result = await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc')
             expect(result.implementation).toBe("strada");
         }
         finally {
@@ -121,18 +121,18 @@ describe("main", () => {
     });
 
     it.each([
-        ["typescript-go", "tsgo"],
-        ["@typescript/repo", "tsc"],
-    ])("detects a %s tsgo checkout", async (packageName, executableName) => {
+        ["typescript-go", "tsgo", "https://github.com/microsoft/typescript-go", "typescript-go"],
+        ["@typescript/repo", "tsc", "https://github.com/microsoft/TypeScript", "typescript"],
+    ])("detects a %s tsgo checkout", async (packageName, executableName, repoUrl, repoName) => {
         const actualFs = jest.requireActual('fs');
         const headRef = packageName.replaceAll(/[^a-z]/g, "");
-        const repoPath = `./testDownloads/main/typescript-${headRef}`;
+        const repoPath = `./testDownloads/main/${repoName}-${headRef}`;
         const executablePath = path.join(repoPath, "built", "local", executableName);
         actualFs.mkdirSync(path.dirname(executablePath), { recursive: true });
         actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: packageName }));
         actualFs.writeFileSync(executablePath, "");
         try {
-            const result = await downloadTsRepoAsync("./testDownloads/main", "https://github.com/microsoft/TypeScript", headRef, "tsc", "strada");
+            const result = await downloadTsRepoAsync("./testDownloads/main", repoUrl, headRef, "tsc");
             expect(result.implementation).toBe("corsa");
             expect(result.tsEntrypointPath).toBe(executablePath);
         }
@@ -165,7 +165,7 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            implementationHint: "strada",
+            candidateImplementation: "strada",
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
@@ -210,7 +210,7 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            implementationHint: "strada"
+            candidateImplementation: "strada"
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
