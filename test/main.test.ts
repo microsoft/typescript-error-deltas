@@ -1,4 +1,4 @@
-import { getTscRepoResult, downloadTsRepoAsync, isTsgoPackage, mainAsync } from '../src/main'
+import { getTscRepoResult, detectTypeScriptImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
 import { execSync } from "child_process"
 import path = require("path")
 import { createCopyingOverlayFS } from '../src/utils/overlayFS'
@@ -83,9 +83,9 @@ describe("main", () => {
     jest.setTimeout(10 * 60 * 1000);
 
     it("detects tsgo from the root package name", () => {
-        expect(isTsgoPackage({ name: "typescript" })).toBe(false);
-        expect(isTsgoPackage({ name: "typescript-go" })).toBe(true);
-        expect(isTsgoPackage({ name: "@typescript/repo" })).toBe(true);
+        expect(detectTypeScriptImplementation({ name: "typescript" })).toBe("strada");
+        expect(detectTypeScriptImplementation({ name: "typescript-go" })).toBe("corsa");
+        expect(detectTypeScriptImplementation({ name: "@typescript/repo" })).toBe("corsa");
     });
 
     xit("build-only correctly caches", async () => {
@@ -112,8 +112,8 @@ describe("main", () => {
         actualFs.mkdirSync(repoPath, { recursive: true });
         actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: "typescript" }));
         try {
-            const result = await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc', false)
-            expect(result.isGo).toBe(false);
+            const result = await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc', "strada")
+            expect(result.implementation).toBe("strada");
         }
         finally {
             actualFs.rmSync(repoPath, { recursive: true });
@@ -132,8 +132,8 @@ describe("main", () => {
         actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: packageName }));
         actualFs.writeFileSync(executablePath, "");
         try {
-            const result = await downloadTsRepoAsync("./testDownloads/main", "https://github.com/microsoft/TypeScript", headRef, "tsc", false);
-            expect(result.isGo).toBe(true);
+            const result = await downloadTsRepoAsync("./testDownloads/main", "https://github.com/microsoft/TypeScript", headRef, "tsc", "strada");
+            expect(result.implementation).toBe("corsa");
             expect(result.tsEntrypointPath).toBe(executablePath);
         }
         finally {
@@ -165,7 +165,7 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            isGo: false,
+            implementationHint: "strada",
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
@@ -210,7 +210,7 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            isGo: false
+            implementationHint: "strada"
         });
 
         // Remove all references to the base path so that snapshot pass successfully.

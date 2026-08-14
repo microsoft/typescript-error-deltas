@@ -16,8 +16,8 @@ export interface Repo {
     branch?: string;
 }
 
-function getRepoProperties(isGoRepo: boolean) {
-    if (isGoRepo) {
+function getRepoProperties(isTypeScriptGoRepo: boolean) {
+    if (isTypeScriptGoRepo) {
         return {
             owner: "microsoft",
             repo: "typescript-go",
@@ -114,8 +114,8 @@ type Result = {
 export type GitResult = Result & { kind: 'git', title: string }
 export type UserResult = Result & { kind: 'user', issue_number: number }
 
-export async function createIssue(isGoRepo: boolean, postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
-    const repoProperties = getRepoProperties(isGoRepo);
+export async function createIssue(isTypeScriptGoRepo: boolean, postResult: boolean, title: string, bodyChunks: readonly string[], sawNewErrors: boolean): Promise<GitResult | undefined> {
+    const repoProperties = getRepoProperties(isTypeScriptGoRepo);
     const issue = {
         ...repoProperties,
         title,
@@ -168,8 +168,8 @@ export async function createIssue(isGoRepo: boolean, postResult: boolean, title:
     }
 }
 
-export async function createComment(isGoRepo: boolean, prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
-    const repoProperties = getRepoProperties(isGoRepo);
+export async function createComment(isTypeScriptGoRepo: boolean, prNumber: number, statusComment: number, distinctId: string, postResult: boolean, bodyChunks: readonly string[], somethingChanged: boolean): Promise<void> {
+    const repoProperties = getRepoProperties(isTypeScriptGoRepo);
     const newComments = bodyChunks.map(body => ({
         ...repoProperties,
         issue_number: prNumber,
