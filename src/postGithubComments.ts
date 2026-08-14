@@ -12,10 +12,10 @@ if (argv.length !== 14) {
     process.exit(-1);
 }
 
-const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi, isGoStr] = argv;
+const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi, isTypeScriptGoRepoStr] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
-const isGoRepo = isGoStr.toLowerCase() === "true";
+const isTypeScriptGoRepo = isTypeScriptGoRepoStr.toLowerCase() === "true";
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
 
 let newTscResolvedVersion: string | undefined;
@@ -82,7 +82,7 @@ let header = `@${userToTag} Here are the results of running the ${suiteDescripti
 ${summary.join("\n")}`;
 
 if (!outputs.length) {
-    git.createComment(isGoRepo, +prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
+    git.createComment(isTypeScriptGoRepo, +prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
 }
 else {
     const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
@@ -137,5 +137,5 @@ else {
         console.log(`Chunk of size ${chunk.length}`);
     }
 
-    git.createComment(isGoRepo, +prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
+    git.createComment(isTypeScriptGoRepo, +prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
 }

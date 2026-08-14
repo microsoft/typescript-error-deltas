@@ -1,4 +1,4 @@
-import { getTscRepoResult, downloadTsRepoAsync, mainAsync } from '../src/main'
+import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
 import { execSync } from "child_process"
 import path = require("path")
 import { createCopyingOverlayFS } from '../src/utils/overlayFS'
@@ -14,7 +14,9 @@ jest.mock('random-seed', () => ({
     },
 }));
 jest.mock("../src/utils/packageUtils", () => ({
-    exists: jest.fn().mockResolvedValue(true),
+    exists: jest.fn((filePath: string) => filePath.includes("testDownloads")
+        ? jest.requireActual("fs").existsSync(filePath)
+        : Promise.resolve(true)),
     getMonorepoOrder: jest.fn().mockResolvedValue([
         "./dirA/package.json",
         "./dirB/dirC/package.json",
@@ -48,6 +50,12 @@ jest.mock('fs', () => ({
         writeFile: jest.fn(),
         copyFile: jest.fn(),
         rename: jest.fn().mockResolvedValue(undefined),
+        readFile: jest.fn((filePath: string, options: unknown) => {
+            if (/typescript-(?:0\.0\.0|1\.1\.1)[\\/]package\.json$/.test(filePath)) {
+                return Promise.resolve(JSON.stringify({ name: "typescript" }));
+            }
+            return jest.requireActual('fs').promises.readFile(filePath, options);
+        }),
     },
     readFileSync: (path: string) => {
         if (path.endsWith("replay.txt")) {
@@ -79,6 +87,21 @@ const errorStdout = JSON.stringify({
 describe("main", () => {
     jest.setTimeout(10 * 60 * 1000);
 
+    it("detects tsgo from the root package name", () => {
+        expect(detectTypeScriptImplementation({ name: "typescript" })).toBe("strada");
+        expect(detectTypeScriptImplementation({ name: "typescript-go" })).toBe("corsa");
+        expect(detectTypeScriptImplementation({ name: "@typescript/repo" })).toBe("corsa");
+    });
+
+    it("detects Corsa npm packages from their platform dependencies", () => {
+        expect(detectTypeScriptNpmImplementation({})).toBe("strada");
+        expect(detectTypeScriptNpmImplementation({
+            optionalDependencies: {
+                "@typescript/typescript-linux-x64": "7.1.0-dev.20260813.1",
+            },
+        })).toBe("corsa");
+    });
+
     xit("build-only correctly caches", async () => {
         const { status, summary } = await getTscRepoResult(
             {
@@ -97,16 +120,39 @@ describe("main", () => {
         expect(summary!.includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     });
 
-    it("downloads from a branch", async () => {
+    it("detects a legacy TypeScript checkout", async () => {
         const actualFs = jest.requireActual('fs');
+        const repoPath = "./testDownloads/main/typescript-test-fake-error";
+        actualFs.mkdirSync(repoPath, { recursive: true });
+        actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: "typescript" }));
+        try {
+            const result = await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc')
+            expect(result.implementation).toBe("strada");
+        }
+        finally {
+            actualFs.rmSync(repoPath, { recursive: true });
+        }
+    });
 
-        if (!actualFs.existsSync("./testDownloads/main")) {
-            actualFs.mkdirSync("./testDownloads/main", { recursive: true });
+    it.each([
+        ["typescript-go", "tsgo", "https://github.com/microsoft/typescript-go", "typescript-go"],
+        ["@typescript/repo", "tsc", "https://github.com/microsoft/TypeScript", "typescript"],
+    ])("detects a %s tsgo checkout", async (packageName, executableName, repoUrl, repoName) => {
+        const actualFs = jest.requireActual('fs');
+        const headRef = packageName.replaceAll(/[^a-z]/g, "");
+        const repoPath = `./testDownloads/main/${repoName}-${headRef}`;
+        const executablePath = path.join(repoPath, "built", "local", executableName);
+        actualFs.mkdirSync(path.dirname(executablePath), { recursive: true });
+        actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: packageName }));
+        actualFs.writeFileSync(executablePath, "");
+        try {
+            const result = await downloadTsRepoAsync("./testDownloads/main", repoUrl, headRef, "tsc");
+            expect(result.implementation).toBe("corsa");
+            expect(result.tsEntrypointPath).toBe(executablePath);
         }
-        else if (actualFs.existsSync("./testDownloads/main/typescript-test-fake-error")) {
-            execSync("cd ./testDownloads/main/typescript-test-fake-error && git restore . && cd ..")
+        finally {
+            actualFs.rmSync(repoPath, { recursive: true });
         }
-        await downloadTsRepoAsync('./testDownloads/main', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc', false)
     });
 
     it("outputs server errors", async () => {
@@ -133,7 +179,6 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            isGo: false,
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
@@ -178,7 +223,6 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            isGo: false
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
