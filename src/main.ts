@@ -57,7 +57,7 @@ interface Params {
      */
     prngSeed: string | undefined;
 
-    /** True if we're testing typescript-go */
+    /** True if the candidate is known to be tsgo without checking out a repository. */
     isGo: boolean;
 }
 export interface ScheduledParams extends Params {
@@ -947,7 +947,7 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
     }
 
     // TODO: Only download if the commit has changed (need to map refs to commits and then download to typescript-COMMIT instead)
-    const { oldTsEntrypointPath, oldTsResolvedVersion, newTsEntrypointPath, newTsResolvedVersion } = await downloadTsAsync(processCwd, params);
+    const { oldTsEntrypointPath, oldTsResolvedVersion, newTsEntrypointPath, newTsResolvedVersion, isGo } = await downloadTsAsync(processCwd, params);
 
     // Get the name of the typescript folder.
     const oldTscDirPath = oldTsEntrypointPath && path.resolve(oldTsEntrypointPath, "../../");
@@ -992,7 +992,7 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
                 repoResult = await getTscRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, params.buildWithNewWhenOldFails, downloadDir, diagnosticOutput);
                 break;
             case "tsserver":
-                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr, params.isGo);
+                repoResult = await getTsServerRepoResult(repo, userTestsDir, oldTsEntrypointPath!, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput, isPr, isGo);
                 break;
             case "fuzzer":
                 repoResult = await getLSPResult(repo, userTestsDir, newTsEntrypointPath, downloadDir, replayScriptArtifactPath, rawErrorArtifactPath, diagnosticOutput);
@@ -1055,17 +1055,17 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
 
     // Group errors and create summary files.
     if (summaries.length > 0) {
-        const { groupedOldErrors, groupedNewErrors } = groupErrors(summaries, params.isGo);
+        const { groupedOldErrors, groupedNewErrors } = groupErrors(summaries, isGo);
 
         for (let [key, value] of groupedOldErrors) {
-            const summary = createOldErrorSummary(value, params.isGo);
+            const summary = createOldErrorSummary(value, isGo);
             const resultFileName = `!${key}.${resultFileNameSuffix}`; // Exclamation point makes the file to be put first when ordering.
 
             await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
         }
 
         for (let [key, value] of groupedNewErrors) {
-            const summary = await createNewErrorSummaryAsync(value, params.isGo);
+            const summary = await createNewErrorSummaryAsync(value, isGo);
             const resultFileName = `${key}.${resultFileNameSuffix}`;
 
             await fs.promises.writeFile(path.join(resultDirPath, resultFileName), summary, { encoding: "utf-8" });
@@ -1220,7 +1220,7 @@ function getLspErrorMessage(output: string): string {
 }
 
 function filterToGoLines(stackLines: string): string {
-    const goRegex = /^.*typescript-go.*$/mg;
+    const goRegex = /^.*(?:typescript-go|typescript[\\/]tsc).*$/img;
     let goLines = "";
     let match;
     while (match = goRegex.exec(stackLines)) {
@@ -1246,29 +1246,40 @@ function makeMarkdownLink(url: string) {
         : `[${mdEscape(match[1])}](${url})`;
 }
 
-async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string }> {
+interface DownloadedTs {
+    tsEntrypointPath: string;
+    resolvedVersion: string;
+    isGo: boolean;
+}
+
+async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string, isGo: boolean }> {
     const entrypoint = params.entrypoint;
     if (params.testType === "triggered") {
         console.log("running user test, downloading TS from repo");
         if (params.entrypoint === "fuzzer") {
             throw new Error("Not implemented");
         }
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint, params.isGo);
+        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion, isGo: oldIsGo } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint, params.isGo);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint, params.isGo);
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, isGo } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint, params.isGo);
+
+        if (entrypoint === "tsserver" && oldIsGo !== isGo) {
+            throw new Error("Cannot compare tsserver refs across the TypeScript-to-tsgo migration boundary");
+        }
 
         return {
             oldTsEntrypointPath,
             oldTsResolvedVersion,
             newTsEntrypointPath,
-            newTsResolvedVersion
+            newTsResolvedVersion,
+            isGo
         };
     }
     else if (params.testType === "scheduled") {
         const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = params.entrypoint === "fuzzer" ?
             { tsEntrypointPath: undefined, resolvedVersion: undefined } :
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = params.entrypoint === "fuzzer" ?
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, isGo } = params.entrypoint === "fuzzer" ?
             params.newTsNpmVersion === "main" ?
                 await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint, params.isGo) :
                 await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
@@ -1280,7 +1291,8 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
             oldTsEntrypointPath,
             oldTsResolvedVersion,
             newTsEntrypointPath,
-            newTsResolvedVersion
+            newTsResolvedVersion,
+            isGo
         };
     }
     else {
@@ -1288,23 +1300,25 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
     }
 }
 
-export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef: string, target: TsEntrypoint, isGoHint: boolean): Promise<DownloadedTs> {
     console.log(`Cloning ${repoUrl} at ref ${headRef}`);
-    const repoName = isGo ? `typescript-go-${headRef}` : `typescript-${headRef}`;
+    const repoName = isGoHint ? `typescript-go-${headRef}` : `typescript-${headRef}`;
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl, branch: headRef });
 
     const repoPath = path.join(cwd, repoName);
+    const { tsEntrypointPath, isGo } = await buildTs(repoPath, target);
 
     return {
-        tsEntrypointPath: await buildTs(repoPath, target),
-        resolvedVersion: headRef
+        tsEntrypointPath,
+        resolvedVersion: headRef,
+        isGo
     };
 }
 
-async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGoHint: boolean): Promise<DownloadedTs> {
     console.log(`Cloning ${repoUrl} at pull ${prNumber}`);
 
-    const repoName = isGo ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
+    const repoName = isGoHint ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
     console.log(`Building in ${repoName}`);
 
     await git.cloneRepoIfNecessary(cwd, { name: repoName, url: repoUrl });
@@ -1313,20 +1327,39 @@ async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number,
     const headRef = `refs/pull/${prNumber}/merge`;
 
     await git.checkout(repoPath, headRef);
+    const { tsEntrypointPath, isGo } = await buildTs(repoPath, target);
 
     return {
-        tsEntrypointPath: await buildTs(repoPath, target),
-        resolvedVersion: headRef
+        tsEntrypointPath,
+        resolvedVersion: headRef,
+        isGo
     };
 }
 
-async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
+export function isTsgoPackage(packageJson: { name?: string }): boolean {
+    return packageJson.name !== "typescript";
+}
+
+async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ tsEntrypointPath: string, isGo: boolean }> {
+    const packageJsonPath = path.join(repoPath, "package.json");
+    const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, { encoding: "utf-8" })) as { name?: string };
+    const isGo = isTsgoPackage(packageJson);
+
     await execAsync(repoPath, "npm ci");
     console.log(`Building in ${repoPath}`);
 
-    if (repoPath.includes("typescript-go")) {
+    if (isGo) {
         await execAsync(repoPath, `npx hereby build`);
-        return path.join(repoPath, "built", "local", "tsgo");
+        const candidates = [
+            path.join(repoPath, "built", "local", "tsc"),
+            path.join(repoPath, "built", "local", "tsgo"),
+        ];
+        for (const tsEntrypointPath of candidates) {
+            if (await pu.exists(tsEntrypointPath)) {
+                return { tsEntrypointPath, isGo };
+            }
+        }
+        throw new Error(`Cannot find tsgo entrypoint in ${path.join(repoPath, "built", "local")}`);
     }
     else {
         await execAsync(repoPath, `npx gulp ${entrypoint}`);
@@ -1337,11 +1370,11 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {
             await execAsync(repoPath, "npx gulp LKG");
         }
 
-        return path.join(repoPath, "built", "local", `${entrypoint}.js`);
+        return { tsEntrypointPath: path.join(repoPath, "built", "local", `${entrypoint}.js`), isGo };
     }
 }
 
-async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<DownloadedTs> {
     const tarName = (await execAsync(cwd, `npm pack typescript@${version} --quiet`)).trim();
 
     const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
@@ -1361,10 +1394,10 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
         throw new Error("Cannot find file " + tsEntrypointPath);
     }
 
-    return { tsEntrypointPath, resolvedVersion };
+    return { tsEntrypointPath, resolvedVersion, isGo: false };
 }
 
-async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Promise<DownloadedTs> {
     const packageName = `native-preview-${process.platform}-${process.arch}`
     const tarName = (await execAsync(cwd, `npm pack @typescript/${packageName}@${version} --quiet`)).trim();
 
@@ -1385,5 +1418,5 @@ async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Pr
         throw new Error("Cannot find file " + tsEntrypointPath);
     }
 
-    return { tsEntrypointPath, resolvedVersion };
+    return { tsEntrypointPath, resolvedVersion, isGo: true };
 }
