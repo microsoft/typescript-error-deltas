@@ -62,7 +62,6 @@ export interface ScheduledParams extends Params {
     testType: "scheduled";
     oldTsNpmVersion: string;
     newTsNpmVersion: string;
-    candidateImplementation: TypeScriptImplementation;
 }
 export interface TriggeredParams extends Params {
     testType: "triggered";
@@ -1278,16 +1277,17 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
         };
     }
     else if (params.testType === "scheduled") {
-        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = params.entrypoint === "fuzzer" ?
-            { tsEntrypointPath: undefined, resolvedVersion: undefined } :
+        const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion, implementation: oldImplementation } = params.entrypoint === "fuzzer" ?
+            { tsEntrypointPath: undefined, resolvedVersion: undefined, implementation: undefined } :
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, implementation } = params.entrypoint === "fuzzer" ?
-            params.newTsNpmVersion === "main" ?
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, implementation } =
+            params.entrypoint === "fuzzer" && params.newTsNpmVersion === "main" ?
                 await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint) :
-                await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
-            params.candidateImplementation === "corsa" ?
-                await downloadTsNativePreviewNpmAsync(cwd, params.newTsNpmVersion) :
                 await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
+
+        if (entrypoint === "tsserver" && oldImplementation !== implementation) {
+            throw new Error("Cannot compare tsserver versions across the TypeScript-to-tsgo migration boundary");
+        }
 
         return {
             oldTsEntrypointPath,
@@ -1347,6 +1347,12 @@ export function detectTypeScriptImplementation(packageJson: { name?: string }): 
     return packageJson.name === "typescript" ? "strada" : "corsa";
 }
 
+export function detectTypeScriptNpmImplementation(packageJson: { optionalDependencies?: Record<string, string> }): TypeScriptImplementation {
+    return Object.keys(packageJson.optionalDependencies ?? {}).some(name => name.startsWith("@typescript/typescript-"))
+        ? "corsa"
+        : "strada";
+}
+
 async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ tsEntrypointPath: string, implementation: TypeScriptImplementation }> {
     const packageJsonPath = path.join(repoPath, "package.json");
     const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, { encoding: "utf-8" })) as { name?: string };
@@ -1396,34 +1402,23 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
     await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
-    const tsEntrypointPath = path.join(dirPath, "lib", `${entrypoint}.js`);
+    const packageJson = JSON.parse(await fs.promises.readFile(path.join(dirPath, "package.json"), { encoding: "utf-8" })) as {
+        optionalDependencies?: Record<string, string>;
+    };
+    const implementation = detectTypeScriptNpmImplementation(packageJson);
+    if (entrypoint === "fuzzer" && implementation !== "corsa") {
+        throw new Error(`TypeScript ${resolvedVersion} does not support the LSP fuzzer`);
+    }
+    if (implementation === "corsa") {
+        await execAsync(dirPath, "npm install --ignore-scripts --omit=dev --no-package-lock --silent");
+    }
+
+    const tsEntrypointPath = implementation === "corsa"
+        ? path.join(dirPath, "bin", "tsc")
+        : path.join(dirPath, "lib", `${entrypoint}.js`);
     if (!await pu.exists(tsEntrypointPath)) {
         throw new Error("Cannot find file " + tsEntrypointPath);
     }
 
-    return { tsEntrypointPath, resolvedVersion, implementation: "strada" };
-}
-
-async function downloadTsNativePreviewNpmAsync(cwd: string, version: string): Promise<DownloadedTs> {
-    const packageName = `native-preview-${process.platform}-${process.arch}`
-    const tarName = (await execAsync(cwd, `npm pack @typescript/${packageName}@${version} --quiet`)).trim();
-
-    const tarMatch = /^(typescript-native-preview-(.+))\..+$/.exec(tarName);
-    if (!tarMatch) {
-        throw new Error("Unexpected tarball name format: " + tarName);
-    }
-
-    const resolvedVersion = tarMatch[2];
-    const dirName = tarMatch[1];
-    const dirPath = path.join(processCwd, dirName);
-
-    await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
-    await fs.promises.rename(path.join(processCwd, "package"), dirPath);
-
-    const tsEntrypointPath = path.join(dirPath, "lib", "tsgo");
-    if (!await pu.exists(tsEntrypointPath)) {
-        throw new Error("Cannot find file " + tsEntrypointPath);
-    }
-
-    return { tsEntrypointPath, resolvedVersion, implementation: "corsa" };
+    return { tsEntrypointPath, resolvedVersion, implementation };
 }

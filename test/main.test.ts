@@ -1,4 +1,4 @@
-import { getTscRepoResult, detectTypeScriptImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
+import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
 import { execSync } from "child_process"
 import path = require("path")
 import { createCopyingOverlayFS } from '../src/utils/overlayFS'
@@ -50,7 +50,12 @@ jest.mock('fs', () => ({
         writeFile: jest.fn(),
         copyFile: jest.fn(),
         rename: jest.fn().mockResolvedValue(undefined),
-        readFile: jest.fn((path: string, options: unknown) => jest.requireActual('fs').promises.readFile(path, options)),
+        readFile: jest.fn((filePath: string, options: unknown) => {
+            if (/typescript-(?:0\.0\.0|1\.1\.1)[\\/]package\.json$/.test(filePath)) {
+                return Promise.resolve(JSON.stringify({ name: "typescript" }));
+            }
+            return jest.requireActual('fs').promises.readFile(filePath, options);
+        }),
     },
     readFileSync: (path: string) => {
         if (path.endsWith("replay.txt")) {
@@ -86,6 +91,15 @@ describe("main", () => {
         expect(detectTypeScriptImplementation({ name: "typescript" })).toBe("strada");
         expect(detectTypeScriptImplementation({ name: "typescript-go" })).toBe("corsa");
         expect(detectTypeScriptImplementation({ name: "@typescript/repo" })).toBe("corsa");
+    });
+
+    it("detects Corsa npm packages from their platform dependencies", () => {
+        expect(detectTypeScriptNpmImplementation({})).toBe("strada");
+        expect(detectTypeScriptNpmImplementation({
+            optionalDependencies: {
+                "@typescript/typescript-linux-x64": "7.1.0-dev.20260813.1",
+            },
+        })).toBe("corsa");
     });
 
     xit("build-only correctly caches", async () => {
@@ -165,7 +179,6 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            candidateImplementation: "strada",
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
@@ -210,7 +223,6 @@ describe("main", () => {
             newTsNpmVersion: 'next',
             resultDirName: 'RepoResults123',
             prngSeed: 'testSeed',
-            candidateImplementation: "strada"
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
