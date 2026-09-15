@@ -11,10 +11,10 @@ if (argv.length !== 12) {
     process.exit(-1);
 }
 
-const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi, isGoStr] = argv;
+const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi, isTypeScriptGoRepoStr] = argv;
 const postResult = post.toLowerCase() === "true";
 const entrypoint = ep as TsEntrypoint;
-const isGoRepo = isGoStr.toLowerCase() === "true";
+const isTypeScriptGoRepo = isTypeScriptGoRepoStr.toLowerCase() === "true";
 
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
 
@@ -114,4 +114,4 @@ if (entrypoint !== "tsserver" && entrypoint !== "fuzzer") {
 
 
 const bodyChunks = [header, ...outputs];
-git.createIssue(isGoRepo, postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);
+git.createIssue(isTypeScriptGoRepo, postResult, title, bodyChunks, /*sawNewErrors*/ !!outputs.length);

@@ -23,7 +23,6 @@ mainAsync({
     newTsNpmVersion,
     resultDirName,
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
-    isGo: true,
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

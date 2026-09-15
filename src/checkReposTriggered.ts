@@ -24,7 +24,6 @@ mainAsync({
     resultDirName,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
-    isGo: oldTsRepoUrl.includes("typescript-go"),
     expectedPrSnapshot: expectedHeadSha || expectedBaseSha || expectedMergeSha ? {
         headSha: expectedHeadSha,
         baseSha: expectedBaseSha,
