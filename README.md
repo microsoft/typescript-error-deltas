@@ -21,7 +21,7 @@ These commands can also be run locally.
 node dist/checkReposScheduled.js [post-results] [repo-count] [repo-start-index] [old-ts-version-on-npm] [old-ts-version-on-npm]
 
 # Inline User Test Reporter (a.k.a. "triggered tests")
-node dist/checkReposTriggered.js [post-results] [ts-repo-url] [head-ref] [requesting-user] [source-issue] [github-comment-id-for-updates] [query-repos-by-stars]
+node dist/checkReposTriggered.js <ts-entrypoint> <old-ts-repo-url> <old-head-ref> <pr-number> <is-top-repos> <repo-list-path> <worker-count> <worker-number> <result-dir-name> <diagnostic-output> <prng-seed> [use-tempfs] [expected-head-sha] [expected-base-sha] [expected-merge-sha]
 
 ```
 

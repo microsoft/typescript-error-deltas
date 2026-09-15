@@ -65,11 +65,17 @@ export interface ScheduledParams extends Params {
     oldTsNpmVersion: string;
     newTsNpmVersion: string;
 }
+interface PrSnapshot {
+    headSha: string;
+    baseSha: string;
+    mergeSha: string;
+}
 export interface TriggeredParams extends Params {
     testType: "triggered";
     oldTsRepoUrl: string;
     oldHeadRef: string;
     prNumber: number;
+    expectedPrSnapshot: PrSnapshot | undefined;
 }
 
 export type TsEntrypoint = "tsc" | "tsserver" | "fuzzer";
@@ -1255,7 +1261,7 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
         }
         const { tsEntrypointPath: oldTsEntrypointPath, resolvedVersion: oldTsResolvedVersion } = await downloadTsRepoAsync(cwd, params.oldTsRepoUrl, params.oldHeadRef, entrypoint, params.isGo);
         // We need to handle the ref/pull/*/merge differently as it is not a branch and cannot be pulled during clone.
-        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint, params.isGo);
+        const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion } = await downloadTsPrAsync(cwd, params.oldTsRepoUrl, params.prNumber, entrypoint, params.isGo, params.expectedPrSnapshot);
 
         return {
             oldTsEntrypointPath,
@@ -1301,7 +1307,7 @@ export async function downloadTsRepoAsync(cwd: string, repoUrl: string, headRef:
     };
 }
 
-async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGo: boolean): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
+async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number, target: TsEntrypoint, isGo: boolean, expectedPrSnapshot: PrSnapshot | undefined): Promise<{ tsEntrypointPath: string, resolvedVersion: string }> {
     console.log(`Cloning ${repoUrl} at pull ${prNumber}`);
 
     const repoName = isGo ? `typescript-go-${prNumber}` : `typescript-${prNumber}`;
@@ -1313,11 +1319,34 @@ async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: number,
     const headRef = `refs/pull/${prNumber}/merge`;
 
     await git.checkout(repoPath, headRef);
+    await verifyPrSnapshot(repoPath, expectedPrSnapshot);
 
     return {
         tsEntrypointPath: await buildTs(repoPath, target),
         resolvedVersion: headRef
     };
+}
+
+async function verifyPrSnapshot(repoPath: string, expected: PrSnapshot | undefined): Promise<void> {
+    if (!expected) {
+        return;
+    }
+    if (!expected.headSha || !expected.baseSha || !expected.mergeSha) {
+        throw new Error("Expected PR snapshot must include head, base, and merge SHAs");
+    }
+
+    const [actualMergeSha, actualBaseSha, actualHeadSha] =
+        (await execAsync(repoPath, "git rev-parse HEAD HEAD^1 HEAD^2")).trim().split(/\s+/);
+    if (
+        actualMergeSha !== expected.mergeSha
+        || actualBaseSha !== expected.baseSha
+        || actualHeadSha !== expected.headSha
+    ) {
+        throw new Error(
+            `PR snapshot changed: expected merge ${expected.mergeSha}, base ${expected.baseSha}, head ${expected.headSha}; `
+            + `got merge ${actualMergeSha}, base ${actualBaseSha}, head ${actualHeadSha}`,
+        );
+    }
 }
 
 async function buildTs(repoPath: string, entrypoint: TsEntrypoint) {

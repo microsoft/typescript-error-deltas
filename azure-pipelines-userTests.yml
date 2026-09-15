@@ -32,6 +32,18 @@ parameters:
   - name: SOURCE_ISSUE
     displayName: PR ID in github
     type: number
+  - name: EXPECTED_HEAD_SHA
+    displayName: Expected PR head commit
+    type: string
+    default: ''
+  - name: EXPECTED_BASE_SHA
+    displayName: Expected PR base commit
+    type: string
+    default: ''
+  - name: EXPECTED_MERGE_SHA
+    displayName: Expected PR merge commit
+    type: string
+    default: ''
   - name: STATUS_COMMENT
     displayName: Typescript-bot comment ID indicating that the run started
     type: number
@@ -152,8 +164,12 @@ jobs:
       corepack enable
       corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkReposTriggered ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
+      node dist/checkReposTriggered ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }} true "$EXPECTED_HEAD_SHA" "$EXPECTED_BASE_SHA" "$EXPECTED_MERGE_SHA"
     displayName: 'Run user tests'
+    env:
+      EXPECTED_HEAD_SHA: ${{ parameters.EXPECTED_HEAD_SHA }}
+      EXPECTED_BASE_SHA: ${{ parameters.EXPECTED_BASE_SHA }}
+      EXPECTED_MERGE_SHA: ${{ parameters.EXPECTED_MERGE_SHA }}
   - publish: 'RepoResults$(System.JobPositionInPhase)'
     artifact: 'RepoResults$(System.JobPositionInPhase)'
 - job: ReportNewErrors

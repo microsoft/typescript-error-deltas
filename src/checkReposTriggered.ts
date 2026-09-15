@@ -4,11 +4,11 @@ import { mainAsync, reportError, TsEntrypoint } from "./main";
 const { argv } = process;
 
 if (argv.length < 13) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_tempfs>?`);
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_tempfs>? <expected_head_sha>? <expected_base_sha>? <expected_merge_sha>?`);
     process.exit(-1);
 }
 
-const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, tempfs] = argv;
+const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, tempfs, expectedHeadSha, expectedBaseSha, expectedMergeSha] = argv;
 
 mainAsync({
     testType: "triggered",
@@ -24,7 +24,12 @@ mainAsync({
     resultDirName,
     diagnosticOutput: diagnosticOutput.toLowerCase() === "true",
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
-    isGo: oldTsRepoUrl.includes("typescript-go")
+    isGo: oldTsRepoUrl.includes("typescript-go"),
+    expectedPrSnapshot: expectedHeadSha || expectedBaseSha || expectedMergeSha ? {
+        headSha: expectedHeadSha,
+        baseSha: expectedBaseSha,
+        mergeSha: expectedMergeSha,
+    } : undefined,
 }).catch(err => {
     reportError(err, "Unhandled exception");
     process.exit(1);

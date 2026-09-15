@@ -237,6 +237,6 @@ export async function createComment(isGoRepo: boolean, prNumber: number, statusC
 }
 
 export async function checkout(cwd: string, branch: string) {
-    await execAsync(cwd, `git fetch origin ${branch}:${branch} --recurse-submodules --depth=1`);
+    await execAsync(cwd, `git fetch origin +${branch}:${branch} --recurse-submodules --depth=2`);
     await execAsync(cwd, `git checkout ${branch}`);
 }
