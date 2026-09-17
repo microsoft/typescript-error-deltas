@@ -9,10 +9,11 @@ import * as ut from "./utils/userTestUtils";
 import * as fs from "node:fs";
 import os = require("node:os");
 import path = require("node:path");
+import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace";
 import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
-import { asMarkdownInlineCode, escapeMarkdown } from "./utils/markdownUtils";
+import { asMarkdownInlineCode } from "./utils/markdownUtils";
 
 interface Params {
     /**
@@ -614,12 +615,12 @@ ${oldServerError}
 <h4>Affected repos</h4>`;
 
     for (const summary of summaries) {
-        const owner = summary.repo.owner ? `${escapeMarkdown(summary.repo.owner)}/` : "";
+        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
         const url = summary.repo.url ?? "";
 
         text += `
 <details>
-<summary><a href="${url}">${owner + escapeMarkdown(summary.repo.name)}</a></summary>
+<summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
 Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
 Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
 <h4>Last few requests</h4>
@@ -651,12 +652,12 @@ ${prettyPrint(stdout, /*filter*/ true, implementation)}
 <h4>Affected repos</h4>`;
 
     for (const summary of summaries) {
-        const owner = summary.repo.owner ? `${escapeMarkdown(summary.repo.owner)}/` : "";
+        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
         const url = summary.repo.url ?? "";
 
         text += `
 <details>
-<summary><a href="${url}">${owner + escapeMarkdown(summary.repo.name)}</a></summary>
+<summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
 Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
 Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
 `;
@@ -759,12 +760,12 @@ export async function getTscRepoResult(
         }
 
         let sawDifferentErrors = false;
-        const owner = repo.owner ? `${escapeMarkdown(repo.owner)}/` : "";
+        const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
         const url = repo.url ?? "";
 
         let summary = `<details open="true">
 <summary>
-<h2><a href="${url}">${owner}${escapeMarkdown(repo.name)}</a></h2>
+<h2><a href="${url}">${owner}${mdEscape(repo.name)}</a></h2>
 </summary>
 
 `;
@@ -1262,7 +1263,7 @@ function makeMarkdownLink(url: string) {
     const match = /\/blob\/[a-f0-9]+\/(.+)$/.exec(url);
     return !match
         ? url
-        : `[${escapeMarkdown(match[1])}](${url})`;
+        : `[${mdEscape(match[1])}](${url})`;
 }
 
 interface DownloadedTs {

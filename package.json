@@ -21,12 +21,14 @@
         "@typescript/server-replay": "^0.3.1",
         "js-yaml": "^5.4.2",
         "json5": "^2.2.3",
+        "markdown-escape": "^2.0.0",
         "random-seed": "^0.3.0",
         "tinyexec": "^1.3.1",
         "vscode-jsonrpc": "^9.0.2",
         "vscode-languageserver-protocol": "^3.18.3"
     },
     "devDependencies": {
+        "@types/markdown-escape": "^1.1.3",
         "@types/node": "^24.10.1",
         "@types/random-seed": "^0.3.5",
         "typescript": "^7.0.2",
