@@ -1,4 +1,4 @@
-import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main.js'
+import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
 import * as path from "node:path"
 import { createCopyingOverlayFS } from '../src/utils/overlayFS.js'
 import type { SpawnResult } from '../src/utils/execUtils.js';
@@ -114,6 +114,13 @@ describe("main", () => {
                 "@typescript/typescript-linux-x64": "7.1.0-dev.20260813.1",
             },
         })).toBe("corsa");
+    });
+
+    it("removes npm warnings in linear time", () => {
+        expect(reduceSpew("before npm WARN ignored\nnpm WARN also ignored\nafter")).toBe("before after");
+
+        const unterminatedWarnings = "npm WARN".repeat(10_000);
+        expect(reduceSpew(unterminatedWarnings)).toBe(unterminatedWarnings);
     });
 
     it.skip("build-only correctly caches", async () => {

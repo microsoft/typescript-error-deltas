@@ -1253,10 +1253,28 @@ function insetLines(text: string): string {
     return text.trimEnd().replace(/(^|\n)/g, "$1> ");
 }
 
-function reduceSpew(message: string): string {
+export function reduceSpew(message: string): string {
     // These are uninteresting in general and actually problematic when there are
     // thousands of instances of ENOSPC (which also appears as an error anyway)
-    return message.replace(/npm WARN.*\n/g, "");
+    const chunks: string[] = [];
+    let position = 0;
+    while (true) {
+        const warningStart = message.indexOf("npm WARN", position);
+        if (warningStart < 0) {
+            chunks.push(message.slice(position));
+            break;
+        }
+
+        const lineEnd = message.indexOf("\n", warningStart);
+        if (lineEnd < 0) {
+            chunks.push(message.slice(position));
+            break;
+        }
+
+        chunks.push(message.slice(position, warningStart));
+        position = lineEnd + 1;
+    }
+    return chunks.join("");
 }
 
 function makeMarkdownLink(url: string) {
