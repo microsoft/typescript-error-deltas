@@ -1,6 +1,8 @@
 {
     "compilerOptions": {
-        "strict": true,
         "types": []
-    }
+    },
+    "files": [
+        "main.ts"
+    ]
 }

@@ -1,8 +1,7 @@
-import fs = require("fs");
-import globCps = require("glob");
-import json5 = require("json5");
-import path = require("path");
-import yaml = require("js-yaml");
+import * as fs from "node:fs";
+import json5 from "json5";
+import * as path from "node:path";
+import * as yaml from "js-yaml";
 
 interface Package {
     meta_dir: string,
@@ -18,7 +17,10 @@ interface Package {
  * `glob`, but ignoring node_modules and symlinks, and returning absolute paths.
  */
 export function glob(cwd: string, pattern: string): string[] {
-    return globCps.sync(pattern, { cwd, absolute: true, ignore: "**/node_modules/**", follow: false })
+    return fs.globSync(pattern, {
+        cwd,
+        exclude: ["**/node_modules/**"],
+    }).map(file => path.resolve(cwd, file));
 }
 
 /**
@@ -149,4 +151,3 @@ async function appendOrderedMonorepoPackages(pkgPaths: string[], monorepoOrder: 
         monorepoOrder.push(pkg.meta_dir);
     }
 }
-

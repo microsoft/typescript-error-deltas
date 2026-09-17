@@ -1,4 +1,5 @@
-import { getProjectsToBuild } from '../src/utils/projectGraph'
+import { getProjectsToBuild } from '../src/utils/projectGraph.js'
+import { describe, expect, it } from "vitest";
 
 describe("getProjectsToBuild", () => {
     it("gets a simple project", async () => {

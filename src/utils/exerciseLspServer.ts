@@ -1,14 +1,13 @@
-import fs from "fs";
-import * as glob from "glob";
-import path from "path";
-import { performance } from "perf_hooks";
-import process from "process";
+import fs from "node:fs";
+import path from "node:path";
+import { performance } from "node:perf_hooks";
+import process from "node:process";
 import randomSeed from "random-seed";
 import * as protocol from "vscode-languageserver-protocol";
-import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
-import { getProcessRssKb } from "./execUtils";
-import * as lsp from "./lspHarness";
-import { getPanicMessageFromStderr } from "./hashStackTrace";
+import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants.js";
+import { getProcessRssKb } from "./execUtils.js";
+import * as lsp from "./lspHarness.js";
+import { getPanicMessageFromStderr } from "./hashStackTrace.js";
 
 const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
 const testDirPlaceholder = "@PROJECT_ROOT@";
@@ -85,7 +84,10 @@ function getLanguageId(filePath: string): string {
 
 async function exerciseLspServerWorker(testDir: string, lspServerPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>, requestStats: LspRequestStats): Promise<void> {
     let seq = 0;
-    const files = await glob.glob("**/*.@(ts|tsx|mts|cts|js|jsx|mjs|cjs)", { cwd: testDir, absolute: true, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
+    const files = fs.globSync("**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}", {
+        cwd: testDir,
+        exclude: ["**/node_modules/**", "**/*.min.js"],
+    }).map(file => path.resolve(testDir, file));
 
     const serverArgs: string[] = ["--lsp", "--stdio"];
 

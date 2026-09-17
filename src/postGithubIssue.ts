@@ -1,8 +1,8 @@
-import fs = require("fs");
-import path = require("path");
-import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, StatusCounts, TsEntrypoint } from "./main";
-import git = require("./utils/gitUtils");
-import pu = require("./utils/packageUtils");
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type Metadata, metadataFileName, type RepoStatus, resultFileNameSuffix, type StatusCounts, type TsEntrypoint } from "./main.js";
+import * as git from "./utils/gitUtils.js";
+import * as pu from "./utils/packageUtils.js";
 
 const { argv } = process;
 

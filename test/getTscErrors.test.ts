@@ -1,10 +1,9 @@
-import { existsSync, mkdirSync } from "fs"
-import * as path from 'path'
-import { buildAndGetErrors } from '../src/utils/getTscErrors'
-import { downloadTsRepoAsync } from '../src/main'
+import { existsSync, mkdirSync } from "node:fs"
+import * as path from 'node:path'
+import { buildAndGetErrors } from '../src/utils/getTscErrors.js'
+import { downloadTsRepoAsync } from '../src/main.js'
+import { beforeAll, describe, expect, it } from "vitest";
 describe("getErrors", () => {
-    jest.setTimeout(10 * 60 * 1000)
-
     beforeAll(async () => {
         if (!existsSync("./testDownloads/getErrors/typescript-test-fake-error/built/local/tsc.js")) {
             if (!existsSync("./testDownloads/getErrors")) {
@@ -52,7 +51,7 @@ describe("getErrors", () => {
         expect(errors.projectErrors[0].errors[0].fileUrl?.endsWith("testResources/scriptProject/main.ts(1,35)")).toBeTruthy()
         expect(errors.projectErrors[0].errors[0].projectUrl).toEqual("testResources/scriptProject/build.sh")
     })
-    xit("builds Real Live prettier, For Real", async () => {
+    it.skip("builds Real Live prettier, For Real", async () => {
         const errors = await buildAndGetErrors(
             "./testResources/scriptPrettier",
             /*monorepoPackages*/ [],

@@ -1,6 +1,7 @@
-import cp = require("child_process");
-import fs = require("fs");
-import { constants } from "buffer";
+import * as cp from "node:child_process";
+import * as fs from "node:fs";
+import { constants } from "node:buffer";
+import { x } from "tinyexec";
 
 const MAX_LENGTH = constants.MAX_STRING_LENGTH;
 const TRUNCATION_MESSAGE = "\n...truncated...\n";
@@ -19,23 +20,24 @@ function cappedAppend(current: string, data: string): string {
     return hasTruncationMessage ? tail : TRUNCATION_MESSAGE + tail;
 }
 
-export async function execAsync(cwd: string, command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        console.log(`${cwd}> ${command}`);
-        cp.exec(command, { cwd }, (err, stdout, stderr) => {
-            if (stdout?.length) {
-                console.log(stdout);
-            }
-            if (stderr?.length) {
-                console.log(stderr); // To stdout to maintain order
-            }
-
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stdout);
-        });
+export async function execFileAsync(cwd: string, command: string, args: readonly string[] = []): Promise<string> {
+    console.log(`${cwd}> ${command} ${args.map(arg => JSON.stringify(arg)).join(" ")}`.trimEnd());
+    const result = await x(command, args, {
+        nodeOptions: {
+            cwd,
+            windowsHide: true,
+        },
     });
+    if (result.stdout.length) {
+        console.log(result.stdout);
+    }
+    if (result.stderr.length) {
+        console.log(result.stderr); // To stdout to maintain order
+    }
+    if (result.exitCode !== 0) {
+        throw new Error(`${command} exited with code ${result.exitCode}`);
+    }
+    return result.stdout;
 }
 
 export interface SpawnResult {
@@ -98,7 +100,7 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
             resolve();
         });
 
-        cp.exec("ps -e -o pid,ppid --no-headers", (err, stdout) => {
+        cp.execFile("ps", ["-e", "-o", "pid,ppid", "--no-headers"], (err, stdout) => {
             if (err) {
                 reject (err);
                 return;

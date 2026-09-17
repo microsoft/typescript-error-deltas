@@ -1,8 +1,8 @@
-import * as cp from "child_process";
+import * as cp from "node:child_process";
 import * as rpc from "vscode-jsonrpc/node";
 import * as protocol from "vscode-languageserver-protocol";
-import { pathToFileURL } from "url";
-import { Readable } from "stream";
+import { pathToFileURL } from "node:url";
+import { Readable } from "node:stream";
 
 export interface ServerOptions {
     args?: string[];

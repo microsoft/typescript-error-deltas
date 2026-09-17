@@ -1,12 +1,12 @@
-import readline from "readline";
-import fs from "fs";
-import * as lsp from "./lspHarness";
-import { getProcessRssKb } from "./execUtils";
-import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
-import path from "path";
+import readline from "node:readline";
+import fs from "node:fs";
+import * as lsp from "./lspHarness.js";
+import { getProcessRssKb } from "./execUtils.js";
+import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants.js";
+import path from "node:path";
 import events from "node:events";
 import { ShutdownRequest } from "vscode-languageserver-protocol";
-import { getPanicMessageFromStderr } from "./hashStackTrace";
+import { getPanicMessageFromStderr } from "./hashStackTrace.js";
 
 
 const argv = process.argv;

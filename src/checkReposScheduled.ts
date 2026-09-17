@@ -1,5 +1,5 @@
-import path = require("path");
-import { mainAsync, reportError, TsEntrypoint } from "./main";
+import * as path from "node:path";
+import { mainAsync, reportError, type TsEntrypoint } from "./main.js";
 
 const { argv } = process;
 

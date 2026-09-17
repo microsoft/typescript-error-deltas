@@ -1,43 +1,53 @@
-import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
-import { execSync } from "child_process"
-import path = require("path")
-import { createCopyingOverlayFS } from '../src/utils/overlayFS'
-import { SpawnResult } from '../src/utils/execUtils';
+import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main.js'
+import * as path from "node:path"
+import { createCopyingOverlayFS } from '../src/utils/overlayFS.js'
+import type { SpawnResult } from '../src/utils/execUtils.js';
+import { describe, expect, it, vi } from "vitest";
 
-jest.mock('random-seed', () => ({
-    create: () => {
-        return {
-            random: () => 1,
-            seed: () => { },
-            string: () => ''
-        };
+const testState = vi.hoisted(() => ({
+    typeScriptSpawnResult: undefined as ((args: readonly string[]) => SpawnResult) | undefined,
+    writeFile: vi.fn(),
+}));
+
+vi.mock('random-seed', () => ({
+    default: {
+        create: () => {
+            return {
+                random: () => 1,
+                seed: () => { },
+                string: () => ''
+            };
+        },
     },
 }));
-jest.mock("../src/utils/packageUtils", () => ({
-    exists: jest.fn((filePath: string) => filePath.includes("testDownloads")
-        ? jest.requireActual("fs").existsSync(filePath)
-        : Promise.resolve(true)),
-    getMonorepoOrder: jest.fn().mockResolvedValue([
-        "./dirA/package.json",
-        "./dirB/dirC/package.json",
-        "./dirD/DirE/dirF/package.json"
-    ])
-}));
-jest.mock("../src/utils/execUtils", () => ({
-    spawnWithTimeoutAsync: jest.fn((cwd: string, command: string, args: readonly string[], timeoutMs: number, env?: {}) => {
+vi.mock("../src/utils/packageUtils", async () => {
+    const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    return {
+        exists: vi.fn((filePath: string) => filePath.includes("testDownloads")
+            ? fs.existsSync(filePath)
+            : Promise.resolve(true)),
+        getMonorepoOrder: vi.fn().mockResolvedValue([
+            "./dirA/package.json",
+            "./dirB/dirC/package.json",
+            "./dirD/DirE/dirF/package.json"
+        ]),
+    };
+});
+vi.mock("../src/utils/execUtils", () => ({
+    spawnWithTimeoutAsync: vi.fn((cwd: string, command: string, args: readonly string[], timeoutMs: number, env?: {}) => {
         if (command === 'npm') {
             // Return nothing so that npm install appears successfull.
             return {};
         }
 
-        return typeScriptSpawnResult(args);
+        return testState.typeScriptSpawnResult!(args);
     }),
-    execAsync: async (cwd: string, command: string) => {
-        if (command.startsWith('npm pack typescript@latest')) {
+    execFileAsync: async (cwd: string, command: string, args: readonly string[] = []) => {
+        if (command === "npm" && args[0] === "pack" && args[1] === "typescript@latest") {
             return ' typescript-0.0.0.tgz';
-        } else if (command.startsWith('npm pack typescript@next')) {
+        } else if (command === "npm" && args[0] === "pack" && args[1] === "typescript@next") {
             return ' typescript-1.1.1.tgz';
-        } else if (command.startsWith('git rev-parse')) {
+        } else if (command === "git" && args[0] === "rev-parse") {
             return '57b462387e88aa7e363af0daf867a5dc1e83a935';
         }
 
@@ -45,38 +55,44 @@ jest.mock("../src/utils/execUtils", () => ({
     }
 
 }));
-jest.mock('fs', () => ({
-    promises: {
-        writeFile: jest.fn(),
-        copyFile: jest.fn(),
-        rename: jest.fn().mockResolvedValue(undefined),
-        readFile: jest.fn((filePath: string, options: unknown) => {
+vi.mock('node:fs', async () => {
+    const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
+    return {
+        ...fs,
+        promises: {
+            ...fs.promises,
+            writeFile: testState.writeFile,
+            copyFile: vi.fn(),
+            rm: vi.fn().mockResolvedValue(undefined),
+            mkdir: vi.fn().mockResolvedValue(undefined),
+            rename: vi.fn().mockResolvedValue(undefined),
+            readFile: vi.fn((filePath: string, options?: Parameters<typeof fs.promises.readFile>[1]) => {
             if (/typescript-(?:0\.0\.0|1\.1\.1)[\\/]package\.json$/.test(filePath)) {
                 return Promise.resolve(JSON.stringify({ name: "typescript" }));
             }
-            return jest.requireActual('fs').promises.readFile(filePath, options);
-        }),
-    },
-    readFileSync: (path: string) => {
-        if (path.endsWith("replay.txt")) {
-            return '{\"rootDirPlaceholder\":\"@PROJECT_ROOT@\",\"serverArgs\":[\"--disableAutomaticTypingAcquisition\"]}\r\n{\"seq\":1,\"type\":\"request\",\"command\":\"configure\",\"arguments\":{\"preferences\":{\"disableLineTextInReferences\":true,\"includePackageJsonAutoImports\":\"auto\",\"includeCompletionsForImportStatements\":true,\"includeCompletionsWithSnippetText\":true,\"includeAutomaticOptionalChainCompletions\":true,\"includeCompletionsWithInsertText\":true,\"includeCompletionsWithClassMemberSnippets\":true,\"allowIncompleteCompletions\":true,\"includeCompletionsForModuleExports\":false},\"watchOptions\":{\"excludeDirectories\":[\"**/node_modules\"]}}}\r\n{\"seq\":2,\"type\":\"request\",\"command\":\"updateOpen\",\"arguments\":{\"changedFiles\":[],\"closedFiles\":[],\"openFiles\":[{\"file\":\"@PROJECT_ROOT@/sample_repoName.config.js\",\"projectRootPath\":\"@PROJECT_ROOT@\"}]}}\r\n{\"seq\":3,\"type\":\"request\",\"command\":\"cursedCommand\",\"arguments\":{\"file\":\"@PROJECT_ROOT@/src/sampleTsFile.ts\",\"line\":1,\"offset\":1,\"includeExternalModuleExports\":false,\"triggerKind\":1}}';;
-
-        } else if (path.endsWith('repos.json')) {
-            return JSON.stringify([{
-                "url": "https://github.com/MockRepoOwner/MockRepoName",
-                "name": "MockRepoName",
-                "owner": "MockRepoOwner"
-            }]);
-        }
-    }
-}));
-jest.mock('@typescript/server-replay/installPackages', () => {
+                return fs.promises.readFile(filePath, options);
+            }),
+        },
+        readFileSync: (path: string) => {
+            if (path.endsWith("replay.txt")) {
+                return '{\"rootDirPlaceholder\":\"@PROJECT_ROOT@\",\"serverArgs\":[\"--disableAutomaticTypingAcquisition\"]}\r\n{\"seq\":1,\"type\":\"request\",\"command\":\"configure\",\"arguments\":{\"preferences\":{\"disableLineTextInReferences\":true,\"includePackageJsonAutoImports\":\"auto\",\"includeCompletionsForImportStatements\":true,\"includeCompletionsWithSnippetText\":true,\"includeAutomaticOptionalChainCompletions\":true,\"includeCompletionsWithInsertText\":true,\"includeCompletionsWithClassMemberSnippets\":true,\"allowIncompleteCompletions\":true,\"includeCompletionsForModuleExports\":false},\"watchOptions\":{\"excludeDirectories\":[\"**/node_modules\"]}}}\r\n{\"seq\":2,\"type\":\"request\",\"command\":\"updateOpen\",\"arguments\":{\"changedFiles\":[],\"closedFiles\":[],\"openFiles\":[{\"file\":\"@PROJECT_ROOT@/sample_repoName.config.js\",\"projectRootPath\":\"@PROJECT_ROOT@\"}]}}\r\n{\"seq\":3,\"type\":\"request\",\"command\":\"cursedCommand\",\"arguments\":{\"file\":\"@PROJECT_ROOT@/src/sampleTsFile.ts\",\"line\":1,\"offset\":1,\"includeExternalModuleExports\":false,\"triggerKind\":1}}';
+            }
+            if (path.endsWith('repos.json')) {
+                return JSON.stringify([{
+                    "url": "https://github.com/MockRepoOwner/MockRepoName",
+                    "name": "MockRepoName",
+                    "owner": "MockRepoOwner"
+                }]);
+            }
+            return fs.readFileSync(path);
+        },
+    };
+});
+vi.mock('@typescript/server-replay/installPackages', () => {
     return {
-        installDependencies: jest.fn().mockResolvedValue(undefined),
+        installDependencies: vi.fn().mockResolvedValue(undefined),
     }
 });
-
-let typeScriptSpawnResult: (args: readonly string[]) => SpawnResult;
 
 const errorStdout = JSON.stringify({
     "request_seq": "123",
@@ -85,8 +101,6 @@ const errorStdout = JSON.stringify({
 });
 
 describe("main", () => {
-    jest.setTimeout(10 * 60 * 1000);
-
     it("detects tsgo from the root package name", () => {
         expect(detectTypeScriptImplementation({ name: "typescript" })).toBe("strada");
         expect(detectTypeScriptImplementation({ name: "typescript-go" })).toBe("corsa");
@@ -102,7 +116,7 @@ describe("main", () => {
         })).toBe("corsa");
     });
 
-    xit("build-only correctly caches", async () => {
+    it.skip("build-only correctly caches", async () => {
         const { status, summary } = await getTscRepoResult(
             {
                 name: "TypeScript-Node-Starter",
@@ -121,7 +135,7 @@ describe("main", () => {
     });
 
     it("detects a legacy TypeScript checkout", async () => {
-        const actualFs = jest.requireActual('fs');
+        const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
         const repoPath = "./testDownloads/main/typescript-test-fake-error";
         actualFs.mkdirSync(repoPath, { recursive: true });
         actualFs.writeFileSync(path.join(repoPath, "package.json"), JSON.stringify({ name: "typescript" }));
@@ -138,7 +152,7 @@ describe("main", () => {
         ["typescript-go", "tsgo", "https://github.com/microsoft/typescript-go", "typescript-go"],
         ["@typescript/repo", "tsc", "https://github.com/microsoft/TypeScript", "typescript"],
     ])("detects a %s tsgo checkout", async (packageName, executableName, repoUrl, repoName) => {
-        const actualFs = jest.requireActual('fs');
+        const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
         const headRef = packageName.replaceAll(/[^a-z]/g, "");
         const repoPath = `./testDownloads/main/${repoName}-${headRef}`;
         const executablePath = path.join(repoPath, "built", "local", executableName);
@@ -156,9 +170,7 @@ describe("main", () => {
     });
 
     it("outputs server errors", async () => {
-        const mockedFs = require('fs');
-
-        typeScriptSpawnResult = () => ({
+        testState.typeScriptSpawnResult = () => ({
             stdout: errorStdout,
             stderr: '',
             code: 5,
@@ -182,17 +194,15 @@ describe("main", () => {
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
-        mockedFs.promises.writeFile.mock.calls.forEach((e: [string, string]) => {
-            e[0] = e[0].replace(process.cwd(), "<BASE_PATH>");
+        testState.writeFile.mock.calls.forEach(e => {
+            e[0] = String(e[0]).replace(process.cwd(), "<BASE_PATH>");
         });
 
-        expect(mockedFs.promises.writeFile).toMatchSnapshot();
+        expect(testState.writeFile).toMatchSnapshot();
     });
 
     it("outputs old server errors", async () => {
-        const mockedFs = require('fs');
-
-        typeScriptSpawnResult = args => {
+        testState.typeScriptSpawnResult = args => {
             let isOldServer = args.some(x => x.includes('0.0.0'));
 
             // Only "old" reports an error.
@@ -226,10 +236,10 @@ describe("main", () => {
         });
 
         // Remove all references to the base path so that snapshot pass successfully.
-        mockedFs.promises.writeFile.mock.calls.forEach((e: [string, string]) => {
-            e[0] = e[0].replace(process.cwd(), "<BASE_PATH>");
+        testState.writeFile.mock.calls.forEach(e => {
+            e[0] = String(e[0]).replace(process.cwd(), "<BASE_PATH>");
         });
 
-        expect(mockedFs.promises.writeFile).toMatchSnapshot();
+        expect(testState.writeFile).toMatchSnapshot();
     });
 })

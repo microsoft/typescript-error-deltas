@@ -1,18 +1,19 @@
-import exercise = require("./utils/exerciseServerConstants");
-import ge = require("./utils/getTscErrors");
-import pu = require("./utils/packageUtils");
-import git = require("./utils/gitUtils");
-import { execAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
-import type { LspRequestStats } from "./utils/exerciseLspServer";
-import ip = require("@typescript/server-replay/installPackages");
-import ut = require("./utils/userTestUtils");
-import fs = require("fs");
-import path = require("path");
-import mdEscape = require("markdown-escape");
-import randomSeed = require("random-seed");
-import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace";
-import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
-import { asMarkdownInlineCode } from "./utils/markdownUtils";
+import * as exercise from "./utils/exerciseServerConstants.js";
+import * as ge from "./utils/getTscErrors.js";
+import * as pu from "./utils/packageUtils.js";
+import * as git from "./utils/gitUtils.js";
+import { execFileAsync, getProcessRssKb, type SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils.js";
+import type { LspRequestStats } from "./utils/exerciseLspServer.js";
+import * as ip from "@typescript/server-replay/installPackages";
+import * as ut from "./utils/userTestUtils.js";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import mdEscape from "markdown-escape";
+import randomSeed from "random-seed";
+import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace.js";
+import { createCopyingOverlayFS, createTempOverlayFS, type OverlayBaseFS } from "./utils/overlayFS.js";
+import { asMarkdownInlineCode } from "./utils/markdownUtils.js";
 
 interface Params {
     /**
@@ -202,7 +203,7 @@ async function tryInstallPackages(
             // It's perfectly reasonable to run the server against a repo with only some packages installed,
             // but making that mode repro-able could be complicated, so remove all packages for simplicity.
             console.log("Removing installed packages");
-            await execAsync(repoDir, "git clean -xdff");
+            await execFileAsync(repoDir, "git", ["clean", "-xdff"]);
         }
 
         return undefined;
@@ -259,8 +260,8 @@ async function getTsServerRepoResult(
         console.log(`Testing with ${newTsServerPath} (new)`);
 
         const newSpawnResult = isCorsa ?
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10), "n/a"], executionTimeout) :
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10), "n/a"], executionTimeout) :
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
 
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
@@ -315,8 +316,8 @@ async function getTsServerRepoResult(
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = isCorsa ?
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "replayLspServer.js"), repoDir, replayScriptPath, oldTsServerPath, diagnosticOutput.toString()], executionTimeout) :
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "bin", "tsreplay.js"), "strada-replay", repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "replayLspServer.js"), repoDir, replayScriptPath, oldTsServerPath, diagnosticOutput.toString()], executionTimeout) :
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "..", "node_modules", "@typescript", "server-replay", "bin", "tsreplay.js"), "strada-replay", repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
 
         if (diagnosticOutput && oldSpawnResult) {
             console.log("Raw spawn results (old):");
@@ -436,7 +437,7 @@ export async function getLSPResult(
     mainMemoryInterval?.unref();
     try {
         console.log(`Testing LSP server with ${lspServerPath}`);
-        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10), statsPath], executionTimeout);
+        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10), statsPath], executionTimeout);
 
         if (!spawnResult) {
             console.log(`LSP server timed out after ${executionTimeout} ms`);
@@ -1028,7 +1029,7 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
             let commit: string | undefined;
             try {
                 console.log("Extracting commit SHA for repro steps");
-                commit = (await execAsync(repoDir, `git rev-parse @`)).trim()
+                commit = (await execFileAsync(repoDir, "git", ["rev-parse", "@"])).trim()
             }
             catch {
                 //noop
@@ -1080,9 +1081,9 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
     }
 
     if (oldTscDirPath) {
-        await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+        await fs.promises.rm(oldTscDirPath, { recursive: true, force: true });
     }
-    await execAsync(processCwd, "rm -rf " + newTscDirPath);
+    await fs.promises.rm(newTscDirPath, { recursive: true, force: true });
 
     console.log("Statuses");
     for (const status of Object.keys(statusCounts).sort()) {
@@ -1102,15 +1103,27 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
 async function reportResourceUsage(downloadDir: string) {
     try {
         console.log("Memory");
-        await execAsync(processCwd, "free -h");
+        await execFileAsync(processCwd, "free", ["-h"]);
         console.log("Disk");
-        await execAsync(processCwd, "df -h");
-        await execAsync(processCwd, "df -i");
+        await execFileAsync(processCwd, "df", ["-h"]);
+        await execFileAsync(processCwd, "df", ["-i"]);
         console.log("Download Directory");
-        await execAsync(processCwd, "ls -lh " + downloadDir);
+        await execFileAsync(processCwd, "ls", ["-lh", downloadDir]);
         console.log("Home Directory");
-        await execAsync(processCwd, "du -csh ~/.[^.]*");
-        await execAsync(processCwd, "du -csh ~/.cache/*");
+        const homeDir = os.homedir();
+        const hiddenHomeEntries = (await fs.promises.readdir(homeDir))
+            .filter(entry => entry.startsWith("."))
+            .map(entry => path.join(homeDir, entry));
+        if (hiddenHomeEntries.length) {
+            await execFileAsync(processCwd, "du", ["-csh", ...hiddenHomeEntries]);
+        }
+        const cacheDir = path.join(homeDir, ".cache");
+        if (await pu.exists(cacheDir)) {
+            const cacheEntries = (await fs.promises.readdir(cacheDir)).map(entry => path.join(cacheDir, entry));
+            if (cacheEntries.length) {
+                await execFileAsync(processCwd, "du", ["-csh", ...cacheEntries]);
+            }
+        }
     }
     catch { } // noop
 }
@@ -1359,7 +1372,7 @@ async function verifyPrSnapshot(repoPath: string, expected: PrSnapshot | undefin
     }
 
     const [actualMergeSha, actualBaseSha, actualHeadSha] =
-        (await execAsync(repoPath, "git rev-parse HEAD HEAD^1 HEAD^2")).trim().split(/\s+/);
+        (await execFileAsync(repoPath, "git", ["rev-parse", "HEAD", "HEAD^1", "HEAD^2"])).trim().split(/\s+/);
     if (
         actualMergeSha !== expected.mergeSha
         || actualBaseSha !== expected.baseSha
@@ -1387,11 +1400,11 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
     const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, { encoding: "utf-8" })) as { name?: string };
     const implementation = detectTypeScriptImplementation(packageJson);
 
-    await execAsync(repoPath, "npm ci");
+    await execFileAsync(repoPath, "npm", ["ci"]);
     console.log(`Building in ${repoPath}`);
 
     if (implementation === "corsa") {
-        await execAsync(repoPath, `npx hereby build`);
+        await execFileAsync(repoPath, "npx", ["hereby", "build"]);
         const candidates = [
             path.join(repoPath, "built", "local", "tsc"),
             path.join(repoPath, "built", "local", "tsgo"),
@@ -1404,12 +1417,12 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
         throw new Error(`Cannot find tsgo entrypoint in ${path.join(repoPath, "built", "local")}`);
     }
     else {
-        await execAsync(repoPath, `npx gulp ${entrypoint}`);
+        await execFileAsync(repoPath, "npx", ["gulp", entrypoint]);
 
         if (entrypoint === "tsc") {
             // We build the LKG for the benefit of scenarios that want to install it as an npm package
-            await execAsync(repoPath, "npx gulp configure-insiders");
-            await execAsync(repoPath, "npx gulp LKG");
+            await execFileAsync(repoPath, "npx", ["gulp", "configure-insiders"]);
+            await execFileAsync(repoPath, "npx", ["gulp", "LKG"]);
         }
 
         return { tsEntrypointPath: path.join(repoPath, "built", "local", `${entrypoint}.js`), implementation };
@@ -1417,7 +1430,7 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
 }
 
 async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<DownloadedTs> {
-    const tarName = (await execAsync(cwd, `npm pack typescript@${version} --quiet`)).trim();
+    const tarName = (await execFileAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
 
     const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
     if (!tarMatch) {
@@ -1428,7 +1441,8 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
     const dirName = tarMatch[1];
     const dirPath = path.join(processCwd, dirName);
 
-    await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
+    await execFileAsync(cwd, "tar", ["xf", tarName]);
+    await fs.promises.rm(path.join(cwd, tarName));
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
     const packageJson = JSON.parse(await fs.promises.readFile(path.join(dirPath, "package.json"), { encoding: "utf-8" })) as {
@@ -1439,7 +1453,7 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
         throw new Error(`TypeScript ${resolvedVersion} does not support the LSP fuzzer`);
     }
     if (implementation === "corsa") {
-        await execAsync(dirPath, "npm install --ignore-scripts --omit=dev --no-package-lock --silent");
+        await execFileAsync(dirPath, "npm", ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"]);
     }
 
     const tsEntrypointPath = implementation === "corsa"
