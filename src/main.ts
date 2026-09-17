@@ -1,19 +1,19 @@
-import * as exercise from "./utils/exerciseServerConstants";
-import * as ge from "./utils/getTscErrors";
-import * as pu from "./utils/packageUtils";
-import * as git from "./utils/gitUtils";
-import { execFileAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
-import type { LspRequestStats } from "./utils/exerciseLspServer";
-import ip = require("@typescript/server-replay/installPackages");
-import * as ut from "./utils/userTestUtils";
+import * as exercise from "./utils/exerciseServerConstants.js";
+import * as ge from "./utils/getTscErrors.js";
+import * as pu from "./utils/packageUtils.js";
+import * as git from "./utils/gitUtils.js";
+import { execFileAsync, getProcessRssKb, type SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils.js";
+import type { LspRequestStats } from "./utils/exerciseLspServer.js";
+import * as ip from "@typescript/server-replay/installPackages";
+import * as ut from "./utils/userTestUtils.js";
 import * as fs from "node:fs";
-import os = require("node:os");
-import path = require("node:path");
-import mdEscape = require("markdown-escape");
-import randomSeed = require("random-seed");
-import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace";
-import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
-import { asMarkdownInlineCode } from "./utils/markdownUtils";
+import * as os from "node:os";
+import * as path from "node:path";
+import mdEscape from "markdown-escape";
+import randomSeed from "random-seed";
+import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace.js";
+import { createCopyingOverlayFS, createTempOverlayFS, type OverlayBaseFS } from "./utils/overlayFS.js";
+import { asMarkdownInlineCode } from "./utils/markdownUtils.js";
 
 interface Params {
     /**
@@ -260,8 +260,8 @@ async function getTsServerRepoResult(
         console.log(`Testing with ${newTsServerPath} (new)`);
 
         const newSpawnResult = isCorsa ?
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10), "n/a"], executionTimeout) :
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10), "n/a"], executionTimeout) :
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "exerciseServer.js"), repoDir, replayScriptPath, newTsServerPath, diagnosticOutput.toString(), prng.string(10)], executionTimeout);
 
         if (!newSpawnResult) {
             // CONSIDER: It might be interesting to treat timeouts as failures, but they'd be harder to baseline and more likely to have flaky repros
@@ -316,8 +316,8 @@ async function getTsServerRepoResult(
 
         console.log(`Testing with ${oldTsServerPath} (old)`);
         const oldSpawnResult = isCorsa ?
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "replayLspServer.js"), repoDir, replayScriptPath, oldTsServerPath, diagnosticOutput.toString()], executionTimeout) :
-            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "..", "node_modules", "@typescript", "server-replay", "bin", "tsreplay.js"), "strada-replay", repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "replayLspServer.js"), repoDir, replayScriptPath, oldTsServerPath, diagnosticOutput.toString()], executionTimeout) :
+            await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "..", "node_modules", "@typescript", "server-replay", "bin", "tsreplay.js"), "strada-replay", repoDir, replayScriptPath, oldTsServerPath, "-u"], executionTimeout);
 
         if (diagnosticOutput && oldSpawnResult) {
             console.log("Raw spawn results (old):");
@@ -437,7 +437,7 @@ export async function getLSPResult(
     mainMemoryInterval?.unref();
     try {
         console.log(`Testing LSP server with ${lspServerPath}`);
-        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(__dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10), statsPath], executionTimeout);
+        const spawnResult = await spawnWithTimeoutAsync(repoDir, process.argv[0], [path.join(import.meta.dirname, "utils", "exerciseLspServer.js"), repoDir, replayScriptPath, lspServerPath, diagnosticOutput.toString(), prng.string(10), statsPath], executionTimeout);
 
         if (!spawnResult) {
             console.log(`LSP server timed out after ${executionTimeout} ms`);

@@ -1,7 +1,7 @@
-import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
-import path = require("node:path")
-import { createCopyingOverlayFS } from '../src/utils/overlayFS'
-import type { SpawnResult } from '../src/utils/execUtils';
+import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main.js'
+import * as path from "node:path"
+import { createCopyingOverlayFS } from '../src/utils/overlayFS.js'
+import type { SpawnResult } from '../src/utils/execUtils.js';
 import { describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => ({
@@ -10,12 +10,14 @@ const testState = vi.hoisted(() => ({
 }));
 
 vi.mock('random-seed', () => ({
-    create: () => {
-        return {
-            random: () => 1,
-            seed: () => { },
-            string: () => ''
-        };
+    default: {
+        create: () => {
+            return {
+                random: () => 1,
+                seed: () => { },
+                string: () => ''
+            };
+        },
     },
 }));
 vi.mock("../src/utils/packageUtils", async () => {

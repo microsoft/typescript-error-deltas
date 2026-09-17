@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
-import path = require("node:path");
-import { execFileAsync } from "./execUtils";
+import * as path from "node:path";
+import { execFileAsync } from "./execUtils.js";
 
 export interface OverlayBaseFS {
     path: string;

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs"
 import * as path from 'node:path'
-import { buildAndGetErrors } from '../src/utils/getTscErrors'
-import { downloadTsRepoAsync } from '../src/main'
+import { buildAndGetErrors } from '../src/utils/getTscErrors.js'
+import { downloadTsRepoAsync } from '../src/main.js'
 import { beforeAll, describe, expect, it } from "vitest";
 describe("getErrors", () => {
     beforeAll(async () => {

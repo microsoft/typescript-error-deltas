@@ -1,7 +1,7 @@
-import fs = require("node:fs");
-import path = require("node:path");
-import { getPopularRepos } from "./utils/gitUtils";
-import { reportError } from "./main";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { getPopularRepos } from "./utils/gitUtils.js";
+import { reportError } from "./main.js";
 
 const { argv } = process;
 

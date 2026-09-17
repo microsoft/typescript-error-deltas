@@ -2,6 +2,7 @@
     "name": "typescript-error-deltas",
     "version": "0.3.0",
     "private": true,
+    "type": "module",
     "description": "Script for comparing the errors from two builds of the TypeScript compiler",
     "main": "dist/main.js",
     "typings": "dist/main.d.ts",

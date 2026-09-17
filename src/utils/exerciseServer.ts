@@ -1,12 +1,12 @@
 // @ts-check
 
-import sh = require("@typescript/server-harness");
-import fs = require("node:fs");
-import process = require("node:process");
-import path = require("node:path");
+import * as sh from "@typescript/server-harness";
+import * as fs from "node:fs";
+import process from "node:process";
+import * as path from "node:path";
 import { performance } from "node:perf_hooks";
-import randomSeed = require("random-seed");
-import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED, EXIT_SERVER_COMMUNICATION_ERROR } from "./exerciseServerConstants";
+import randomSeed from "random-seed";
+import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED, EXIT_SERVER_COMMUNICATION_ERROR } from "./exerciseServerConstants.js";
 
 const testDirPlaceholder = "@PROJECT_ROOT@";
 

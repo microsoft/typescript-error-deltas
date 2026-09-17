@@ -1,7 +1,7 @@
-import fs = require("node:fs");
-import path = require("node:path");
-import { reportError } from "./main";
-import { getUserTestsRepos } from "./utils/userTestUtils";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { reportError } from "./main.js";
+import { getUserTestsRepos } from "./utils/userTestUtils.js";
 
 const { argv } = process;
 

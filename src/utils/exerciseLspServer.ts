@@ -4,10 +4,10 @@ import { performance } from "node:perf_hooks";
 import process from "node:process";
 import randomSeed from "random-seed";
 import * as protocol from "vscode-languageserver-protocol";
-import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";
-import { getProcessRssKb } from "./execUtils";
-import * as lsp from "./lspHarness";
-import { getPanicMessageFromStderr } from "./hashStackTrace";
+import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants.js";
+import { getProcessRssKb } from "./execUtils.js";
+import * as lsp from "./lspHarness.js";
+import { getPanicMessageFromStderr } from "./hashStackTrace.js";
 
 const testDirUriPlaceholder = "@PROJECT_ROOT_URI@";
 const testDirPlaceholder = "@PROJECT_ROOT@";

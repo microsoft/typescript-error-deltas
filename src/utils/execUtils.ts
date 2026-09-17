@@ -1,5 +1,5 @@
-import cp = require("node:child_process");
-import fs = require("node:fs");
+import * as cp from "node:child_process";
+import * as fs from "node:fs";
 import { constants } from "node:buffer";
 import { x } from "tinyexec";
 

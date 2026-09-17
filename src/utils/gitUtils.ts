@@ -1,10 +1,10 @@
-import { execFileAsync } from "./execUtils";
-import * as utils from "./packageUtils";
+import { execFileAsync } from "./execUtils.js";
+import * as utils from "./packageUtils.js";
 import { Octokit } from "octokit";
-import fs = require("node:fs");
-import path = require("node:path");
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-import { TsEntrypoint } from "../main";
+import type { TsEntrypoint } from "../main.js";
 
 export interface Repo {
     name: string;

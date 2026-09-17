@@ -1,7 +1,7 @@
-import fs = require("node:fs");
-import json5 = require("json5");
-import path = require("node:path");
-import yaml = require("js-yaml");
+import * as fs from "node:fs";
+import json5 from "json5";
+import * as path from "node:path";
+import * as yaml from "js-yaml";
 
 interface Package {
     meta_dir: string,
