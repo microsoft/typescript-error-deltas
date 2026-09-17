@@ -55,7 +55,7 @@ jobs:
   steps:
   - task: UseNode@1
     inputs:
-      version: '22.x'
+      version: '24.x'
     displayName: 'Install Node.js'
   - task: AzureCLI@2
     inputs:
@@ -100,7 +100,7 @@ jobs:
     artifact: RepoList
   - task: UseNode@1
     inputs:
-      version: '22.x'
+      version: '24.x'
     displayName: 'Install Node.js'
   - task: GoTool@0
     inputs:
@@ -137,7 +137,7 @@ jobs:
   steps:
   - task: UseNode@1
     inputs:
-      version: '22.x'
+      version: '24.x'
     displayName: 'Install Node.js'
   - task: AzureCLI@2
     inputs:
