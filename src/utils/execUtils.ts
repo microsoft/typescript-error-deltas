@@ -21,7 +21,13 @@ function cappedAppend(current: string, data: string): string {
 
 export async function execFileAsync(cwd: string, command: string, args: readonly string[] = []): Promise<string> {
     console.log(`${cwd}> ${command} ${args.map(arg => JSON.stringify(arg)).join(" ")}`.trimEnd());
-    const result = await runFileAsync(cwd, command, args);
+    const { x } = await import("tinyexec");
+    const result = await x(command, args, {
+        nodeOptions: {
+            cwd,
+            windowsHide: true,
+        },
+    });
     if (result.stdout.length) {
         console.log(result.stdout);
     }
@@ -32,16 +38,6 @@ export async function execFileAsync(cwd: string, command: string, args: readonly
         throw new Error(`${command} exited with code ${result.exitCode}`);
     }
     return result.stdout;
-}
-
-async function runFileAsync(cwd: string, command: string, args: readonly string[]) {
-    const { x } = await import("tinyexec");
-    return x(command, args, {
-        nodeOptions: {
-            cwd,
-            windowsHide: true,
-        },
-    });
 }
 
 export interface SpawnResult {
@@ -60,7 +56,8 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
             return;
         }
 
-        // This path needs streaming output with bounded retention and custom process-tree cleanup.
+        // We use `spawn`, rather than `execFile`, because package installation tends to write a lot
+        // of data to stdout, overflowing `execFile`'s buffer.
         const childProcess = cp.spawn(command, args, {
             cwd,
             env,
@@ -95,55 +92,61 @@ export function spawnWithTimeoutAsync(cwd: string, command: string, args: readon
     });
 }
 
-async function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void> {
-    const closed = new Promise<void>(resolve => {
+function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
         // Ideally, we would wait for all of the processes to close, but we only get events for
         // this one, so we'll kill it last and hope for the best.
         childProcess.once("close", () => {
             resolve();
         });
+
+        cp.execFile("ps", ["-e", "-o", "pid,ppid", "--no-headers"], (err, stdout) => {
+            if (err) {
+                reject (err);
+                return;
+            }
+
+            const childProcessPid = childProcess.pid!;
+            let sawChildProcessPid = false;
+
+            const childMap: Record<number, number[]> = {};
+            const pidList = stdout.trim().split(/\s+/);
+            for (let i = 0; i + 1 < pidList.length; i += 2) {
+                const childPid = +pidList[i];
+                const parentPid = +pidList[i + 1];
+
+                childMap[parentPid] ||= [];
+                childMap[parentPid].push(childPid);
+
+                sawChildProcessPid ||= childPid === childProcessPid;
+            }
+
+            if (!sawChildProcessPid) {
+                // Descendent processes may still be alive, but we have no way to identify them
+                resolve();
+                return;
+            }
+
+            const strictDescendentPids: number[] = [];
+            const stack: number[] = [ childProcessPid ];
+            while (stack.length) {
+                const pid = stack.pop()!;
+                if (pid !== childProcessPid) {
+                    strictDescendentPids.push(pid);
+                }
+                const children = childMap[pid];
+                if (children) {
+                    stack.push(...children);
+                }
+            }
+
+            console.log(`Killing process ${childProcessPid} and its descendents: ${strictDescendentPids.join(", ")}`);
+
+            strictDescendentPids.forEach(pid => process.kill(pid));
+            childProcess.kill();
+            // Resolve when we detect that childProcess has closed (above)
+        });
     });
-
-    const { stdout } = await runFileAsync(process.cwd(), "ps", ["-e", "-o", "pid,ppid", "--no-headers"]);
-
-    const childProcessPid = childProcess.pid!;
-    let sawChildProcessPid = false;
-
-    const childMap: Record<number, number[]> = {};
-    const pidList = stdout.trim().split(/\s+/);
-    for (let i = 0; i + 1 < pidList.length; i += 2) {
-        const childPid = +pidList[i];
-        const parentPid = +pidList[i + 1];
-
-        childMap[parentPid] ||= [];
-        childMap[parentPid].push(childPid);
-
-        sawChildProcessPid ||= childPid === childProcessPid;
-    }
-
-    if (!sawChildProcessPid) {
-        // Descendent processes may still be alive, but we have no way to identify them
-        return;
-    }
-
-    const strictDescendentPids: number[] = [];
-    const stack: number[] = [ childProcessPid ];
-    while (stack.length) {
-        const pid = stack.pop()!;
-        if (pid !== childProcessPid) {
-            strictDescendentPids.push(pid);
-        }
-        const children = childMap[pid];
-        if (children) {
-            stack.push(...children);
-        }
-    }
-
-    console.log(`Killing process ${childProcessPid} and its descendents: ${strictDescendentPids.join(", ")}`);
-
-    strictDescendentPids.forEach(pid => process.kill(pid));
-    childProcess.kill();
-    await closed;
 }
 
 export async function getProcessRssKb(pid: number): Promise<number | undefined> {
