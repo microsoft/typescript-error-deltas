@@ -1,6 +1,6 @@
-import fs = require("fs");
-import path = require("path");
-import { execAsync } from "./execUtils";
+import fs = require("node:fs");
+import path = require("node:path");
+import { execFileAsync } from "./execUtils";
 
 export interface OverlayBaseFS {
     path: string;
@@ -28,7 +28,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
     await tryUnmount(root);
     await rmWithRetryAsRoot(root);
     await mkdirAllAsRoot(root);
-    await execAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "tmpfs", root]);
+    await execFileAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "tmpfs", root]);
 
     const lowerDir = path.join(root, "base");
     await mkdirAll(lowerDir);
@@ -55,7 +55,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             await diskUsageRoot(overlayRoot);
         }
 
-        await execAsync(processCwd, "sudo", ["mount", "-t", "overlay", "overlay", "-o", `lowerdir=${lowerDir},upperdir=${upperDir},workdir=${workDir}`, merged]);
+        await execFileAsync(processCwd, "sudo", ["mount", "-t", "overlay", "overlay", "-o", `lowerdir=${lowerDir},upperdir=${upperDir},workdir=${workDir}`, merged]);
 
         overlay = {
             path: merged,
@@ -107,11 +107,11 @@ async function tryUnmount(p: string) {
     try {
         await retry(async () => {
             try {
-                await execAsync(processCwd, "sudo", ["umount", "-R", p]);
+                await execFileAsync(processCwd, "sudo", ["umount", "-R", p]);
             } catch (e) {
                 // Kill processes using the mount.
                 try {
-                    await execAsync(processCwd, "sudo", ["fuser", "-vkm", p]);
+                    await execFileAsync(processCwd, "sudo", ["fuser", "-vkm", p]);
                 } catch {
                     // This command will exit with a non-zero exit code on no handles; ignore.
                 }
@@ -122,7 +122,7 @@ async function tryUnmount(p: string) {
     } catch {
         // Print out the remaining processes for debugging.
         try {
-            await execAsync(processCwd, "sudo", ["fuser", "-vm", p]);
+            await execFileAsync(processCwd, "sudo", ["fuser", "-vm", p]);
         } catch {
             // This command will exit with a non-zero exit code on no handles; ignore.
         }
@@ -130,7 +130,7 @@ async function tryUnmount(p: string) {
 }
 
 function diskUsageRoot(p: string) {
-    return execAsync(processCwd, "sudo", ["du", "-sh", p]);
+    return execFileAsync(processCwd, "sudo", ["du", "-sh", p]);
 }
 
 function rmWithRetry(p: string) {
@@ -138,7 +138,7 @@ function rmWithRetry(p: string) {
 }
 
 function rmWithRetryAsRoot(p: string) {
-    return retry(() => execAsync(processCwd, "sudo", ["rm", "-rf", p]), 3, 1000);
+    return retry(() => execFileAsync(processCwd, "sudo", ["rm", "-rf", p]), 3, 1000);
 }
 
 async function mkdirAll(...args: string[]) {
@@ -146,7 +146,7 @@ async function mkdirAll(...args: string[]) {
 }
 
 function mkdirAllAsRoot(...args: string[]) {
-    return execAsync(processCwd, "sudo", ["mkdir", "-p", ...args]);
+    return execFileAsync(processCwd, "sudo", ["mkdir", "-p", ...args]);
 }
 
 /**
@@ -170,7 +170,7 @@ export async function createCopyingOverlayFS(root: string, _diagnosticOutput: bo
         const overlayRoot = path.join(root, "overlay");
         await rmWithRetry(overlayRoot);
 
-        await execAsync(processCwd, "cp", ["-r", "--reflink=auto", basePath, overlayRoot]);
+        await execFileAsync(processCwd, "cp", ["-r", "--reflink=auto", basePath, overlayRoot]);
 
         overlay = {
             path: overlayRoot,

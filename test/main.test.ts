@@ -1,6 +1,5 @@
 import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync } from '../src/main'
-import { execSync } from "child_process"
-import path = require("path")
+import path = require("node:path")
 import { createCopyingOverlayFS } from '../src/utils/overlayFS'
 import { SpawnResult } from '../src/utils/execUtils';
 
@@ -32,7 +31,7 @@ jest.mock("../src/utils/execUtils", () => ({
 
         return typeScriptSpawnResult(args);
     }),
-    execAsync: async (cwd: string, command: string, args: readonly string[] = []) => {
+    execFileAsync: async (cwd: string, command: string, args: readonly string[] = []) => {
         if (command === "npm" && args[0] === "pack" && args[1] === "typescript@latest") {
             return ' typescript-0.0.0.tgz';
         } else if (command === "npm" && args[0] === "pack" && args[1] === "typescript@next") {
@@ -45,7 +44,7 @@ jest.mock("../src/utils/execUtils", () => ({
     }
 
 }));
-jest.mock('fs', () => ({
+jest.mock('node:fs', () => ({
     promises: {
         writeFile: jest.fn(),
         copyFile: jest.fn(),
@@ -158,7 +157,7 @@ describe("main", () => {
     });
 
     it("outputs server errors", async () => {
-        const mockedFs = require('fs');
+        const mockedFs = require('node:fs');
 
         typeScriptSpawnResult = () => ({
             stdout: errorStdout,
@@ -192,7 +191,7 @@ describe("main", () => {
     });
 
     it("outputs old server errors", async () => {
-        const mockedFs = require('fs');
+        const mockedFs = require('node:fs');
 
         typeScriptSpawnResult = args => {
             let isOldServer = args.some(x => x.includes('0.0.0'));

@@ -2,13 +2,13 @@ import exercise = require("./utils/exerciseServerConstants");
 import ge = require("./utils/getTscErrors");
 import pu = require("./utils/packageUtils");
 import git = require("./utils/gitUtils");
-import { execAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
+import { execFileAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
 import type { LspRequestStats } from "./utils/exerciseLspServer";
 import ip = require("@typescript/server-replay/installPackages");
 import ut = require("./utils/userTestUtils");
-import fs = require("fs");
-import os = require("os");
-import path = require("path");
+import fs = require("node:fs");
+import os = require("node:os");
+import path = require("node:path");
 import randomSeed = require("random-seed");
 import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace";
 import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
@@ -202,7 +202,7 @@ async function tryInstallPackages(
             // It's perfectly reasonable to run the server against a repo with only some packages installed,
             // but making that mode repro-able could be complicated, so remove all packages for simplicity.
             console.log("Removing installed packages");
-            await execAsync(repoDir, "git", ["clean", "-xdff"]);
+            await execFileAsync(repoDir, "git", ["clean", "-xdff"]);
         }
 
         return undefined;
@@ -1028,7 +1028,7 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
             let commit: string | undefined;
             try {
                 console.log("Extracting commit SHA for repro steps");
-                commit = (await execAsync(repoDir, "git", ["rev-parse", "@"])).trim()
+                commit = (await execFileAsync(repoDir, "git", ["rev-parse", "@"])).trim()
             }
             catch {
                 //noop
@@ -1102,25 +1102,25 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
 async function reportResourceUsage(downloadDir: string) {
     try {
         console.log("Memory");
-        await execAsync(processCwd, "free", ["-h"]);
+        await execFileAsync(processCwd, "free", ["-h"]);
         console.log("Disk");
-        await execAsync(processCwd, "df", ["-h"]);
-        await execAsync(processCwd, "df", ["-i"]);
+        await execFileAsync(processCwd, "df", ["-h"]);
+        await execFileAsync(processCwd, "df", ["-i"]);
         console.log("Download Directory");
-        await execAsync(processCwd, "ls", ["-lh", downloadDir]);
+        await execFileAsync(processCwd, "ls", ["-lh", downloadDir]);
         console.log("Home Directory");
         const homeDir = os.homedir();
         const hiddenHomeEntries = (await fs.promises.readdir(homeDir))
             .filter(entry => entry.startsWith("."))
             .map(entry => path.join(homeDir, entry));
         if (hiddenHomeEntries.length) {
-            await execAsync(processCwd, "du", ["-csh", ...hiddenHomeEntries]);
+            await execFileAsync(processCwd, "du", ["-csh", ...hiddenHomeEntries]);
         }
         const cacheDir = path.join(homeDir, ".cache");
         if (await pu.exists(cacheDir)) {
             const cacheEntries = (await fs.promises.readdir(cacheDir)).map(entry => path.join(cacheDir, entry));
             if (cacheEntries.length) {
-                await execAsync(processCwd, "du", ["-csh", ...cacheEntries]);
+                await execFileAsync(processCwd, "du", ["-csh", ...cacheEntries]);
             }
         }
     }
@@ -1371,7 +1371,7 @@ async function verifyPrSnapshot(repoPath: string, expected: PrSnapshot | undefin
     }
 
     const [actualMergeSha, actualBaseSha, actualHeadSha] =
-        (await execAsync(repoPath, "git", ["rev-parse", "HEAD", "HEAD^1", "HEAD^2"])).trim().split(/\s+/);
+        (await execFileAsync(repoPath, "git", ["rev-parse", "HEAD", "HEAD^1", "HEAD^2"])).trim().split(/\s+/);
     if (
         actualMergeSha !== expected.mergeSha
         || actualBaseSha !== expected.baseSha
@@ -1399,11 +1399,11 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
     const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, { encoding: "utf-8" })) as { name?: string };
     const implementation = detectTypeScriptImplementation(packageJson);
 
-    await execAsync(repoPath, "npm", ["ci"]);
+    await execFileAsync(repoPath, "npm", ["ci"]);
     console.log(`Building in ${repoPath}`);
 
     if (implementation === "corsa") {
-        await execAsync(repoPath, "npx", ["hereby", "build"]);
+        await execFileAsync(repoPath, "npx", ["hereby", "build"]);
         const candidates = [
             path.join(repoPath, "built", "local", "tsc"),
             path.join(repoPath, "built", "local", "tsgo"),
@@ -1416,12 +1416,12 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
         throw new Error(`Cannot find tsgo entrypoint in ${path.join(repoPath, "built", "local")}`);
     }
     else {
-        await execAsync(repoPath, "npx", ["gulp", entrypoint]);
+        await execFileAsync(repoPath, "npx", ["gulp", entrypoint]);
 
         if (entrypoint === "tsc") {
             // We build the LKG for the benefit of scenarios that want to install it as an npm package
-            await execAsync(repoPath, "npx", ["gulp", "configure-insiders"]);
-            await execAsync(repoPath, "npx", ["gulp", "LKG"]);
+            await execFileAsync(repoPath, "npx", ["gulp", "configure-insiders"]);
+            await execFileAsync(repoPath, "npx", ["gulp", "LKG"]);
         }
 
         return { tsEntrypointPath: path.join(repoPath, "built", "local", `${entrypoint}.js`), implementation };
@@ -1429,7 +1429,7 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
 }
 
 async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<DownloadedTs> {
-    const tarName = (await execAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
+    const tarName = (await execFileAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
 
     const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
     if (!tarMatch) {
@@ -1440,7 +1440,7 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
     const dirName = tarMatch[1];
     const dirPath = path.join(processCwd, dirName);
 
-    await execAsync(cwd, "tar", ["xf", tarName]);
+    await execFileAsync(cwd, "tar", ["xf", tarName]);
     await fs.promises.rm(path.join(cwd, tarName));
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
@@ -1452,7 +1452,7 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
         throw new Error(`TypeScript ${resolvedVersion} does not support the LSP fuzzer`);
     }
     if (implementation === "corsa") {
-        await execAsync(dirPath, "npm", ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"]);
+        await execFileAsync(dirPath, "npm", ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"]);
     }
 
     const tsEntrypointPath = implementation === "corsa"

@@ -1,6 +1,6 @@
-import fs = require("fs");
+import fs = require("node:fs");
 import json5 = require("json5");
-import path = require("path");
+import path = require("node:path");
 import utils = require("./packageUtils");
 
 export interface Project {

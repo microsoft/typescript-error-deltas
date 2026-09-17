@@ -1,8 +1,8 @@
 import ghLink = require("@typescript/github-link");
 import projectGraph = require("./projectGraph");
 import { SpawnResult, spawnWithTimeoutAsync } from "./execUtils";
-import fs = require("fs");
-import path = require("path");
+import fs = require("node:fs");
+import path = require("node:path");
 
 const nodePath = process.argv0;
 

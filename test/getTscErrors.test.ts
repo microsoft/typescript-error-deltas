@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync } from "fs"
-import * as path from 'path'
+import { existsSync, mkdirSync } from "node:fs"
+import * as path from 'node:path'
 import { buildAndGetErrors } from '../src/utils/getTscErrors'
 import { downloadTsRepoAsync } from '../src/main'
 describe("getErrors", () => {

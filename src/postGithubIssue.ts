@@ -1,5 +1,5 @@
-import fs = require("fs");
-import path = require("path");
+import fs = require("node:fs");
+import path = require("node:path");
 import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, StatusCounts, TsEntrypoint } from "./main";
 import git = require("./utils/gitUtils");
 import pu = require("./utils/packageUtils");

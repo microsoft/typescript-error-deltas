@@ -1,8 +1,7 @@
-import octokit = require("@octokit/rest");
-import { execAsync } from "./execUtils";
+import { execFileAsync } from "./execUtils";
 import utils = require("./packageUtils");
-import fs = require("fs");
-import path = require("path");
+import fs = require("node:fs");
+import path = require("node:path");
 
 import { TsEntrypoint } from "../main";
 
@@ -12,6 +11,13 @@ export interface Repo {
     owner?: string;
     types?: string[];
     branch?: string;
+}
+
+async function createOctokit() {
+    const { Octokit } = await import("@octokit/rest");
+    return new Octokit({
+        auth: process.env.GITHUB_PAT,
+    });
 }
 
 function getRepoProperties(isTypeScriptGoRepo: boolean) {
@@ -38,9 +44,7 @@ export async function getPopularRepos(language = "TypeScript", count = 100, repo
         }
     }
 
-    const kit = new octokit.Octokit({
-        auth: process.env.GITHUB_PAT,
-    });
+    const kit = await createOctokit();
     const perPage = Math.min(100, count + (skipRepos?.length ?? 0));
 
     let repos: Repo[] = [];
@@ -100,7 +104,7 @@ export async function cloneRepoIfNecessary(parentDir: string, repo: Repo): Promi
             options.push(`--branch=${repo.branch}`);
         }
 
-        await execAsync(parentDir, "git", ["clone", ...options, repo.url, repo.name]);
+        await execFileAsync(parentDir, "git", ["clone", ...options, repo.url, repo.name]);
     }
 }
 
@@ -136,9 +140,7 @@ export async function createIssue(isTypeScriptGoRepo: boolean, postResult: boole
 
     console.log("Creating a summary issue");
 
-    const kit = new octokit.Octokit({
-        auth: process.env.GITHUB_PAT,
-    });
+    const kit = await createOctokit();
 
     const created = await kit.issues.create(issue);
 
@@ -184,9 +186,7 @@ export async function createComment(isTypeScriptGoRepo: boolean, prNumber: numbe
 
     console.log("Posting github comment(s)");
 
-    const kit = new octokit.Octokit({
-        auth: process.env.GITHUB_PAT,
-    });
+    const kit = await createOctokit();
 
     const newCommentUrls: string[] = [];
 
@@ -235,6 +235,6 @@ export async function createComment(isTypeScriptGoRepo: boolean, prNumber: numbe
 }
 
 export async function checkout(cwd: string, branch: string) {
-    await execAsync(cwd, "git", ["fetch", "origin", `+${branch}:${branch}`, "--recurse-submodules", "--depth=2"]);
-    await execAsync(cwd, "git", ["checkout", branch]);
+    await execFileAsync(cwd, "git", ["fetch", "origin", `+${branch}:${branch}`, "--recurse-submodules", "--depth=2"]);
+    await execFileAsync(cwd, "git", ["checkout", branch]);
 }

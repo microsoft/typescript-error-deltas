@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
-import { performance } from "perf_hooks";
-import process from "process";
+import fs from "node:fs";
+import path from "node:path";
+import { performance } from "node:perf_hooks";
+import process from "node:process";
 import randomSeed from "random-seed";
 import * as protocol from "vscode-languageserver-protocol";
 import { EXIT_BAD_ARGS, EXIT_SERVER_COMMUNICATION_ERROR, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_UNHANDLED_EXCEPTION } from "./exerciseServerConstants";

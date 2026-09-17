@@ -1,11 +1,11 @@
 // @ts-check
 
 import sh = require("@typescript/server-harness");
-import fs = require("fs");
+import fs = require("node:fs");
 import type typescript = require("typescript");
-import process = require("process");
-import path = require("path");
-import { performance } from "perf_hooks";
+import process = require("node:process");
+import path = require("node:path");
+import { performance } from "node:perf_hooks";
 import randomSeed = require("random-seed");
 import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED, EXIT_SERVER_COMMUNICATION_ERROR } from "./exerciseServerConstants";
 

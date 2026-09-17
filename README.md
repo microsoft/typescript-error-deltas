@@ -15,6 +15,14 @@ To run online, you can
 * [Tag typescript-bot](https://github.com/microsoft/TypeScript/wiki/Triggering-TypeScript-Bot) and write a comment of the form `@typescript-bot user test this` on a pull request to get an inline report of new errors.
 
 These commands can also be run locally.
+The repository requires Node.js 24 or newer.
+
+Install dependencies and build the command-line entrypoints with:
+
+```sh
+npm ci
+npm run build
+```
 
 ```sh
 # New Error Detector (a.k.a. "scheduled tests")

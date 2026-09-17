@@ -1,6 +1,6 @@
-import cp = require("child_process");
-import fs = require("fs");
-import { constants } from "buffer";
+import cp = require("node:child_process");
+import fs = require("node:fs");
+import { constants } from "node:buffer";
 
 const MAX_LENGTH = constants.MAX_STRING_LENGTH;
 const TRUNCATION_MESSAGE = "\n...truncated...\n";
@@ -19,7 +19,7 @@ function cappedAppend(current: string, data: string): string {
     return hasTruncationMessage ? tail : TRUNCATION_MESSAGE + tail;
 }
 
-export async function execAsync(cwd: string, command: string, args: readonly string[] = []): Promise<string> {
+export async function execFileAsync(cwd: string, command: string, args: readonly string[] = []): Promise<string> {
     console.log(`${cwd}> ${command} ${args.map(arg => JSON.stringify(arg)).join(" ")}`.trimEnd());
     const { x } = await import("tinyexec");
     const result = await x(command, args, {
@@ -100,7 +100,7 @@ function killTree(childProcess: cp.ChildProcessWithoutNullStreams): Promise<void
             resolve();
         });
 
-        cp.exec("ps -e -o pid,ppid --no-headers", (err, stdout) => {
+        cp.execFile("ps", ["-e", "-o", "pid,ppid", "--no-headers"], (err, stdout) => {
             if (err) {
                 reject (err);
                 return;
