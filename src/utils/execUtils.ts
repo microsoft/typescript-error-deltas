@@ -1,6 +1,7 @@
 import cp = require("node:child_process");
 import fs = require("node:fs");
 import { constants } from "node:buffer";
+import { x } from "tinyexec";
 
 const MAX_LENGTH = constants.MAX_STRING_LENGTH;
 const TRUNCATION_MESSAGE = "\n...truncated...\n";
@@ -21,7 +22,6 @@ function cappedAppend(current: string, data: string): string {
 
 export async function execFileAsync(cwd: string, command: string, args: readonly string[] = []): Promise<string> {
     console.log(`${cwd}> ${command} ${args.map(arg => JSON.stringify(arg)).join(" ")}`.trimEnd());
-    const { x } = await import("tinyexec");
     const result = await x(command, args, {
         nodeOptions: {
             cwd,

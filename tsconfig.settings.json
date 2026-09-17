@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "module": "node16",
+        "module": "node20",
         "target": "ES2024",
         "composite": true,
         "strict": true,
