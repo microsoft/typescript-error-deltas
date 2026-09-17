@@ -7,12 +7,12 @@ import type { LspRequestStats } from "./utils/exerciseLspServer";
 import ip = require("@typescript/server-replay/installPackages");
 import ut = require("./utils/userTestUtils");
 import fs = require("fs");
+import os = require("os");
 import path = require("path");
-import mdEscape = require("markdown-escape");
 import randomSeed = require("random-seed");
 import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace";
 import { createCopyingOverlayFS, createTempOverlayFS, OverlayBaseFS } from "./utils/overlayFS";
-import { asMarkdownInlineCode } from "./utils/markdownUtils";
+import { asMarkdownInlineCode, escapeMarkdown } from "./utils/markdownUtils";
 
 interface Params {
     /**
@@ -202,7 +202,7 @@ async function tryInstallPackages(
             // It's perfectly reasonable to run the server against a repo with only some packages installed,
             // but making that mode repro-able could be complicated, so remove all packages for simplicity.
             console.log("Removing installed packages");
-            await execAsync(repoDir, "git clean -xdff");
+            await execAsync(repoDir, "git", ["clean", "-xdff"]);
         }
 
         return undefined;
@@ -614,12 +614,12 @@ ${oldServerError}
 <h4>Affected repos</h4>`;
 
     for (const summary of summaries) {
-        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
+        const owner = summary.repo.owner ? `${escapeMarkdown(summary.repo.owner)}/` : "";
         const url = summary.repo.url ?? "";
 
         text += `
 <details>
-<summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
+<summary><a href="${url}">${owner + escapeMarkdown(summary.repo.name)}</a></summary>
 Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
 Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
 <h4>Last few requests</h4>
@@ -651,12 +651,12 @@ ${prettyPrint(stdout, /*filter*/ true, implementation)}
 <h4>Affected repos</h4>`;
 
     for (const summary of summaries) {
-        const owner = summary.repo.owner ? `${mdEscape(summary.repo.owner)}/` : "";
+        const owner = summary.repo.owner ? `${escapeMarkdown(summary.repo.owner)}/` : "";
         const url = summary.repo.url ?? "";
 
         text += `
 <details>
-<summary><a href="${url}">${owner + mdEscape(summary.repo.name)}</a></summary>
+<summary><a href="${url}">${owner + escapeMarkdown(summary.repo.name)}</a></summary>
 Raw error text: <code>${summary.rawErrorArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a> <br />
 Replay commands: <code>${summary.replayScriptArtifactPath}</code> in the <a href="${artifactFolderUrlPlaceholder}">artifact folder</a>
 `;
@@ -759,12 +759,12 @@ export async function getTscRepoResult(
         }
 
         let sawDifferentErrors = false;
-        const owner = repo.owner ? `${mdEscape(repo.owner)}/` : "";
+        const owner = repo.owner ? `${escapeMarkdown(repo.owner)}/` : "";
         const url = repo.url ?? "";
 
         let summary = `<details open="true">
 <summary>
-<h2><a href="${url}">${owner}${mdEscape(repo.name)}</a></h2>
+<h2><a href="${url}">${owner}${escapeMarkdown(repo.name)}</a></h2>
 </summary>
 
 `;
@@ -1028,7 +1028,7 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
             let commit: string | undefined;
             try {
                 console.log("Extracting commit SHA for repro steps");
-                commit = (await execAsync(repoDir, `git rev-parse @`)).trim()
+                commit = (await execAsync(repoDir, "git", ["rev-parse", "@"])).trim()
             }
             catch {
                 //noop
@@ -1080,9 +1080,9 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
     }
 
     if (oldTscDirPath) {
-        await execAsync(processCwd, "rm -rf " + oldTscDirPath);
+        await fs.promises.rm(oldTscDirPath, { recursive: true, force: true });
     }
-    await execAsync(processCwd, "rm -rf " + newTscDirPath);
+    await fs.promises.rm(newTscDirPath, { recursive: true, force: true });
 
     console.log("Statuses");
     for (const status of Object.keys(statusCounts).sort()) {
@@ -1102,15 +1102,27 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
 async function reportResourceUsage(downloadDir: string) {
     try {
         console.log("Memory");
-        await execAsync(processCwd, "free -h");
+        await execAsync(processCwd, "free", ["-h"]);
         console.log("Disk");
-        await execAsync(processCwd, "df -h");
-        await execAsync(processCwd, "df -i");
+        await execAsync(processCwd, "df", ["-h"]);
+        await execAsync(processCwd, "df", ["-i"]);
         console.log("Download Directory");
-        await execAsync(processCwd, "ls -lh " + downloadDir);
+        await execAsync(processCwd, "ls", ["-lh", downloadDir]);
         console.log("Home Directory");
-        await execAsync(processCwd, "du -csh ~/.[^.]*");
-        await execAsync(processCwd, "du -csh ~/.cache/*");
+        const homeDir = os.homedir();
+        const hiddenHomeEntries = (await fs.promises.readdir(homeDir))
+            .filter(entry => entry.startsWith("."))
+            .map(entry => path.join(homeDir, entry));
+        if (hiddenHomeEntries.length) {
+            await execAsync(processCwd, "du", ["-csh", ...hiddenHomeEntries]);
+        }
+        const cacheDir = path.join(homeDir, ".cache");
+        if (await pu.exists(cacheDir)) {
+            const cacheEntries = (await fs.promises.readdir(cacheDir)).map(entry => path.join(cacheDir, entry));
+            if (cacheEntries.length) {
+                await execAsync(processCwd, "du", ["-csh", ...cacheEntries]);
+            }
+        }
     }
     catch { } // noop
 }
@@ -1250,7 +1262,7 @@ function makeMarkdownLink(url: string) {
     const match = /\/blob\/[a-f0-9]+\/(.+)$/.exec(url);
     return !match
         ? url
-        : `[${mdEscape(match[1])}](${url})`;
+        : `[${escapeMarkdown(match[1])}](${url})`;
 }
 
 interface DownloadedTs {
@@ -1359,7 +1371,7 @@ async function verifyPrSnapshot(repoPath: string, expected: PrSnapshot | undefin
     }
 
     const [actualMergeSha, actualBaseSha, actualHeadSha] =
-        (await execAsync(repoPath, "git rev-parse HEAD HEAD^1 HEAD^2")).trim().split(/\s+/);
+        (await execAsync(repoPath, "git", ["rev-parse", "HEAD", "HEAD^1", "HEAD^2"])).trim().split(/\s+/);
     if (
         actualMergeSha !== expected.mergeSha
         || actualBaseSha !== expected.baseSha
@@ -1387,11 +1399,11 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
     const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, { encoding: "utf-8" })) as { name?: string };
     const implementation = detectTypeScriptImplementation(packageJson);
 
-    await execAsync(repoPath, "npm ci");
+    await execAsync(repoPath, "npm", ["ci"]);
     console.log(`Building in ${repoPath}`);
 
     if (implementation === "corsa") {
-        await execAsync(repoPath, `npx hereby build`);
+        await execAsync(repoPath, "npx", ["hereby", "build"]);
         const candidates = [
             path.join(repoPath, "built", "local", "tsc"),
             path.join(repoPath, "built", "local", "tsgo"),
@@ -1404,12 +1416,12 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
         throw new Error(`Cannot find tsgo entrypoint in ${path.join(repoPath, "built", "local")}`);
     }
     else {
-        await execAsync(repoPath, `npx gulp ${entrypoint}`);
+        await execAsync(repoPath, "npx", ["gulp", entrypoint]);
 
         if (entrypoint === "tsc") {
             // We build the LKG for the benefit of scenarios that want to install it as an npm package
-            await execAsync(repoPath, "npx gulp configure-insiders");
-            await execAsync(repoPath, "npx gulp LKG");
+            await execAsync(repoPath, "npx", ["gulp", "configure-insiders"]);
+            await execAsync(repoPath, "npx", ["gulp", "LKG"]);
         }
 
         return { tsEntrypointPath: path.join(repoPath, "built", "local", `${entrypoint}.js`), implementation };
@@ -1417,7 +1429,7 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
 }
 
 async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<DownloadedTs> {
-    const tarName = (await execAsync(cwd, `npm pack typescript@${version} --quiet`)).trim();
+    const tarName = (await execAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
 
     const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
     if (!tarMatch) {
@@ -1428,7 +1440,8 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
     const dirName = tarMatch[1];
     const dirPath = path.join(processCwd, dirName);
 
-    await execAsync(cwd, `tar xf ${tarName} && rm ${tarName}`);
+    await execAsync(cwd, "tar", ["xf", tarName]);
+    await fs.promises.rm(path.join(cwd, tarName));
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
     const packageJson = JSON.parse(await fs.promises.readFile(path.join(dirPath, "package.json"), { encoding: "utf-8" })) as {
@@ -1439,7 +1452,7 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
         throw new Error(`TypeScript ${resolvedVersion} does not support the LSP fuzzer`);
     }
     if (implementation === "corsa") {
-        await execAsync(dirPath, "npm install --ignore-scripts --omit=dev --no-package-lock --silent");
+        await execAsync(dirPath, "npm", ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"]);
     }
 
     const tsEntrypointPath = implementation === "corsa"

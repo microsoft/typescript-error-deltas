@@ -3,7 +3,8 @@
     "compilerOptions": {
         "outDir": "dist", // Output files are ignored, but them in a folder for tidiness
         "emitDeclarationOnly": true,
-        "types": ["jest"]
+        "isolatedModules": true,
+        "types": ["jest", "node"]
     },
     "references": [
         { "path": "../src" },

@@ -5,7 +5,6 @@ import fs = require("fs");
 import type typescript = require("typescript");
 import process = require("process");
 import path = require("path");
-import glob = require("glob");
 import { performance } from "perf_hooks";
 import randomSeed = require("random-seed");
 import { EXIT_BAD_ARGS, EXIT_UNHANDLED_EXCEPTION, EXIT_SERVER_EXIT_FAILED, EXIT_SERVER_CRASH, EXIT_SERVER_ERROR, EXIT_LANGUAGE_SERVICE_DISABLED, EXIT_SERVER_COMMUNICATION_ERROR } from "./exerciseServerConstants";
@@ -64,7 +63,10 @@ export async function exerciseServer(testDir: string, replayScriptPath: string, 
 }
 
 async function exerciseServerWorker(testDir: string, tsserverPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>): Promise<void> {
-    const files = await glob.glob("**/*.@(ts|tsx|js|jsx)", { cwd: testDir, absolute: false, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
+    const files = fs.globSync("**/*.{ts,tsx,js,jsx}", {
+        cwd: testDir,
+        exclude: ["**/node_modules/**", "**/*.min.js"],
+    });
 
     const serverArgs = [
         "--disableAutomaticTypingAcquisition",

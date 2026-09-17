@@ -1,4 +1,3 @@
-import { execAsync } from "./execUtils";
 import type { Repo } from "./gitUtils";
 import * as fs from "fs";
 import * as path from "path";
@@ -39,6 +38,9 @@ export function getUserTestsRepos(testDir: string): Repo[] {
 
 export async function copyUserRepo(parentDir: string, testDir: string, repo: Repo,) {
     const repoDir = path.join(parentDir, repo.name);
-    await execAsync(parentDir, `mkdir ${repoDir}`);
-    await execAsync(repoDir, `cp -R ${path.join(testDir, repo.name)}/* .`);
+    await fs.promises.mkdir(repoDir);
+    const sourceDir = path.join(testDir, repo.name);
+    for (const entry of await fs.promises.readdir(sourceDir)) {
+        await fs.promises.cp(path.join(sourceDir, entry), path.join(repoDir, entry), { recursive: true });
+    }
 }

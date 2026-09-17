@@ -4,8 +4,6 @@ import utils = require("./packageUtils");
 import fs = require("fs");
 import path = require("path");
 
-// The bundled types don't work with CJS imports
-import { simpleGit as git } from "simple-git";
 import { TsEntrypoint } from "../main";
 
 export interface Repo {
@@ -102,7 +100,7 @@ export async function cloneRepoIfNecessary(parentDir: string, repo: Repo): Promi
             options.push(`--branch=${repo.branch}`);
         }
 
-        await git(parentDir).clone(repo.url, repo.name, options);
+        await execAsync(parentDir, "git", ["clone", ...options, repo.url, repo.name]);
     }
 }
 
@@ -237,6 +235,6 @@ export async function createComment(isTypeScriptGoRepo: boolean, prNumber: numbe
 }
 
 export async function checkout(cwd: string, branch: string) {
-    await execAsync(cwd, `git fetch origin +${branch}:${branch} --recurse-submodules --depth=2`);
-    await execAsync(cwd, `git checkout ${branch}`);
+    await execAsync(cwd, "git", ["fetch", "origin", `+${branch}:${branch}`, "--recurse-submodules", "--depth=2"]);
+    await execAsync(cwd, "git", ["checkout", branch]);
 }

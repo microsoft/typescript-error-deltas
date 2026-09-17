@@ -1,5 +1,4 @@
 import fs from "fs";
-import * as glob from "glob";
 import path from "path";
 import { performance } from "perf_hooks";
 import process from "process";
@@ -85,7 +84,10 @@ function getLanguageId(filePath: string): string {
 
 async function exerciseLspServerWorker(testDir: string, lspServerPath: string, replayScriptHandle: fs.promises.FileHandle, requestTimes: Record<string, number>, requestCounts: Record<string, number>, requestStats: LspRequestStats): Promise<void> {
     let seq = 0;
-    const files = await glob.glob("**/*.@(ts|tsx|mts|cts|js|jsx|mjs|cjs)", { cwd: testDir, absolute: true, ignore: ["**/node_modules/**", "**/*.min.js"], nodir: true, follow: false });
+    const files = fs.globSync("**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}", {
+        cwd: testDir,
+        exclude: ["**/node_modules/**", "**/*.min.js"],
+    }).map(file => path.resolve(testDir, file));
 
     const serverArgs: string[] = ["--lsp", "--stdio"];
 

@@ -19,23 +19,25 @@ function cappedAppend(current: string, data: string): string {
     return hasTruncationMessage ? tail : TRUNCATION_MESSAGE + tail;
 }
 
-export async function execAsync(cwd: string, command: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-        console.log(`${cwd}> ${command}`);
-        cp.exec(command, { cwd }, (err, stdout, stderr) => {
-            if (stdout?.length) {
-                console.log(stdout);
-            }
-            if (stderr?.length) {
-                console.log(stderr); // To stdout to maintain order
-            }
-
-            if (err) {
-                return reject(err);
-            }
-            return resolve(stdout);
-        });
+export async function execAsync(cwd: string, command: string, args: readonly string[] = []): Promise<string> {
+    console.log(`${cwd}> ${command} ${args.map(arg => JSON.stringify(arg)).join(" ")}`.trimEnd());
+    const { x } = await import("tinyexec");
+    const result = await x(command, args, {
+        nodeOptions: {
+            cwd,
+            windowsHide: true,
+        },
     });
+    if (result.stdout.length) {
+        console.log(result.stdout);
+    }
+    if (result.stderr.length) {
+        console.log(result.stderr); // To stdout to maintain order
+    }
+    if (result.exitCode !== 0) {
+        throw new Error(`${command} exited with code ${result.exitCode}`);
+    }
+    return result.stdout;
 }
 
 export interface SpawnResult {

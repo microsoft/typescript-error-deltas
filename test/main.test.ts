@@ -32,12 +32,12 @@ jest.mock("../src/utils/execUtils", () => ({
 
         return typeScriptSpawnResult(args);
     }),
-    execAsync: async (cwd: string, command: string) => {
-        if (command.startsWith('npm pack typescript@latest')) {
+    execAsync: async (cwd: string, command: string, args: readonly string[] = []) => {
+        if (command === "npm" && args[0] === "pack" && args[1] === "typescript@latest") {
             return ' typescript-0.0.0.tgz';
-        } else if (command.startsWith('npm pack typescript@next')) {
+        } else if (command === "npm" && args[0] === "pack" && args[1] === "typescript@next") {
             return ' typescript-1.1.1.tgz';
-        } else if (command.startsWith('git rev-parse')) {
+        } else if (command === "git" && args[0] === "rev-parse") {
             return '57b462387e88aa7e363af0daf867a5dc1e83a935';
         }
 
@@ -49,6 +49,8 @@ jest.mock('fs', () => ({
     promises: {
         writeFile: jest.fn(),
         copyFile: jest.fn(),
+        rm: jest.fn().mockResolvedValue(undefined),
+        mkdir: jest.fn().mockResolvedValue(undefined),
         rename: jest.fn().mockResolvedValue(undefined),
         readFile: jest.fn((filePath: string, options: unknown) => {
             if (/typescript-(?:0\.0\.0|1\.1\.1)[\\/]package\.json$/.test(filePath)) {
