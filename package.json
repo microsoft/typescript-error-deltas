@@ -7,7 +7,7 @@
     "typings": "dist/main.d.ts",
     "scripts": {
         "build": "tsc -b .",
-        "test": "npm run build && jest"
+        "test": "npm run build && vitest run"
     },
     "author": "Microsoft",
     "license": "MIT",
@@ -27,11 +27,9 @@
         "vscode-languageserver-protocol": "^3.18.3"
     },
     "devDependencies": {
-        "@types/jest": "^30.0.0",
         "@types/node": "^24.10.1",
         "@types/random-seed": "^0.3.5",
-        "jest": "^30.2.0",
-        "ts-jest": "^29.4.5",
-        "typescript": "^5.9.3"
+        "typescript": "^7.0.2",
+        "vitest": "^5.0.1"
     }
 }

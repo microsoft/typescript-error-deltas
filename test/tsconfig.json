@@ -4,7 +4,7 @@
         "outDir": "dist", // Output files are ignored, but them in a folder for tidiness
         "emitDeclarationOnly": true,
         "isolatedModules": true,
-        "types": ["jest", "node"]
+        "types": ["node"]
     },
     "references": [
         { "path": "../src" },

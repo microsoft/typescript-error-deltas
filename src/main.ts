@@ -1,12 +1,12 @@
-import exercise = require("./utils/exerciseServerConstants");
-import ge = require("./utils/getTscErrors");
-import pu = require("./utils/packageUtils");
-import git = require("./utils/gitUtils");
+import * as exercise from "./utils/exerciseServerConstants";
+import * as ge from "./utils/getTscErrors";
+import * as pu from "./utils/packageUtils";
+import * as git from "./utils/gitUtils";
 import { execFileAsync, getProcessRssKb, SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils";
 import type { LspRequestStats } from "./utils/exerciseLspServer";
 import ip = require("@typescript/server-replay/installPackages");
-import ut = require("./utils/userTestUtils");
-import fs = require("node:fs");
+import * as ut from "./utils/userTestUtils";
+import * as fs from "node:fs";
 import os = require("node:os");
 import path = require("node:path");
 import randomSeed = require("random-seed");

@@ -1,8 +1,8 @@
 import fs = require("node:fs");
 import path = require("node:path");
 import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, Metadata, metadataFileName, RepoStatus, resultFileNameSuffix, TsEntrypoint } from "./main";
-import git = require("./utils/gitUtils");
-import pu = require("./utils/packageUtils");
+import * as git from "./utils/gitUtils";
+import * as pu from "./utils/packageUtils";
 import { asMarkdownInlineCode } from "./utils/markdownUtils";
 
 const { argv } = process;

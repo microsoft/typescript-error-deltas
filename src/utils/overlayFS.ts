@@ -1,4 +1,4 @@
-import fs = require("node:fs");
+import * as fs from "node:fs";
 import path = require("node:path");
 import { execFileAsync } from "./execUtils";
 

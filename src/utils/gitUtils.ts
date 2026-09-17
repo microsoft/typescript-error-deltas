@@ -1,5 +1,5 @@
 import { execFileAsync } from "./execUtils";
-import utils = require("./packageUtils");
+import * as utils from "./packageUtils";
 import fs = require("node:fs");
 import path = require("node:path");
 
