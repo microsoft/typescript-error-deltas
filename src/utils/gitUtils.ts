@@ -1,5 +1,6 @@
 import { execFileAsync } from "./execUtils";
 import * as utils from "./packageUtils";
+import { Octokit } from "octokit";
 import fs = require("node:fs");
 import path = require("node:path");
 
@@ -13,8 +14,7 @@ export interface Repo {
     branch?: string;
 }
 
-async function createOctokit() {
-    const { Octokit } = await import("@octokit/rest");
+function createOctokit() {
     return new Octokit({
         auth: process.env.GITHUB_PAT,
     });
@@ -44,12 +44,12 @@ export async function getPopularRepos(language = "TypeScript", count = 100, repo
         }
     }
 
-    const kit = await createOctokit();
+    const kit = createOctokit();
     const perPage = Math.min(100, count + (skipRepos?.length ?? 0));
 
     let repos: Repo[] = [];
     for (let page = 1; repos.length < count; page++) {
-        const response = await kit.search.repos({
+        const response = await kit.rest.search.repos({
             q: `language:${language}+stars:>100 archived:no`,
             sort: "stars",
             order: "desc",
@@ -140,9 +140,9 @@ export async function createIssue(isTypeScriptGoRepo: boolean, postResult: boole
 
     console.log("Creating a summary issue");
 
-    const kit = await createOctokit();
+    const kit = createOctokit();
 
-    const created = await kit.issues.create(issue);
+    const created = await kit.rest.issues.create(issue);
 
     const issueNumber = created.data.number;
     console.log(`Created issue #${issueNumber}: ${created.data.html_url}`);
@@ -156,11 +156,11 @@ export async function createIssue(isTypeScriptGoRepo: boolean, postResult: boole
             body = body.slice(0, maxCommentLength - tooLongFooter.length) + tooLongFooter;
         }
 
-        await kit.issues.createComment({ issue_number: issueNumber, ...comment, body });
+        await kit.rest.issues.createComment({ issue_number: issueNumber, ...comment, body });
     }
 
     if (!sawNewErrors) {
-        await kit.issues.update({
+        await kit.rest.issues.update({
             ...repoProperties,
             issue_number: issueNumber,
             state: "closed",
@@ -186,12 +186,12 @@ export async function createComment(isTypeScriptGoRepo: boolean, prNumber: numbe
 
     console.log("Posting github comment(s)");
 
-    const kit = await createOctokit();
+    const kit = createOctokit();
 
     const newCommentUrls: string[] = [];
 
     for (const newComment of newComments) {
-        const response = await kit.issues.createComment(newComment);
+        const response = await kit.rest.issues.createComment(newComment);
 
         const newCommentUrl = response.data.html_url;
         console.log(`Created comment #${response.data.id}: ${newCommentUrl}`);
@@ -206,7 +206,7 @@ export async function createComment(isTypeScriptGoRepo: boolean, prNumber: numbe
     let posted = false;
     for (let i = 0; i < 5; i++) {
         // Get status comment contents
-        const statusCommentResp = await kit.issues.getComment({
+        const statusCommentResp = await kit.rest.issues.getComment({
             comment_id: statusComment,
             ...repoProperties,
         });
@@ -223,7 +223,7 @@ export async function createComment(isTypeScriptGoRepo: boolean, prNumber: numbe
         );
 
         // Update status comment
-        await kit.issues.updateComment({
+        await kit.rest.issues.updateComment({
             comment_id: statusComment,
             body: newComment,
             ...repoProperties,
