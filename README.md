@@ -14,8 +14,6 @@ To run online, you can
 * [Run the new error detector from Azure Pipelines](https://typescript.visualstudio.com/TypeScript/_build?definitionId=48) to create a new issue on the TypeScript repository.
 * [Tag typescript-bot](https://github.com/microsoft/TypeScript/wiki/Triggering-TypeScript-Bot) and write a comment of the form `@typescript-bot user test this` on a pull request to get an inline report of new errors.
 
-Reports from scheduled runs and pull request tests are posted to `microsoft/TypeScript`, including runs of the Go-based compiler.
-
 These commands can also be run locally.
 
 ```sh
