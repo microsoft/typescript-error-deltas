@@ -40,6 +40,25 @@ export async function execFileAsync(cwd: string, command: string, args: readonly
     return result.stdout;
 }
 
+export async function execFileWithRetryAsync(cwd: string, command: string, args: readonly string[], attempts: number): Promise<string> {
+    if (attempts < 1) {
+        throw new Error("attempts must be at least 1");
+    }
+
+    for (let attempt = 1; ; attempt++) {
+        try {
+            return await execFileAsync(cwd, command, args);
+        }
+        catch (err) {
+            if (attempt === attempts) {
+                throw err;
+            }
+            console.log(`${command} failed; retrying (${attempt}/${attempts})`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+        }
+    }
+}
+
 export interface SpawnResult {
     stdout: string,
     stderr: string,
