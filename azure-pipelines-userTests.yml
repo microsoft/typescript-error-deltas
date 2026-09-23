@@ -107,7 +107,6 @@ jobs:
       OWNER: microsoft
       REPOSITORIES: |
         TypeScript
-        typescript-go
       PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
@@ -196,7 +195,6 @@ jobs:
       OWNER: microsoft
       REPOSITORIES: |
         TypeScript
-        typescript-go
       PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
@@ -204,7 +202,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubComments ${{ parameters.ENTRYPOINT }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts' ${{ contains(parameters.OLD_TS_REPO_URL, 'typescript-go') }}
+      node dist/postGithubComments ${{ parameters.ENTRYPOINT }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
