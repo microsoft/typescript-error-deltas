@@ -7,15 +7,14 @@ import { asMarkdownInlineCode } from "./utils/markdownUtils.js";
 
 const { argv } = process;
 
-if (argv.length !== 14) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <entrypoint> <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api> <is_go_repo>`);
+if (argv.length !== 13) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <entrypoint> <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api>`);
     process.exit(-1);
 }
 
-const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi, isTypeScriptGoRepoStr] = argv;
+const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
-const isTypeScriptGoRepo = isTypeScriptGoRepoStr.toLowerCase() === "true";
 const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
 
 let newTscResolvedVersion: string | undefined;
@@ -82,7 +81,7 @@ let header = `@${userToTag} Here are the results of running the ${suiteDescripti
 ${summary.join("\n")}`;
 
 if (!outputs.length) {
-    git.createComment(isTypeScriptGoRepo, +prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, [header], somethingChanged);
 }
 else {
     const oldErrorHeader = `<h2>:warning: Old server errors :warning:</h2>`;
@@ -137,5 +136,5 @@ else {
         console.log(`Chunk of size ${chunk.length}`);
     }
 
-    git.createComment(isTypeScriptGoRepo, +prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
+    git.createComment(+prNumber, +commentNumber, distinctId, postResult, bodyChunks, somethingChanged);
 }

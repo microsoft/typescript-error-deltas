@@ -37,11 +37,6 @@ parameters:
     displayName: Pseudo-random number generator seed
     type: string
     default: 'n/a'
-  - name: REPO_IS_TSGO
-    displayName: Whether the repo is `typescript-go`
-    type: boolean
-    default: false
-
 variables:
   TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID: 'Iv23li4GolzJSEp1mzHI'
   TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID: 'https://jststeam-passwords.vault.azure.net/keys/typescript-automation'
@@ -70,7 +65,6 @@ jobs:
       OWNER: microsoft
       REPOSITORIES: |
         TypeScript
-        typescript-go
       PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
@@ -153,7 +147,6 @@ jobs:
       OWNER: microsoft
       REPOSITORIES: |
         TypeScript
-        typescript-go
       PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
@@ -161,7 +154,7 @@ jobs:
   - script: |
       npm ci
       npm run build
-      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts' ${{ parameters.REPO_IS_TSGO }}
+      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
     displayName: 'Create issue from new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
