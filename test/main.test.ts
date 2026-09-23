@@ -52,7 +52,8 @@ vi.mock("../src/utils/execUtils", () => ({
         }
 
         return '';
-    }
+    },
+    execFileWithRetryAsync: vi.fn().mockResolvedValue(''),
 
 }));
 vi.mock('node:fs', async () => {

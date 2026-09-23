@@ -106,6 +106,7 @@ jobs:
     inputs:
       version: '1.27'
     displayName: 'Install Go'
+    retryCountOnTaskFailure: 3
   - script: |
       df -h
       df -h -i

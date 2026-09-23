@@ -2,7 +2,7 @@ import * as exercise from "./utils/exerciseServerConstants.js";
 import * as ge from "./utils/getTscErrors.js";
 import * as pu from "./utils/packageUtils.js";
 import * as git from "./utils/gitUtils.js";
-import { execFileAsync, getProcessRssKb, type SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils.js";
+import { execFileAsync, execFileWithRetryAsync, getProcessRssKb, type SpawnResult, spawnWithTimeoutAsync } from "./utils/execUtils.js";
 import type { LspRequestStats } from "./utils/exerciseLspServer.js";
 import * as ip from "@typescript/server-replay/installPackages";
 import * as ut from "./utils/userTestUtils.js";
@@ -1422,6 +1422,7 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
     console.log(`Building in ${repoPath}`);
 
     if (implementation === "corsa") {
+        await downloadGoModules(repoPath);
         await execFileAsync(repoPath, "npx", ["hereby", "build"]);
         const candidates = [
             path.join(repoPath, "built", "local", "tsc"),
@@ -1444,6 +1445,20 @@ async function buildTs(repoPath: string, entrypoint: TsEntrypoint): Promise<{ ts
         }
 
         return { tsEntrypointPath: path.join(repoPath, "built", "local", `${entrypoint}.js`), implementation };
+    }
+}
+
+async function downloadGoModules(repoPath: string): Promise<void> {
+    const goWorkPath = path.join(repoPath, "go.work");
+    if (!await pu.exists(goWorkPath)) {
+        await execFileWithRetryAsync(repoPath, "go", ["mod", "download", "all"], 3);
+        return;
+    }
+
+    const workspaceJson = await execFileAsync(repoPath, "go", ["work", "edit", "-json"]);
+    const workspace = JSON.parse(workspaceJson) as { Use?: readonly { DiskPath: string }[] };
+    for (const module of workspace.Use ?? []) {
+        await execFileWithRetryAsync(path.resolve(repoPath, module.DiskPath), "go", ["mod", "download", "all"], 3);
     }
 }
 
