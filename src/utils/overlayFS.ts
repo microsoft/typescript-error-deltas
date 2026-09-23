@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { x } from "tinyexec";
 import { execFileAsync } from "./execUtils.js";
 
 export interface OverlayBaseFS {
@@ -99,15 +100,16 @@ async function retry(fn: (() => void) | (() => Promise<void>), retries: number, 
 }
 
 async function tryUnmount(p: string) {
-    if (!fs.existsSync(p)) return;
+    if (!fs.existsSync(p) || !await isMountPoint(p)) return;
     try {
         await retry(async () => {
             try {
                 await execFileAsync(processCwd, "sudo", ["umount", "-R", p]);
             } catch (e) {
+                if (!await isMountPoint(p)) return;
                 // Kill processes using the mount.
                 try {
-                    await execFileAsync(processCwd, "sudo", ["fuser", "-vkm", p]);
+                    await execFileAsync(processCwd, "sudo", ["fuser", "-vkm", "-M", p]);
                 } catch {
                     // This command will exit with a non-zero exit code on no handles; ignore.
                 }
@@ -115,14 +117,22 @@ async function tryUnmount(p: string) {
                 throw e;
             }
         }, 3, 1000)
-    } catch {
+    } catch (e) {
         // Print out the remaining processes for debugging.
         try {
-            await execFileAsync(processCwd, "sudo", ["fuser", "-vm", p]);
+            await execFileAsync(processCwd, "sudo", ["fuser", "-vm", "-M", p]);
         } catch {
             // This command will exit with a non-zero exit code on no handles; ignore.
         }
+        throw e;
     }
+}
+
+async function isMountPoint(p: string): Promise<boolean> {
+    const result = await x("mountpoint", ["-q", p]);
+    if (result.exitCode === 0) return true;
+    if (result.exitCode === 32) return false;
+    throw new Error(`Cannot check mount point ${p}: ${result.stderr || `exit code ${result.exitCode}`}`);
 }
 
 function diskUsageRoot(p: string) {
