@@ -12,15 +12,12 @@ import * as path from "node:path";
 import mdEscape from "markdown-escape";
 import randomSeed from "random-seed";
 import { getErrorMessageFromStack, getHash, getHashForStack, getHashForGoStack } from "./utils/hashStackTrace.js";
-import { createCopyingOverlayFS, createTempOverlayFS, type OverlayBaseFS } from "./utils/overlayFS.js";
+import { createCopyingOverlayFS, createOverlayFS, type OverlayBaseFS } from "./utils/overlayFS.js";
 import { asMarkdownInlineCode } from "./utils/markdownUtils.js";
 
 interface Params {
-    /**
-     * Store test repos on a tmpfs.
-     * Basically, the only reason not to do this would be lack of `sudo`.
-     */
-    tmpfs: boolean;
+    /** Use OverlayFS to create clean compiler runs without copying the repository. */
+    useOverlayFs: boolean;
     /**
      * True to produce more verbose output (e.g. to help diagnose resource exhaustion issues).
      * Default is false to save time and space.
@@ -945,8 +942,8 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
     prng.seed(effectiveSeed);
     console.log("PRNG seed: " + effectiveSeed);
 
-    const downloadDirPath = params.tmpfs ? "/mnt/ts_downloads" : path.join(processCwd, "ts_downloads");
-    const createFs = params.tmpfs ? createTempOverlayFS : createCopyingOverlayFS;
+    const downloadDirPath = path.join(processCwd, "ts_downloads");
+    const createFs = params.useOverlayFs ? createOverlayFS : createCopyingOverlayFS;
 
     const resultDirPath = path.join(processCwd, params.resultDirName);
 

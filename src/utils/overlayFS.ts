@@ -19,16 +19,20 @@ Symbol.asyncDispose ??= Symbol("Symbol.asyncDispose");
 const processCwd = process.cwd();
 
 /**
- * Creates an overlay FS using a tmpfs mount. A base directory is created on the tmpfs.
- * New overlays are created by mounting an overlay on top of the base directory.
- * 
+ * Creates an overlay FS using the local disk. New overlays are created by mounting
+ * a disposable writable layer on top of the base directory.
+ *
  * This requires root access.
  */
-export async function createTempOverlayFS(root: string, diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
-    await tryUnmount(root);
+export async function createOverlayFS(root: string, diagnosticOutput: boolean): Promise<DisposableOverlayBaseFS> {
+    const overlayRoot = path.join(root, "_");
+    const upperDir = path.join(overlayRoot, ".u");
+    const workDir = path.join(overlayRoot, ".w");
+    const merged = path.join(overlayRoot, "m");
+
+    await tryUnmount(merged);
     await rmWithRetryAsRoot(root);
-    await mkdirAllAsRoot(root);
-    await execFileAsync(processCwd, "sudo", ["mount", "-t", "tmpfs", "tmpfs", root]);
+    await mkdirAll(root);
 
     const lowerDir = path.join(root, "base");
     await mkdirAll(lowerDir);
@@ -40,14 +44,7 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             throw new Error("Overlay has already been created");
         }
 
-        // Using short names here as these paths can appear in the summaries.
-        const overlayRoot = path.join(root, "_");
         await rmWithRetryAsRoot(overlayRoot);
-
-        const upperDir = path.join(overlayRoot, ".u");
-        const workDir = path.join(overlayRoot, ".w");
-        const merged = path.join(overlayRoot, "m");
-        
         await mkdirAll(upperDir, workDir, merged);
 
         if (diagnosticOutput) {
@@ -82,7 +79,6 @@ export async function createTempOverlayFS(root: string, diagnosticOutput: boolea
             if (overlay) {
                 await overlay[Symbol.asyncDispose]();
             }
-            await tryUnmount(root);
             await rmWithRetryAsRoot(root);
         },  
     }
@@ -143,10 +139,6 @@ function rmWithRetryAsRoot(p: string) {
 
 async function mkdirAll(...args: string[]) {
     await Promise.all(args.map(arg => fs.promises.mkdir(arg, { recursive: true })));
-}
-
-function mkdirAllAsRoot(...args: string[]) {
-    return execFileAsync(processCwd, "sudo", ["mkdir", "-p", ...args]);
 }
 
 /**

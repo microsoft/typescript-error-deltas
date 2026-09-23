@@ -4,15 +4,15 @@ import { mainAsync, reportError, type TsEntrypoint } from "./main.js";
 const { argv } = process;
 
 if (argv.length < 13) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_tempfs>? <expected_head_sha>? <expected_base_sha>? <expected_merge_sha>?`);
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_overlay_fs>? <expected_head_sha>? <expected_base_sha>? <expected_merge_sha>?`);
     process.exit(-1);
 }
 
-const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, tempfs, expectedHeadSha, expectedBaseSha, expectedMergeSha] = argv;
+const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs, expectedHeadSha, expectedBaseSha, expectedMergeSha] = argv;
 
 mainAsync({
     testType: "triggered",
-    tmpfs: tempfs && tempfs.toLowerCase() === "false" ? false : true,
+    useOverlayFs: useOverlayFs && useOverlayFs.toLowerCase() === "false" ? false : true,
     entrypoint: entrypoint as TsEntrypoint,
     oldTsRepoUrl,
     oldHeadRef,

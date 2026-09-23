@@ -188,7 +188,7 @@ describe("main", () => {
 
         await mainAsync({
             testType: "scheduled",
-            tmpfs: false,
+            useOverlayFs: false,
             entrypoint: 'tsserver',
             diagnosticOutput: false,
             buildWithNewWhenOldFails: false,
@@ -230,7 +230,7 @@ describe("main", () => {
 
         await mainAsync({
             testType: "scheduled",
-            tmpfs: false,
+            useOverlayFs: false,
             entrypoint: 'tsserver',
             diagnosticOutput: false,
             buildWithNewWhenOldFails: false,
