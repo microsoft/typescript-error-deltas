@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "@types/node": "latest"
+  },
+  "overrides": {
+    "keygrip": "1.1.0"
   }
 }
