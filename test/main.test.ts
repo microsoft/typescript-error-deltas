@@ -1,6 +1,5 @@
-import { getTscRepoResult, detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
+import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
 import * as path from "node:path"
-import { createCopyingOverlayFS } from '../src/utils/overlayFS.js'
 import type { SpawnResult } from '../src/utils/execUtils.js';
 import { describe, expect, it, vi } from "vitest";
 
@@ -122,24 +121,6 @@ describe("main", () => {
 
         const unterminatedWarnings = "npm WARN".repeat(10_000);
         expect(reduceSpew(unterminatedWarnings)).toBe(unterminatedWarnings);
-    });
-
-    it.skip("build-only correctly caches", async () => {
-        const { status, summary } = await getTscRepoResult(
-            {
-                name: "TypeScript-Node-Starter",
-                url: "https://github.com/Microsoft/TypeScript-Node-Starter.git"
-            },
-            "./userTests",
-            path.resolve("./typescript-main/built/local/tsc.js"),
-            path.resolve("./typescript-44585/built/local/tsc.js"),
-            /*ignoreOldTscFailures*/ true, // as in a user test
-            await createCopyingOverlayFS("./ts_downloads", false),
-            /*diagnosticOutput*/ false)
-        expect(status).toEqual("NewBuildHadErrors")
-        expect(summary).toBeDefined()
-        expect(summary!.startsWith(`# [TypeScript-Node-Starter](https://github.com/Microsoft/TypeScript-Node-Starter.git)`)).toBeTruthy()
-        expect(summary!.includes("- \`error TS2496: The 'arguments' object cannot be referenced in an arrow function in ES3 and ES5. Consider using a standard function expression.\`")).toBeTruthy()
     });
 
     it("detects a legacy TypeScript checkout", async () => {
