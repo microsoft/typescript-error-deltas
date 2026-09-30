@@ -8,14 +8,13 @@ if (argv.length < 13) {
     process.exit(-1);
 }
 
-const [,, entrypoint, oldTsRepoUrl, oldHeadRef, prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs, expectedHeadSha, expectedBaseSha, expectedMergeSha] = argv;
+const [,, entrypoint, oldTsRepoUrl, , prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs, expectedHeadSha, expectedBaseSha, expectedMergeSha] = argv;
 
 mainAsync({
     testType: "triggered",
     useOverlayFs: useOverlayFs && useOverlayFs.toLowerCase() === "false" ? false : true,
     entrypoint: entrypoint as TsEntrypoint,
     oldTsRepoUrl,
-    oldHeadRef,
     prNumber: +prNumber,
     buildWithNewWhenOldFails: buildWithNewWhenOldFails.toLowerCase() !== "true",
     repoListPath,

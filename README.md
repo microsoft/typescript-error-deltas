@@ -3,6 +3,7 @@
 Download and compile popular open source repos in order to compare new versions of the TypeScript compiler with the current version.
 For example, this project will clone the prettier repo and compile it with the current version of TypeScript.
 Then it will compile it with a version of TypeScript from a pull request.
+For pull requests, the baseline is the first parent of the PR merge commit, not the current `main` branch.
 Afterward it will compile new errors that are issued only with the new version and post them as a comment on the pull request.
 
 There is no comparison of types, errors, symbols or language service output.
@@ -24,6 +25,8 @@ node dist/checkReposScheduled.js [post-results] [repo-count] [repo-start-index] 
 node dist/checkReposTriggered.js <ts-entrypoint> <old-ts-repo-url> <old-head-ref> <pr-number> <is-top-repos> <repo-list-path> <worker-count> <worker-number> <result-dir-name> <diagnostic-output> <prng-seed> [use-tempfs] [expected-head-sha] [expected-base-sha] [expected-merge-sha]
 
 ```
+
+The triggered command's `<old-head-ref>` argument is retained for compatibility but ignored; both builds use the same PR merge snapshot.
 
 You can view example usage of these commands from how they're currently triggered on Azure Pipelines:
 
