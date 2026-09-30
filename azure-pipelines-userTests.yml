@@ -20,7 +20,7 @@ parameters:
     type: string
     default: https://github.com/microsoft/TypeScript.git
   - name: OLD_HEAD_REF
-    displayName: Old head reference
+    displayName: Legacy baseline ref (ignored; PR baseline is the merge commit's first parent)
     type: string
     default: main
   - name: DISTINCT_ID

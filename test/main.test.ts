@@ -1,11 +1,13 @@
-import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
+import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsPrAsync, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
 import * as path from "node:path"
+import { execFileAsync } from '../src/utils/execUtils.js';
 import type { SpawnResult } from '../src/utils/execUtils.js';
 import { describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => ({
     typeScriptSpawnResult: undefined as ((args: readonly string[]) => SpawnResult) | undefined,
     writeFile: vi.fn(),
+    prRefs: undefined as string | undefined,
 }));
 
 vi.mock('random-seed', () => ({
@@ -41,17 +43,17 @@ vi.mock("../src/utils/execUtils", () => ({
 
         return testState.typeScriptSpawnResult!(args);
     }),
-    execFileAsync: async (cwd: string, command: string, args: readonly string[] = []) => {
+    execFileAsync: vi.fn(async (cwd: string, command: string, args: readonly string[] = []) => {
         if (command === "npm" && args[0] === "pack" && args[1] === "typescript@latest") {
             return ' typescript-0.0.0.tgz';
         } else if (command === "npm" && args[0] === "pack" && args[1] === "typescript@next") {
             return ' typescript-1.1.1.tgz';
         } else if (command === "git" && args[0] === "rev-parse") {
-            return '57b462387e88aa7e363af0daf867a5dc1e83a935';
+            return testState.prRefs ?? '57b462387e88aa7e363af0daf867a5dc1e83a935';
         }
 
         return '';
-    },
+    }),
     execFileWithRetryAsync: vi.fn().mockResolvedValue(''),
 
 }));
@@ -154,6 +156,57 @@ describe("main", () => {
             expect(result.tsEntrypointPath).toBe(executablePath);
         }
         finally {
+            actualFs.rmSync(repoPath, { recursive: true });
+        }
+    });
+
+    it.each([undefined, { mergeSha: 'merge', baseSha: 'base', headSha: 'head' }])(
+        "compares a PR merge with its first parent (expected snapshot: %s)",
+        async expectedPrSnapshot => {
+            const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+            const repoPath = path.join("./testDownloads/main", "typescript-123");
+            const basePath = path.resolve("./testDownloads/main", "typescript-123-base");
+            testState.prRefs = "merge\nbase\nhead\n";
+            for (const dir of [repoPath, basePath]) {
+                actualFs.mkdirSync(dir, { recursive: true });
+                actualFs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "typescript" }));
+            }
+            vi.mocked(execFileAsync).mockClear();
+            try {
+                const result = await downloadTsPrAsync("./testDownloads/main", "https://github.com/microsoft/TypeScript", 123, "tsc", expectedPrSnapshot);
+                expect(result.baseline).toEqual({
+                    tsEntrypointPath: path.join(basePath, "built/local/tsc.js"),
+                    resolvedVersion: "base",
+                    implementation: "strada",
+                });
+                expect(result.candidate.tsEntrypointPath).toBe(path.join(repoPath, "built/local/tsc.js"));
+                expect(execFileAsync).toHaveBeenCalledWith(repoPath, "git", ["rev-parse", "HEAD", "HEAD^1", "HEAD^2"]);
+                expect(execFileAsync).toHaveBeenCalledWith(repoPath, "git", ["worktree", "add", "--detach", basePath, "base"]);
+                expect(execFileAsync).toHaveBeenCalledWith(basePath, "git", ["submodule", "update", "--init", "--recursive", "--depth=1"]);
+                expect(vi.mocked(execFileAsync).mock.calls.some(([, command, args]) => command === "git" && args?.includes("main"))).toBe(false);
+            }
+            finally {
+                testState.prRefs = undefined;
+                actualFs.rmSync(basePath, { recursive: true });
+                actualFs.rmSync(repoPath, { recursive: true });
+            }
+        },
+    );
+
+    it("rejects a changed PR snapshot before building either compiler", async () => {
+        const actualFs = await vi.importActual<typeof import("node:fs")>("node:fs");
+        const repoPath = "./testDownloads/main/typescript-123";
+        actualFs.mkdirSync(repoPath, { recursive: true });
+        testState.prRefs = "merge\nbase\nhead\n";
+        vi.mocked(execFileAsync).mockClear();
+        try {
+            await expect(downloadTsPrAsync("./testDownloads/main", "https://github.com/microsoft/TypeScript", 123, "tsc", {
+                mergeSha: "merge", baseSha: "different-base", headSha: "head",
+            })).rejects.toThrow("PR snapshot changed");
+            expect(vi.mocked(execFileAsync).mock.calls.some(([, , args]) => args?.[0] === "worktree" || args?.[0] === "ci")).toBe(false);
+        }
+        finally {
+            testState.prRefs = undefined;
             actualFs.rmSync(repoPath, { recursive: true });
         }
     });
