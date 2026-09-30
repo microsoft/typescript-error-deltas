@@ -8,6 +8,7 @@ const testState = vi.hoisted(() => ({
     typeScriptSpawnResult: undefined as ((args: readonly string[]) => SpawnResult) | undefined,
     writeFile: vi.fn(),
     prRefs: undefined as string | undefined,
+    baseWorktreeExists: undefined as boolean | undefined,
 }));
 
 vi.mock('random-seed', () => ({
@@ -25,7 +26,9 @@ vi.mock("../src/utils/packageUtils", async () => {
     const fs = await vi.importActual<typeof import("node:fs")>("node:fs");
     return {
         exists: vi.fn((filePath: string) => filePath.includes("testDownloads")
-            ? fs.existsSync(filePath)
+            ? filePath.endsWith("typescript-123-base") && testState.baseWorktreeExists !== undefined
+                ? testState.baseWorktreeExists
+                : fs.existsSync(filePath)
             : Promise.resolve(true)),
         getMonorepoOrder: vi.fn().mockResolvedValue([
             "./dirA/package.json",
@@ -167,6 +170,7 @@ describe("main", () => {
             const repoPath = path.join("./testDownloads/main", "typescript-123");
             const basePath = path.resolve("./testDownloads/main", "typescript-123-base");
             testState.prRefs = "merge\nbase\nhead\n";
+            testState.baseWorktreeExists = false;
             for (const dir of [repoPath, basePath]) {
                 actualFs.mkdirSync(dir, { recursive: true });
                 actualFs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "typescript" }));
@@ -184,9 +188,20 @@ describe("main", () => {
                 expect(execFileAsync).toHaveBeenCalledWith(repoPath, "git", ["worktree", "add", "--detach", basePath, "base"]);
                 expect(execFileAsync).toHaveBeenCalledWith(basePath, "git", ["submodule", "update", "--init", "--recursive", "--depth=1"]);
                 expect(vi.mocked(execFileAsync).mock.calls.some(([, command, args]) => command === "git" && args?.includes("main"))).toBe(false);
+
+                testState.baseWorktreeExists = true;
+                testState.prRefs = "next-merge\nnext-base\nnext-head\n";
+                vi.mocked(execFileAsync).mockClear();
+                const next = await downloadTsPrAsync("./testDownloads/main", "https://github.com/microsoft/TypeScript", 123, "tsc", expectedPrSnapshot && {
+                    mergeSha: "next-merge", baseSha: "next-base", headSha: "next-head",
+                });
+                expect(next.baseline.resolvedVersion).toBe("next-base");
+                expect(execFileAsync).toHaveBeenCalledWith(basePath, "git", ["checkout", "--detach", "next-base"]);
+                expect(vi.mocked(execFileAsync).mock.calls.some(([, , args]) => args?.[0] === "worktree")).toBe(false);
             }
             finally {
                 testState.prRefs = undefined;
+                testState.baseWorktreeExists = undefined;
                 actualFs.rmSync(basePath, { recursive: true });
                 actualFs.rmSync(repoPath, { recursive: true });
             }

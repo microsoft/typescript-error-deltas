@@ -1369,7 +1369,12 @@ export async function downloadTsPrAsync(cwd: string, repoUrl: string, prNumber: 
     await git.checkout(repoPath, headRef);
     const { baseSha } = await verifyPrSnapshot(repoPath, expectedPrSnapshot);
     const basePath = path.resolve(cwd, `${repoName}-base`);
-    await execFileAsync(repoPath, "git", ["worktree", "add", "--detach", basePath, baseSha]);
+    if (await pu.exists(basePath)) {
+        await execFileAsync(basePath, "git", ["checkout", "--detach", baseSha]);
+    }
+    else {
+        await execFileAsync(repoPath, "git", ["worktree", "add", "--detach", basePath, baseSha]);
+    }
     await execFileAsync(basePath, "git", ["submodule", "update", "--init", "--recursive", "--depth=1"]);
 
     const { tsEntrypointPath: oldTsEntrypointPath, implementation: oldImplementation } = await buildTs(basePath, target);
