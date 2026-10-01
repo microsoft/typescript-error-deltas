@@ -3,7 +3,7 @@ import * as path from "node:path";
 import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type Metadata, metadataFileName, type RepoStatus, resultFileNameSuffix, type TsEntrypoint } from "./main.js";
 import * as git from "./utils/gitUtils.js";
 import * as pu from "./utils/packageUtils.js";
-import { asMarkdownInlineCode } from "./utils/markdownUtils.js";
+import { formatPrComparison } from "./utils/markdownUtils.js";
 
 const { argv } = process;
 
@@ -76,7 +76,7 @@ const outputs = resultPaths.map(p =>
         .replaceAll(getArtifactsApiUrlPlaceholder, getArtifactsApi));
 
 const suiteDescription = isTopReposRun ? `top ${repoCount} repos` : "user tests";
-let header = `@${userToTag} Here are the results of running the ${suiteDescription} with ${entrypoint} comparing ${asMarkdownInlineCode(oldTscResolvedVersion ?? "old")} and ${asMarkdownInlineCode(newTscResolvedVersion ?? "new")}:
+let header = `@${userToTag} Here are the results of running the ${suiteDescription} with ${entrypoint} comparing ${formatPrComparison(oldTscResolvedVersion, newTscResolvedVersion, +prNumber)}:
 
 ${summary.join("\n")}`;
 
