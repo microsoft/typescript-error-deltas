@@ -2,6 +2,7 @@ import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, down
 import * as path from "node:path"
 import { execFileAsync } from '../src/utils/execUtils.js';
 import type { SpawnResult } from '../src/utils/execUtils.js';
+import { formatPrComparison } from '../src/utils/markdownUtils.js';
 import { describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => ({
@@ -106,6 +107,15 @@ const errorStdout = JSON.stringify({
 });
 
 describe("main", () => {
+    it("labels PR merge comparisons without exposing internal ref names", () => {
+        expect(formatPrComparison("792ffccb90f548cd3bdd7fc0b44f0ca9e1b169a7", "refs/pull/64558/merge", 64558))
+            .toBe("`baseline` and `pr`");
+        expect(formatPrComparison("main", "refs/pull/64558/merge", 64558))
+            .toBe("`main` and `refs/pull/64558/merge`");
+        expect(formatPrComparison("792ffccb90f548cd3bdd7fc0b44f0ca9e1b169a7", "refs/pull/64558/merge", 123))
+            .toBe("`792ffccb90f548cd3bdd7fc0b44f0ca9e1b169a7` and `refs/pull/64558/merge`");
+    });
+
     it("detects tsgo from the root package name", () => {
         expect(detectTypeScriptImplementation({ name: "typescript" })).toBe("strada");
         expect(detectTypeScriptImplementation({ name: "typescript-go" })).toBe("corsa");
