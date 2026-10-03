@@ -3,6 +3,7 @@ import * as path from "node:path";
 import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type Metadata, metadataFileName, type RepoStatus, resultFileNameSuffix, type StatusCounts, type TsEntrypoint } from "./main.js";
 import * as git from "./utils/gitUtils.js";
 import * as pu from "./utils/packageUtils.js";
+import { formatVersionComparison } from "./utils/markdownUtils.js";
 
 const { argv } = process;
 
@@ -47,7 +48,7 @@ for (const path of metadataFilePaths) {
 }
 
 
-const title = `${entrypoint === "tsserver" || entrypoint === "fuzzer" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`;
+const title = `${entrypoint === "tsserver" || entrypoint === "fuzzer" ? `[ServerErrors][${language}]` : `[NewErrors]`} ${formatVersionComparison(newTscResolvedVersion ?? "", oldTscResolvedVersion)}`;
 
 const description = entrypoint === "tsserver"
     ? `The following errors were reported by ${newTscResolvedVersion} vs ${oldTscResolvedVersion}`
