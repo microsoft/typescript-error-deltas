@@ -14,3 +14,7 @@ export function formatPrComparison(oldVersion: string | undefined, newVersion: s
     }
     return `${asMarkdownInlineCode(oldVersion ?? "old")} and ${asMarkdownInlineCode(newVersion ?? "new")}`;
 }
+
+export function formatVersionComparison(newVersion: string, oldVersion: string | undefined): string {
+    return oldVersion ? `${newVersion} vs ${oldVersion}` : newVersion;
+}

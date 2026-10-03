@@ -2,7 +2,7 @@ import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, down
 import * as path from "node:path"
 import { execFileAsync } from '../src/utils/execUtils.js';
 import type { SpawnResult } from '../src/utils/execUtils.js';
-import { formatPrComparison } from '../src/utils/markdownUtils.js';
+import { formatPrComparison, formatVersionComparison } from '../src/utils/markdownUtils.js';
 import { describe, expect, it, vi } from "vitest";
 
 const testState = vi.hoisted(() => ({
@@ -114,6 +114,12 @@ describe("main", () => {
             .toBe("`main` and `refs/pull/64558/merge`");
         expect(formatPrComparison("792ffccb90f548cd3bdd7fc0b44f0ca9e1b169a7", "refs/pull/64558/merge", 123))
             .toBe("`792ffccb90f548cd3bdd7fc0b44f0ca9e1b169a7` and `refs/pull/64558/merge`");
+    });
+
+    it("omits the comparison when there is no baseline version", () => {
+        expect(formatVersionComparison("main", undefined)).toBe("main");
+        expect(formatVersionComparison("main", "")).toBe("main");
+        expect(formatVersionComparison("7.0.0", "6.0.0")).toBe("7.0.0 vs 6.0.0");
     });
 
     it("detects tsgo from the root package name", () => {
