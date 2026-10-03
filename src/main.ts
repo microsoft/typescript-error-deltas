@@ -1315,7 +1315,7 @@ async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredP
             await downloadTsNpmAsync(cwd, params.oldTsNpmVersion, entrypoint);
         const { tsEntrypointPath: newTsEntrypointPath, resolvedVersion: newTsResolvedVersion, implementation } =
             params.entrypoint === "fuzzer" && params.newTsNpmVersion === "main" ?
-                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/typescript-go.git", /*headRef*/ "main", entrypoint) :
+                await downloadTsRepoAsync(cwd, "https://github.com/microsoft/TypeScript.git", /*headRef*/ "main", entrypoint) :
                 await downloadTsNpmAsync(cwd, params.newTsNpmVersion, entrypoint);
 
         if (entrypoint === "tsserver" && oldImplementation !== implementation) {
