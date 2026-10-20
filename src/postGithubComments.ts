@@ -1,21 +1,21 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type Metadata, metadataFileName, type RepoStatus, resultFileNameSuffix, type TsEntrypoint } from "./main.js";
+import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type RepoStatus, type TsEntrypoint } from "./main.js";
 import * as git from "./utils/gitUtils.js";
-import * as pu from "./utils/packageUtils.js";
 import { formatPrComparison } from "./utils/markdownUtils.js";
+import { readPipelineResults } from "./validatePipelineResults.js";
 
 const { argv } = process;
 
-if (argv.length !== 13) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <entrypoint> <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api>`);
+if (argv.length !== 14) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <entrypoint> <user_to_tag> <pr_number> <comment_number> <distinct_id> <is_top_repos_run> <result_dir_path> <artifacts_uri> <post_result> <repo_count> <get_artifacts_api> <worker_count>`);
     process.exit(-1);
 }
 
-const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi] = argv;
+const [, , entrypoint, userToTag, prNumber, commentNumber, distinctId, isTop, resultDirPath, artifactsUri, post, repoCount, getArtifactsApi, workerCount] = argv;
 const isTopReposRun = isTop.toLowerCase() === "true";
 const postResult = post.toLowerCase() === "true";
-const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
+const { metadata, resultPaths } = readPipelineResults(resultDirPath, Number(workerCount));
 
 let newTscResolvedVersion: string | undefined;
 let oldTscResolvedVersion: string | undefined;
@@ -23,13 +23,11 @@ let oldTscResolvedVersion: string | undefined;
 let somethingChanged = false;
 const infrastructureFailures = new Map<RepoStatus, number>();
 
-for (const path of metadataFilePaths) {
-    const metadata: Metadata = JSON.parse(fs.readFileSync(path, { encoding: "utf-8" }));
+for (const shard of metadata) {
+    newTscResolvedVersion ??= shard.newTsResolvedVersion;
+    oldTscResolvedVersion ??= shard.oldTsResolvedVersion;
 
-    newTscResolvedVersion ??= metadata.newTsResolvedVersion;
-    oldTscResolvedVersion ??= metadata.oldTsResolvedVersion;
-
-    for (const s in metadata.statusCounts) {
+    for (const s in shard.statusCounts) {
         const status = s as RepoStatus;
         switch (status) {
             case "Detected no interesting changes":
@@ -67,9 +65,8 @@ else {
 }
 
 // Files starting with an exclamation point are old server errors.
-const hasOldErrors = pu.glob(resultDirPath, `**/!*.${resultFileNameSuffix}`).length !== 0;
+const hasOldErrors = resultPaths.some(file => path.basename(file).startsWith("!"));
 
-const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p =>
     fs.readFileSync(p, { encoding: "utf-8" })
         .replaceAll(artifactFolderUrlPlaceholder, artifactsUri)

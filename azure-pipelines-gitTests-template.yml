@@ -38,6 +38,7 @@ parameters:
     type: string
     default: 'n/a'
 variables:
+  GITHUB_PAT: ''
   TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID: 'Iv23li4GolzJSEp1mzHI'
   TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID: 'https://jststeam-passwords.vault.azure.net/keys/typescript-automation'
 
@@ -88,7 +89,7 @@ jobs:
       commands: restricted
       settableVariables: none
     displayName: Revoke GitHub App token
-    condition: always()
+    condition: and(always(), ne(variables['GITHUB_PAT'], ''))
     env:
       REVOKE_TOKEN: $(GITHUB_PAT)
   - publish: artifacts
@@ -150,6 +151,19 @@ jobs:
     inputs:
       version: '24.x'
     displayName: 'Install Node.js'
+  - download: current
+  - script: |
+      npm ci
+      npm run build
+    displayName: 'Build reporting tools'
+    target:
+      commands: restricted
+      settableVariables: none
+  - script: node dist/validatePipelineResults '$(Pipeline.Workspace)' ${{ parameters.MACHINE_COUNT }}
+    displayName: 'Validate all result shards'
+    target:
+      commands: restricted
+      settableVariables: none
   - task: AzureCLI@2
     inputs:
       azureSubscription: 'TypeScript Public CI'
@@ -170,11 +184,7 @@ jobs:
       PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
-  - download: current
-  - script: |
-      npm ci
-      npm run build
-      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
+  - script: node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts' ${{ parameters.MACHINE_COUNT }}
     target:
       commands: restricted
       settableVariables: none
@@ -186,6 +196,6 @@ jobs:
       commands: restricted
       settableVariables: none
     displayName: Revoke GitHub App token
-    condition: always()
+    condition: and(always(), ne(variables['GITHUB_PAT'], ''))
     env:
       REVOKE_TOKEN: $(GITHUB_PAT)
