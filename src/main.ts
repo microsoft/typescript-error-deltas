@@ -926,7 +926,7 @@ export interface Metadata {
     readonly prngSeed: string;
 }
 
-function getWorkerRepos(allRepos: readonly git.Repo[], workerCount: number, workerNumber: number): git.Repo[] {
+export function getWorkerRepos<T>(allRepos: readonly T[], workerCount: number, workerNumber: number): T[] {
     const workerIndex = workerNumber - 1;
     const repoCount = allRepos.length;
     const batchSize = Math.ceil(repoCount / workerCount);

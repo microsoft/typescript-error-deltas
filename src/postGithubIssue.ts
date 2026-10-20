@@ -1,22 +1,22 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type Metadata, metadataFileName, type RepoStatus, resultFileNameSuffix, type StatusCounts, type TsEntrypoint } from "./main.js";
+import { artifactFolderUrlPlaceholder, getArtifactsApiUrlPlaceholder, type RepoStatus, resultFileNameSuffix, type StatusCounts, type TsEntrypoint } from "./main.js";
 import * as git from "./utils/gitUtils.js";
-import * as pu from "./utils/packageUtils.js";
 import { formatVersionComparison } from "./utils/markdownUtils.js";
+import { readPipelineResults } from "./validatePipelineResults.js";
 
 const { argv } = process;
 
-if (argv.length !== 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result> <get_artifacts_api>`);
+if (argv.length !== 12) {
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <language> <repo_count> <repo_start_index> <result_dir_path> <log_uri> <artifacts_uri> <post_result> <get_artifacts_api> <worker_count>`);
     process.exit(-1);
 }
 
-const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi] = argv;
+const [, , ep, language, repoCount, repoStartIndex, resultDirPath, logUri, artifactsUri, post, getArtifactsApi, workerCount] = argv;
 const postResult = post.toLowerCase() === "true";
 const entrypoint = ep as TsEntrypoint;
 
-const metadataFilePaths = pu.glob(resultDirPath, `**/${metadataFileName}`);
+const { metadata, resultPaths } = readPipelineResults(resultDirPath, Number(workerCount));
 
 let analyzedCount = 0;
 let totalCount = 0;
@@ -26,16 +26,14 @@ let newTscResolvedVersion: string | undefined;
 let oldTscResolvedVersion: string | undefined;
 let prngSeed: string | undefined;
 
-for (const path of metadataFilePaths) {
-    const metadata: Metadata = JSON.parse(fs.readFileSync(path, { encoding: "utf-8" }));
+for (const shard of metadata) {
+    newTscResolvedVersion ??= shard.newTsResolvedVersion;
+    oldTscResolvedVersion ??= shard.oldTsResolvedVersion;
+    prngSeed ??= shard.prngSeed;
 
-    newTscResolvedVersion ??= metadata.newTsResolvedVersion;
-    oldTscResolvedVersion ??= metadata.oldTsResolvedVersion;
-    prngSeed ??= metadata.prngSeed;
-
-    for (const s in metadata.statusCounts) {
+    for (const s in shard.statusCounts) {
         const status = s as RepoStatus;
-        const count = metadata.statusCounts[status]!;
+        const count = shard.statusCounts[status]!;
         statusCounts[status] = (statusCounts[status] ?? 0) + count;
         totalCount += count;
         switch (status) {
@@ -77,7 +75,6 @@ ${prngSeed ? `Seed: \`${prngSeed}\`` : ""}
 </details>
 `;
 
-const resultPaths = pu.glob(resultDirPath, `**/*.${resultFileNameSuffix}`).sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
 const outputs = resultPaths.map(p =>
     fs.readFileSync(p, { encoding: "utf-8" })
         .replaceAll(artifactFolderUrlPlaceholder, artifactsUri)

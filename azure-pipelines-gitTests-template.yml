@@ -38,6 +38,7 @@ parameters:
     type: string
     default: 'n/a'
 variables:
+  GITHUB_PAT: ''
   TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID: 'Iv23li4GolzJSEp1mzHI'
   TYPESCRIPT_AUTOMATION_GITHUB_APP_KEY_ID: 'https://jststeam-passwords.vault.azure.net/keys/typescript-automation'
 
@@ -58,6 +59,10 @@ jobs:
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables:
+      - GITHUB_PAT
     displayName: Create GitHub App token
     env:
       APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
@@ -73,12 +78,18 @@ jobs:
       npm run build
       mkdir artifacts
       node dist/listTopRepos ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} artifacts/repos.json
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: 'List top TS repos'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
   - script: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: Revoke GitHub App token
-    condition: always()
+    condition: and(always(), ne(variables['GITHUB_PAT'], ''))
     env:
       REVOKE_TOKEN: $(GITHUB_PAT)
   - publish: artifacts
@@ -104,6 +115,9 @@ jobs:
   - script: |
       df -h
       df -h -i
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: Debugging
     continueOnError: true
   - script: |
@@ -119,6 +133,9 @@ jobs:
       corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
       node dist/checkReposScheduled ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_VERSION }} ${{ parameters.NEW_VERSION }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }}
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: 'Run TypeScript on repos'
     continueOnError: true
   - publish: 'RepoResults$(System.JobPositionInPhase)'
@@ -134,12 +151,29 @@ jobs:
     inputs:
       version: '24.x'
     displayName: 'Install Node.js'
+  - download: current
+  - script: |
+      npm ci
+      npm run build
+    displayName: 'Build reporting tools'
+    target:
+      commands: restricted
+      settableVariables: none
+  - script: node dist/validatePipelineResults '$(Pipeline.Workspace)' ${{ parameters.MACHINE_COUNT }}
+    displayName: 'Validate all result shards'
+    target:
+      commands: restricted
+      settableVariables: none
   - task: AzureCLI@2
     inputs:
       azureSubscription: 'TypeScript Public CI'
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables:
+      - GITHUB_PAT
     displayName: Create GitHub App token
     env:
       APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
@@ -150,16 +184,18 @@ jobs:
       PERMISSIONS: contents:read,issues:write,pull_requests:write
       OUTPUT: azure-pipelines
       AZURE_TOKEN_VARIABLE: GITHUB_PAT
-  - download: current
-  - script: |
-      npm ci
-      npm run build
-      node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
+  - script: node dist/postGithubIssue ${{ parameters.ENTRYPOINT }} ${{ parameters.LANGUAGE }} ${{ parameters.REPO_COUNT }} ${{ parameters.REPO_START_INDEX }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts' ${{ parameters.MACHINE_COUNT }}
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: 'Create issue from new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
   - script: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: Revoke GitHub App token
-    condition: always()
+    condition: and(always(), ne(variables['GITHUB_PAT'], ''))
     env:
       REVOKE_TOKEN: $(GITHUB_PAT)
