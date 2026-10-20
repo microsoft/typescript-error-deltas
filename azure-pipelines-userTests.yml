@@ -100,6 +100,10 @@ jobs:
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables:
+      - GITHUB_PAT
     displayName: Create GitHub App token
     env:
       APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
@@ -114,15 +118,27 @@ jobs:
       npm ci
       npm run build
       mkdir artifacts
+    target:
+      commands: restricted
+      settableVariables: none
   - script: node dist/listTopRepos TypeScript ${{ parameters.REPO_COUNT }} 0 artifacts/repos.json
+    target:
+      commands: restricted
+      settableVariables: none
     condition: eq('${{ parameters.TOP_REPOS }}', 'true')
     env:
       GITHUB_PAT: $(GITHUB_PAT)
     displayName: 'List top TS repos'
   - script: node dist/listUserTestRepos ./userTests artifacts/repos.json
+    target:
+      commands: restricted
+      settableVariables: none
     condition: ne('${{ parameters.TOP_REPOS }}', 'true')
     displayName: 'List user test repos'
   - script: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: Revoke GitHub App token
     condition: always()
     env:
@@ -149,6 +165,9 @@ jobs:
   - script: |
       df -h
       df -h -i
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: Debugging
     continueOnError: true
   - script: |
@@ -164,6 +183,9 @@ jobs:
       corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
       node dist/checkReposTriggered ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }} true "$EXPECTED_HEAD_SHA" "$EXPECTED_BASE_SHA" "$EXPECTED_MERGE_SHA"
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: 'Run user tests'
     env:
       EXPECTED_HEAD_SHA: ${{ parameters.EXPECTED_HEAD_SHA }}
@@ -188,6 +210,10 @@ jobs:
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables:
+      - GITHUB_PAT
     displayName: Create GitHub App token
     env:
       APP_CLIENT_ID: $(TYPESCRIPT_AUTOMATION_GITHUB_APP_CLIENT_ID)
@@ -203,10 +229,16 @@ jobs:
       npm ci
       npm run build
       node dist/postGithubComments ${{ parameters.ENTRYPOINT }} ${{ parameters.REQUESTING_USER }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.STATUS_COMMENT }} ${{ parameters.DISTINCT_ID }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)' '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=artifacts&type=publishedArtifacts' ${{ parameters.POST_RESULT }} ${{ parameters.REPO_COUNT }} '$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/artifacts'
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: 'Update PR comment with new errors'
     env:
       GITHUB_PAT: $(GITHUB_PAT)
   - script: node scripts/create-github-app-token-from-keyvault.cjs
+    target:
+      commands: restricted
+      settableVariables: none
     displayName: Revoke GitHub App token
     condition: always()
     env:
