@@ -944,6 +944,16 @@ export async function mainAsync(params: ScheduledParams | TriggeredParams): Prom
     const downloadDirPath = path.join(processCwd, "ts_downloads");
     const createFs = params.useOverlayFs ? createOverlayFS : createCopyingOverlayFS;
 
+    // Keep package manager caches next to the repos, rather than in the home directory
+    // (which may be on a much smaller disk), so they're deleted along with each repo.
+    const packageCacheDirPath = path.join(downloadDirPath, "cache");
+    process.env.npm_config_cache = path.join(packageCacheDirPath, "npm");
+    // pnpm 11+ only reads pnpm_config_*; older versions only read npm_config_*.
+    process.env.npm_config_store_dir = process.env.pnpm_config_store_dir = path.join(packageCacheDirPath, "pnpm-store");
+    process.env.npm_config_cache_dir = process.env.pnpm_config_cache_dir = path.join(packageCacheDirPath, "pnpm");
+    process.env.YARN_CACHE_FOLDER = path.join(packageCacheDirPath, "yarn");
+    process.env.YARN_GLOBAL_FOLDER = path.join(packageCacheDirPath, "yarn-global");
+
     const resultDirPath = path.join(processCwd, params.resultDirName);
 
     if (!(await pu.exists(resultDirPath))) {
