@@ -66,7 +66,7 @@ export function errorEquals(error1: Error, error2: Error) {
  */
 export async function buildAndGetErrors(repoDir: string, monorepoPackages: readonly string[], isUserTestRepo: boolean, tscPath: string, timeoutMs: number, skipLibCheck: boolean = true): Promise<RepoErrors> {
     const projectErrors: ProjectErrors[] = [];
-    const tsRepoPath = path.resolve(path.dirname(path.dirname(path.dirname(tscPath))));
+    const tsRepoPath = findCompilerPackagePath(tscPath);
 
     // If it's a user test repo and there's a build.sh in the root, don't bother searching for projects
     // Obviously, we don't want to execute scripts we find in GH repos
@@ -131,6 +131,21 @@ export async function buildAndGetErrors(repoDir: string, monorepoPackages: reado
         hasConfigFailure,
         projectErrors,
     };
+}
+
+export function findCompilerPackagePath(entrypointPath: string): string {
+    let current = path.dirname(entrypointPath);
+    while (true) {
+        if (fs.existsSync(path.join(current, "package.json"))) {
+            return current;
+        }
+
+        const parent = path.dirname(current);
+        if (parent === current) {
+            throw new Error(`Cannot find package root for ${entrypointPath}`);
+        }
+        current = parent;
+    }
 }
 
 async function getProjectErrors(projectPath: string, tsRepoPath: string, stdout: string, hasBuildFailure: boolean, isComposite: boolean, reportGithubLinks: boolean): Promise<ProjectErrors> {

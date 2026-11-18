@@ -1,14 +1,14 @@
 import * as path from "node:path";
-import { mainAsync, reportError, type TsEntrypoint } from "./main.js";
+import { mainAsync, reportError, type ComparisonMode, type TsEntrypoint } from "./main.js";
 
 const { argv } = process;
 
 if (argv.length < 13) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_overlay_fs>? <expected_head_sha>? <expected_base_sha>? <expected_merge_sha>?`);
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_repo_url> <old_head_ref> <pr_number> <is_top_repos> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_overlay_fs>? <expected_head_sha>? <expected_base_sha>? <expected_merge_sha>? <comparison_mode>?`);
     process.exit(-1);
 }
 
-const [,, entrypoint, oldTsRepoUrl, , prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs, expectedHeadSha, expectedBaseSha, expectedMergeSha] = argv;
+const [,, entrypoint, oldTsRepoUrl, , prNumber, buildWithNewWhenOldFails, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs, expectedHeadSha, expectedBaseSha, expectedMergeSha, comparisonMode] = argv;
 
 mainAsync({
     testType: "triggered",
@@ -16,6 +16,7 @@ mainAsync({
     entrypoint: entrypoint as TsEntrypoint,
     oldTsRepoUrl,
     prNumber: +prNumber,
+    comparisonMode: comparisonMode as ComparisonMode | undefined,
     buildWithNewWhenOldFails: buildWithNewWhenOldFails.toLowerCase() !== "true",
     repoListPath,
     workerCount: +workerCount,

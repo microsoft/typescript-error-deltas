@@ -60,6 +60,7 @@ export interface ScheduledParams extends Params {
     testType: "scheduled";
     oldTsNpmVersion: string;
     newTsNpmVersion: string;
+    comparisonMode?: ComparisonMode;
 }
 interface PrSnapshot {
     headSha: string;
@@ -71,10 +72,12 @@ export interface TriggeredParams extends Params {
     oldTsRepoUrl: string;
     prNumber: number;
     expectedPrSnapshot: PrSnapshot | undefined;
+    comparisonMode?: ComparisonMode;
 }
 
 export type TsEntrypoint = "tsc" | "tsserver" | "fuzzer";
 export type TypeScriptImplementation = "strada" | "corsa";
+export type ComparisonMode = "standard" | "tsrs";
 
 const processCwd = process.cwd();
 const packageTimeout = 10 * 60 * 1000;
@@ -1298,6 +1301,26 @@ interface DownloadedTs {
 
 async function downloadTsAsync(cwd: string, params: ScheduledParams | TriggeredParams): Promise<{ oldTsEntrypointPath: string | undefined, oldTsResolvedVersion: string | undefined, newTsEntrypointPath: string, newTsResolvedVersion: string, implementation: TypeScriptImplementation }> {
     const entrypoint = params.entrypoint;
+    if (params.comparisonMode !== undefined && params.comparisonMode !== "standard" && params.comparisonMode !== "tsrs") {
+        throw new Error(`Unknown comparison mode: ${params.comparisonMode}`);
+    }
+
+    if (params.comparisonMode === "tsrs") {
+        if (entrypoint !== "tsc") {
+            throw new Error("The tsrs comparison mode only supports the tsc entrypoint");
+        }
+
+        const baseline = await downloadTsRepoAsync(cwd, "https://github.com/microsoft/TypeScript.git", "main", entrypoint);
+        const candidate = await downloadTsNpmAsync(cwd, "latest", entrypoint, "tsrs");
+        return {
+            oldTsEntrypointPath: baseline.tsEntrypointPath,
+            oldTsResolvedVersion: `typescript@${baseline.resolvedVersion}`,
+            newTsEntrypointPath: candidate.tsEntrypointPath,
+            newTsResolvedVersion: candidate.resolvedVersion,
+            implementation: candidate.implementation,
+        };
+    }
+
     if (params.testType === "triggered") {
         console.log("running user test, downloading TS from repo");
         if (params.entrypoint === "fuzzer") {
@@ -1474,10 +1497,14 @@ async function downloadGoModules(repoPath: string): Promise<void> {
     }
 }
 
-async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint): Promise<DownloadedTs> {
-    const tarName = (await execFileAsync(cwd, "npm", ["pack", `typescript@${version}`, "--quiet"])).trim();
+export async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEntrypoint, packageName = "typescript"): Promise<DownloadedTs> {
+    if (packageName !== "typescript" && entrypoint !== "tsc") {
+        throw new Error(`${packageName} only supports the tsc entrypoint`);
+    }
 
-    const tarMatch = /^(typescript-(.+))\..+$/.exec(tarName);
+    const tarName = (await execFileAsync(cwd, "npm", ["pack", `${packageName}@${version}`, "--quiet"])).trim();
+
+    const tarMatch = new RegExp(`^(${packageName.replaceAll("-", "\\-")}-(.+))\\..+$`).exec(tarName);
     if (!tarMatch) {
         throw new Error("Unexpected tarball name format: " + tarName);
     }
@@ -1490,10 +1517,15 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
     await fs.promises.rm(path.join(cwd, tarName));
     await fs.promises.rename(path.join(processCwd, "package"), dirPath);
 
-    const packageJson = JSON.parse(await fs.promises.readFile(path.join(dirPath, "package.json"), { encoding: "utf-8" })) as {
+    const packageJsonPath = path.join(dirPath, "package.json");
+    const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, { encoding: "utf-8" })) as {
+        name?: string;
+        bin?: string | Record<string, string>;
         optionalDependencies?: Record<string, string>;
     };
-    const implementation = detectTypeScriptNpmImplementation(packageJson);
+    const implementation = packageName === "typescript"
+        ? detectTypeScriptNpmImplementation(packageJson)
+        : "strada";
     if (entrypoint === "fuzzer" && implementation !== "corsa") {
         throw new Error(`TypeScript ${resolvedVersion} does not support the LSP fuzzer`);
     }
@@ -1501,12 +1533,28 @@ async function downloadTsNpmAsync(cwd: string, version: string, entrypoint: TsEn
         await execFileAsync(dirPath, "npm", ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"]);
     }
 
-    const tsEntrypointPath = implementation === "corsa"
+    if (packageName === "tsrs") {
+        await execFileAsync(dirPath, "npm", ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"]);
+        packageJson.name = "typescript";
+        packageJson.bin = {
+            ...(typeof packageJson.bin === "object" ? packageJson.bin : {}),
+            tsc: "./bin/tsrs",
+        };
+        await fs.promises.writeFile(packageJsonPath, JSON.stringify(packageJson, undefined, 4) + "\n", { encoding: "utf-8" });
+    }
+
+    const tsEntrypointPath = packageName === "tsrs"
+        ? path.join(dirPath, "bin", "tsrs")
+        : implementation === "corsa"
         ? path.join(dirPath, "bin", "tsc")
         : path.join(dirPath, "lib", `${entrypoint}.js`);
     if (!await pu.exists(tsEntrypointPath)) {
         throw new Error("Cannot find file " + tsEntrypointPath);
     }
 
-    return { tsEntrypointPath, resolvedVersion, implementation };
+    return {
+        tsEntrypointPath,
+        resolvedVersion: packageName === "typescript" ? resolvedVersion : `${packageName}@${resolvedVersion}`,
+        implementation,
+    };
 }

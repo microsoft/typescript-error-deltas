@@ -23,6 +23,13 @@ parameters:
     displayName: Candidate TypeScript package version
     type: string
     default: next
+  - name: COMPARISON_MODE
+    displayName: Compiler comparison mode
+    type: string
+    default: standard
+    values:
+    - standard
+    - tsrs
   - name: MACHINE_COUNT
     displayName: Machine Count
     type: number
@@ -82,6 +89,7 @@ extends:
     REPO_START_INDEX: ${{ parameters.REPO_START_INDEX }}
     OLD_VERSION: ${{ parameters.OLD_VERSION }}
     NEW_VERSION: ${{ parameters.NEW_VERSION }}
+    COMPARISON_MODE: ${{ parameters.COMPARISON_MODE }}
     MACHINE_COUNT: ${{ parameters.MACHINE_COUNT }}
     ENTRYPOINT: ${{ parameters.ENTRYPOINT }}
     LANGUAGE: ${{ parameters.LANGUAGE }}

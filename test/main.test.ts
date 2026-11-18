@@ -1,4 +1,4 @@
-import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsPrAsync, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
+import { detectTypeScriptImplementation, detectTypeScriptNpmImplementation, downloadTsNpmAsync, downloadTsPrAsync, downloadTsRepoAsync, mainAsync, reduceSpew } from '../src/main.js'
 import * as path from "node:path"
 import { execFileAsync } from '../src/utils/execUtils.js';
 import type { SpawnResult } from '../src/utils/execUtils.js';
@@ -52,6 +52,8 @@ vi.mock("../src/utils/execUtils", () => ({
             return ' typescript-0.0.0.tgz';
         } else if (command === "npm" && args[0] === "pack" && args[1] === "typescript@next") {
             return ' typescript-1.1.1.tgz';
+        } else if (command === "npm" && args[0] === "pack" && args[1] === "tsrs@latest") {
+            return 'tsrs-7.1.0-beta.tgz';
         } else if (command === "git" && args[0] === "rev-parse") {
             return testState.prRefs ?? '57b462387e88aa7e363af0daf867a5dc1e83a935';
         }
@@ -73,9 +75,18 @@ vi.mock('node:fs', async () => {
             mkdir: vi.fn().mockResolvedValue(undefined),
             rename: vi.fn().mockResolvedValue(undefined),
             readFile: vi.fn((filePath: string, options?: Parameters<typeof fs.promises.readFile>[1]) => {
-            if (/typescript-(?:0\.0\.0|1\.1\.1)[\\/]package\.json$/.test(filePath)) {
-                return Promise.resolve(JSON.stringify({ name: "typescript" }));
-            }
+                if (/typescript-(?:0\.0\.0|1\.1\.1)[\\/]package\.json$/.test(filePath)) {
+                    return Promise.resolve(JSON.stringify({ name: "typescript" }));
+                }
+                if (/tsrs-7\.1\.0-beta[\\/]package\.json$/.test(filePath)) {
+                    return Promise.resolve(JSON.stringify({
+                        name: "tsrs",
+                        bin: { tsrs: "./bin/tsrs" },
+                        optionalDependencies: {
+                            "@tsrs/linux-x64-gnu": "7.1.0-beta",
+                        },
+                    }));
+                }
                 return fs.promises.readFile(filePath, options);
             }),
         },
@@ -135,6 +146,39 @@ describe("main", () => {
                 "@typescript/typescript-linux-x64": "7.1.0-dev.20260813.1",
             },
         })).toBe("corsa");
+    });
+
+    it("downloads the native compiler package as a compatible TypeScript compiler", async () => {
+        testState.writeFile.mockClear();
+        vi.mocked(execFileAsync).mockClear();
+
+        const result = await downloadTsNpmAsync("./testDownloads/main", "latest", "tsc", "tsrs");
+
+        expect(result).toEqual({
+            tsEntrypointPath: path.join(process.cwd(), "tsrs-7.1.0-beta", "bin", "tsrs"),
+            resolvedVersion: "tsrs@7.1.0-beta",
+            implementation: "strada",
+        });
+        expect(execFileAsync).toHaveBeenCalledWith(
+            "./testDownloads/main",
+            "npm",
+            ["pack", "tsrs@latest", "--quiet"],
+        );
+        expect(execFileAsync).toHaveBeenCalledWith(
+            path.join(process.cwd(), "tsrs-7.1.0-beta"),
+            "npm",
+            ["install", "--ignore-scripts", "--omit=dev", "--no-package-lock", "--silent"],
+        );
+        expect(testState.writeFile).toHaveBeenCalledWith(
+            path.join(process.cwd(), "tsrs-7.1.0-beta", "package.json"),
+            expect.stringContaining('"name": "typescript"'),
+            { encoding: "utf-8" },
+        );
+        expect(testState.writeFile).toHaveBeenCalledWith(
+            path.join(process.cwd(), "tsrs-7.1.0-beta", "package.json"),
+            expect.stringContaining('"tsc": "./bin/tsrs"'),
+            { encoding: "utf-8" },
+        );
     });
 
     it("removes npm warnings in linear time", () => {

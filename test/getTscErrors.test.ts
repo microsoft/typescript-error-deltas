@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs"
 import * as path from 'node:path'
-import { buildAndGetErrors } from '../src/utils/getTscErrors.js'
+import { buildAndGetErrors, findCompilerPackagePath } from '../src/utils/getTscErrors.js'
 import { downloadTsRepoAsync } from '../src/main.js'
 import { beforeAll, describe, expect, it } from "vitest";
 describe("getErrors", () => {
@@ -11,6 +11,14 @@ describe("getErrors", () => {
             }
             await downloadTsRepoAsync('./testDownloads/getErrors', 'https://github.com/sandersn/typescript', 'test-fake-error', 'tsc');
         }
+    });
+
+    it("finds compiler package roots for built and npm layouts", () => {
+        const repoPath = path.resolve("./testDownloads/getErrors/typescript-test-fake-error");
+        expect(findCompilerPackagePath(path.join(repoPath, "built", "local", "tsc.js"))).toBe(repoPath);
+
+        const npmPackagePath = path.resolve("./node_modules/typescript");
+        expect(findCompilerPackagePath(path.join(npmPackagePath, "bin", "tsc"))).toBe(npmPackagePath);
     });
 
     it("builds a simple project one time", async () => {

@@ -64,6 +64,13 @@ parameters:
     values:
     - tsc
     - tsserver
+  - name: COMPARISON_MODE
+    displayName: Compiler comparison mode
+    type: string
+    default: standard
+    values:
+    - standard
+    - tsrs
   - name: PRNG_SEED
     displayName: Pseudo-random number generator seed
     type: string
@@ -183,7 +190,7 @@ jobs:
       corepack enable
       corepack enable npm
       mkdir 'RepoResults$(System.JobPositionInPhase)'
-      node dist/checkReposTriggered ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }} true "$EXPECTED_HEAD_SHA" "$EXPECTED_BASE_SHA" "$EXPECTED_MERGE_SHA"
+      node dist/checkReposTriggered ${{ parameters.ENTRYPOINT }} ${{ parameters.OLD_TS_REPO_URL }} ${{ parameters.OLD_HEAD_REF }} ${{ parameters.SOURCE_ISSUE }} ${{ parameters.TOP_REPOS }} '$(Pipeline.Workspace)/RepoList/repos.json' $(System.TotalJobsInPhase) $(System.JobPositionInPhase) 'RepoResults$(System.JobPositionInPhase)' ${{ parameters.DIAGNOSTIC_OUTPUT }} ${{ parameters.PRNG_SEED }} true "$EXPECTED_HEAD_SHA" "$EXPECTED_BASE_SHA" "$EXPECTED_MERGE_SHA" ${{ parameters.COMPARISON_MODE }}
     target:
       commands: restricted
       settableVariables: none

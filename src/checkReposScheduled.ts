@@ -1,14 +1,14 @@
 import * as path from "node:path";
-import { mainAsync, reportError, type TsEntrypoint } from "./main.js";
+import { mainAsync, reportError, type ComparisonMode, type TsEntrypoint } from "./main.js";
 
 const { argv } = process;
 
 if (argv.length < 11) {
-    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_npm_version> <new_ts_npm_version> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_overlay_fs>?`);
+    console.error(`Usage: ${path.basename(argv[0])} ${path.basename(argv[1])} <ts_entrypoint> <old_ts_npm_version> <new_ts_npm_version> <repo_list_path> <worker_count> <worker_number> <result_dir_name> <diagnostic_output> <prng_seed> <use_overlay_fs>? <comparison_mode>?`);
     process.exit(-1);
 }
 
-const [,, entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs] = argv;
+const [,, entrypoint, oldTsNpmVersion, newTsNpmVersion, repoListPath, workerCount, workerNumber, resultDirName, diagnosticOutput, prngSeed, useOverlayFs, comparisonMode] = argv;
 
 mainAsync({
     testType: "scheduled",
@@ -21,6 +21,7 @@ mainAsync({
     workerNumber: +workerNumber,
     oldTsNpmVersion,
     newTsNpmVersion,
+    comparisonMode: comparisonMode as ComparisonMode | undefined,
     resultDirName,
     prngSeed: prngSeed.toLowerCase() === "n/a" ? undefined : prngSeed,
 }).catch(err => {

@@ -19,14 +19,16 @@ These commands can also be run locally.
 
 ```sh
 # New Error Detector (a.k.a. "scheduled tests")
-node dist/checkReposScheduled.js [post-results] [repo-count] [repo-start-index] [old-ts-version-on-npm] [old-ts-version-on-npm]
+node dist/checkReposScheduled.js <ts-entrypoint> <old-ts-version-on-npm> <new-ts-version-on-npm> <repo-list-path> <worker-count> <worker-number> <result-dir-name> <diagnostic-output> <prng-seed> [use-overlay-fs] [comparison-mode]
 
 # Inline User Test Reporter (a.k.a. "triggered tests")
-node dist/checkReposTriggered.js <ts-entrypoint> <old-ts-repo-url> <old-head-ref> <pr-number> <is-top-repos> <repo-list-path> <worker-count> <worker-number> <result-dir-name> <diagnostic-output> <prng-seed> [use-tempfs] [expected-head-sha] [expected-base-sha] [expected-merge-sha]
+node dist/checkReposTriggered.js <ts-entrypoint> <old-ts-repo-url> <old-head-ref> <pr-number> <is-top-repos> <repo-list-path> <worker-count> <worker-number> <result-dir-name> <diagnostic-output> <prng-seed> [use-overlay-fs] [expected-head-sha] [expected-base-sha] [expected-merge-sha] [comparison-mode]
 
 ```
 
 The triggered command's `<old-head-ref>` argument is retained for compatibility but ignored; both builds use the same PR merge snapshot.
+Set `<comparison-mode>` to `tsrs` to compare the TypeScript `main` build against the latest `tsrs` package.
+This mode supports the `tsc` entrypoint and can be selected for both user-test and scheduled repository runs.
 
 You can view example usage of these commands from how they're currently triggered on Azure Pipelines:
 
