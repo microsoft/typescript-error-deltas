@@ -940,6 +940,24 @@ export function getWorkerRepos<T>(allRepos: readonly T[], workerCount: number, w
 }
 
 export async function mainAsync(params: ScheduledParams | TriggeredParams): Promise<void> {
+    const previousFastMode = process.env.TSRS_FAST;
+    if (params.comparisonMode === "tsrs") {
+        process.env.TSRS_FAST = "1";
+    }
+    try {
+        await mainAsyncInner(params);
+    }
+    finally {
+        if (previousFastMode === undefined) {
+            delete process.env.TSRS_FAST;
+        }
+        else {
+            process.env.TSRS_FAST = previousFastMode;
+        }
+    }
+}
+
+async function mainAsyncInner(params: ScheduledParams | TriggeredParams): Promise<void> {
     const effectiveSeed = params.prngSeed ?? randomSeed.create().string(20);
     prng.seed(effectiveSeed);
     console.log("PRNG seed: " + effectiveSeed);
